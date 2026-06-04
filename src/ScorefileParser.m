@@ -1,4 +1,5 @@
 #import "ScorefileParser.h"
+#import <math.h>
 
 static NSString * const ScorefileParserErrorDomain = @"ScoreMakerScorefileParser";
 
@@ -168,6 +169,18 @@ static NSInteger PitchForName(NSString *value, BOOL *ok)
     return (octave + 1) * 12 + semitone;
 }
 
+static NSInteger PitchForFrequency(NSString *value, NSDictionary *variables, BOOL *ok)
+{
+    BOOL expressionOK = NO;
+    double frequency = EvaluateExpression(value, variables, &expressionOK);
+    if (expressionOK && frequency > 0.0) {
+        if (ok) *ok = YES;
+        return (NSInteger)llround(69.0 + 12.0 * log(frequency / 440.0) / log(2.0));
+    }
+
+    return PitchForName(value, ok);
+}
+
 static NSString *NoteNameForPitch(NSInteger pitch)
 {
     static NSString *names[] = {@"c", @"cs", @"d", @"ds", @"e", @"f", @"fs", @"g", @"gs", @"a", @"as", @"b"};
@@ -279,20 +292,31 @@ static NSString *NoteNameForPitch(NSInteger pitch)
         NSString *event = Trim([statement substringWithRange:NSMakeRange(open.location + 1, close.location - open.location - 1)]);
         NSString *params = [statement substringFromIndex:close.location + 1];
         NSString *pitchString = nil;
-        for (NSString *paramName in [NSArray arrayWithObjects:@"keyNum:", @"freq:", nil]) {
-            NSRange paramRange = [params rangeOfString:paramName];
-            if (paramRange.location != NSNotFound) {
-                NSString *after = [params substringFromIndex:paramRange.location + paramRange.length];
-                NSScanner *scanner = [NSScanner scannerWithString:after];
-                NSString *scanned = nil;
-                [scanner scanUpToCharactersFromSet:[NSCharacterSet characterSetWithCharactersInString:@" ,\t\r\n"] intoString:&scanned];
-                pitchString = scanned;
-                break;
+        BOOL pitchIsFrequency = NO;
+        NSRange keyNumRange = [params rangeOfString:@"keyNum:"];
+        NSRange freqRange = [params rangeOfString:@"freq:"];
+        if (keyNumRange.location != NSNotFound || freqRange.location != NSNotFound) {
+            NSRange paramRange = keyNumRange;
+            NSString *paramName = @"keyNum:";
+            if (freqRange.location != NSNotFound &&
+                (keyNumRange.location == NSNotFound || freqRange.location < keyNumRange.location)) {
+                paramRange = freqRange;
+                paramName = @"freq:";
+                pitchIsFrequency = YES;
             }
+
+            NSString *after = [params substringFromIndex:paramRange.location + [paramName length]];
+            NSScanner *scanner = [NSScanner scannerWithString:after];
+            NSString *scanned = nil;
+            [scanner scanUpToCharactersFromSet:[NSCharacterSet characterSetWithCharactersInString:@" ,\t\r\n"] intoString:&scanned];
+            pitchString = scanned;
         }
 
         BOOL pitchOK = NO;
-        NSInteger pitch = pitchString ? PitchForName(pitchString, &pitchOK) : 60;
+        NSInteger pitch = 60;
+        if (pitchString) {
+            pitch = pitchIsFrequency ? PitchForFrequency(pitchString, variables, &pitchOK) : PitchForName(pitchString, &pitchOK);
+        }
         double ticksPerBeat = (double)document.ticksPerQuarter;
         NSUInteger currentTick = (NSUInteger)llround(currentTime * ticksPerBeat);
 
