@@ -22,14 +22,14 @@ static CGFloat const InspectorPadding = 18.0;
 
 - (NSWindow *)window
 {
-    return _window;
+    return _documentWindow;
 }
 
 - (void)setWindow:(NSWindow *)window
 {
-    if (_window != window) {
-        [_window release];
-        _window = [window retain];
+    if (_documentWindow != window) {
+        [_documentWindow release];
+        _documentWindow = [window retain];
     }
 }
 
@@ -106,7 +106,7 @@ static CGFloat const InspectorPadding = 18.0;
 - (void)dealloc
 {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
-    [_window release];
+    [_documentWindow release];
     [_scoreDocument release];
     [_scrollView release];
     [_scoreView release];

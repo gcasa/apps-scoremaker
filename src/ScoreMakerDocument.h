@@ -3,7 +3,7 @@
 
 @interface ScoreMakerDocument : NSDocument <NSTextFieldDelegate>
 {
-    NSWindow *_window;
+    NSWindow *_documentWindow;
     NSWindowController *_windowController;
     ScoreDocument *_scoreDocument;
     NSScrollView *_scrollView;
