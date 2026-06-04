@@ -14,15 +14,32 @@ static NSString *StripComments(NSString *input)
     NSMutableString *output = [NSMutableString string];
     NSUInteger length = [input length];
     BOOL inComment = NO;
+    BOOL inQuote = NO;
+    BOOL escaping = NO;
     for (NSUInteger i = 0; i < length; i++) {
         unichar c = [input characterAtIndex:i];
         unichar next = (i + 1 < length) ? [input characterAtIndex:i + 1] : 0;
-        if (!inComment && c == '/' && next == '*') {
+        if (escaping) {
+            [output appendFormat:@"%C", c];
+            escaping = NO;
+            continue;
+        }
+        if (!inComment && c == '\\') {
+            [output appendFormat:@"%C", c];
+            escaping = YES;
+            continue;
+        }
+        if (!inComment && c == '"') {
+            inQuote = !inQuote;
+            [output appendFormat:@"%C", c];
+            continue;
+        }
+        if (!inQuote && !inComment && c == '/' && next == '*') {
             inComment = YES;
             i++;
             continue;
         }
-        if (inComment && c == '*' && next == '/') {
+        if (!inQuote && inComment && c == '*' && next == '/') {
             inComment = NO;
             i++;
             continue;
@@ -34,9 +51,104 @@ static NSString *StripComments(NSString *input)
     return output;
 }
 
+static NSArray *ScorefileStatements(NSString *input)
+{
+    NSMutableArray *statements = [NSMutableArray array];
+    NSMutableString *statement = [NSMutableString string];
+    BOOL inQuote = NO;
+    BOOL escaping = NO;
+
+    for (NSUInteger i = 0; i < [input length]; i++) {
+        unichar c = [input characterAtIndex:i];
+        if (escaping) {
+            [statement appendFormat:@"%C", c];
+            escaping = NO;
+            continue;
+        }
+        if (c == '\\') {
+            [statement appendFormat:@"%C", c];
+            escaping = YES;
+            continue;
+        }
+        if (c == '"') {
+            inQuote = !inQuote;
+            [statement appendFormat:@"%C", c];
+            continue;
+        }
+        if (c == ';' && !inQuote) {
+            [statements addObject:[[statement copy] autorelease]];
+            [statement setString:@""];
+            continue;
+        }
+        [statement appendFormat:@"%C", c];
+    }
+
+    if ([statement length] > 0) {
+        [statements addObject:[[statement copy] autorelease]];
+    }
+    return statements;
+}
+
 static NSString *Trim(NSString *input)
 {
     return [input stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+}
+
+static NSString *EscapeScorefileString(NSString *input)
+{
+    NSMutableString *output = [NSMutableString string];
+    for (NSUInteger i = 0; i < [input length]; i++) {
+        unichar c = [input characterAtIndex:i];
+        switch (c) {
+            case '\\': [output appendString:@"\\\\"]; break;
+            case '"': [output appendString:@"\\\""]; break;
+            case '\n': [output appendString:@"\\n"]; break;
+            case '\r': [output appendString:@"\\r"]; break;
+            case ';': [output appendString:@"\\;"]; break;
+            default: [output appendFormat:@"%C", c]; break;
+        }
+    }
+    return output;
+}
+
+static NSString *UnescapeScorefileString(NSString *input)
+{
+    NSMutableString *output = [NSMutableString string];
+    BOOL escaping = NO;
+    for (NSUInteger i = 0; i < [input length]; i++) {
+        unichar c = [input characterAtIndex:i];
+        if (escaping) {
+            switch (c) {
+                case 'n': [output appendString:@"\n"]; break;
+                case 'r': [output appendString:@"\r"]; break;
+                case ';': [output appendString:@";"]; break;
+                case '"': [output appendString:@"\""]; break;
+                case '\\': [output appendString:@"\\"]; break;
+                default: [output appendFormat:@"%C", c]; break;
+            }
+            escaping = NO;
+        } else if (c == '\\') {
+            escaping = YES;
+        } else {
+            [output appendFormat:@"%C", c];
+        }
+    }
+    if (escaping) {
+        [output appendString:@"\\"];
+    }
+    return output;
+}
+
+static NSString *QuotedStringValue(NSString *statement, NSString *prefix)
+{
+    if (![statement hasPrefix:prefix]) {
+        return nil;
+    }
+    NSString *value = Trim([statement substringFromIndex:[prefix length]]);
+    if ([value hasPrefix:@"\""] && [value hasSuffix:@"\""] && [value length] >= 2) {
+        value = [value substringWithRange:NSMakeRange(1, [value length] - 2)];
+    }
+    return UnescapeScorefileString(value);
 }
 
 static double ValueForToken(NSString *token, NSDictionary *variables, BOOL *ok);
@@ -224,7 +336,7 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
     }
 
     NSString *content = StripComments(raw);
-    NSArray *statements = [content componentsSeparatedByString:@";"];
+    NSArray *statements = ScorefileStatements(content);
     NSMutableDictionary *variables = [NSMutableDictionary dictionary];
     NSMutableDictionary *activeNotes = [NSMutableDictionary dictionary];
     ScoreDocument *document = [[[ScoreDocument alloc] init] autorelease];
@@ -244,6 +356,11 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
         if ([statement length] == 0) {
             continue;
         }
+        NSString *annotation = QuotedStringValue(statement, @"annotation ");
+        if (annotation) {
+            [document setAnnotationText:annotation];
+            continue;
+        }
         if ([statement rangeOfString:@"BEGIN"].location != NSNotFound) {
             inBody = YES;
             continue;
@@ -261,6 +378,22 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
                 if ([scanner scanDouble:&scannedTempo] && scannedTempo > 0.0) {
                     tempoBPM = scannedTempo;
                     [document setTempoMicrosecondsPerQuarter:(NSUInteger)(60000000.0 / tempoBPM)];
+                }
+            }
+            NSRange timingRange = [statement rangeOfString:@"timeSignature:"];
+            if (timingRange.location != NSNotFound) {
+                NSString *timingString = [statement substringFromIndex:timingRange.location + timingRange.length];
+                NSScanner *scanner = [NSScanner scannerWithString:timingString];
+                NSInteger numerator = 0;
+                NSInteger denominator = 0;
+                NSString *slash = nil;
+                if ([scanner scanInteger:&numerator] &&
+                    [scanner scanString:@"/" intoString:&slash] &&
+                    [scanner scanInteger:&denominator] &&
+                    numerator > 0 &&
+                    denominator > 0) {
+                    [document setTimeSignatureNumerator:(NSUInteger)numerator];
+                    [document setTimeSignatureDenominator:(NSUInteger)denominator];
                 }
             }
             continue;
@@ -438,7 +571,13 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
     double tempoBPM = [document tempoMicrosecondsPerQuarter] > 0 ? 60000000.0 / (double)[document tempoMicrosecondsPerQuarter] : 120.0;
     NSMutableString *output = [NSMutableString string];
     [output appendString:@"/* Written by ScoreMaker. */\n\n"];
-    [output appendFormat:@"info tempo:%.6g;\n", tempoBPM];
+    [output appendFormat:@"info tempo:%.6g timeSignature:%lu/%lu;\n",
+                         tempoBPM,
+                         (unsigned long)[document timeSignatureNumerator],
+                         (unsigned long)[document timeSignatureDenominator]];
+    if ([[document annotationText] length] > 0) {
+        [output appendFormat:@"annotation \"%@\";\n", EscapeScorefileString([document annotationText])];
+    }
     NSMutableDictionary *partIdentifiers = [NSMutableDictionary dictionary];
     NSMutableArray *tracks = [NSMutableArray array];
     NSEnumerator *noteEnumerator = [[document notes] objectEnumerator];

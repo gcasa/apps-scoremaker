@@ -28,8 +28,7 @@ static CGFloat const FirstSystemOffset = 54.0;
     if (_document != document) {
         [_document release];
         _document = [document retain];
-        [self updateFrameForDocument];
-        [self setNeedsDisplay:YES];
+        [self reloadDocument];
     }
 }
 
@@ -48,6 +47,12 @@ static CGFloat const FirstSystemOffset = 54.0;
     }
     CGFloat height = Margin + (CGFloat)systems * SystemHeight + Margin;
     [self setFrameSize:NSMakeSize(PageWidth, height)];
+}
+
+- (void)reloadDocument
+{
+    [self updateFrameForDocument];
+    [self setNeedsDisplay:YES];
 }
 
 - (NSUInteger)ticksPerSystem

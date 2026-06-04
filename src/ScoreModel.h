@@ -26,6 +26,7 @@
     NSString *_title;
     NSMutableArray *_notes;
     NSMutableDictionary *_partNames;
+    NSString *_annotationText;
     NSUInteger _ticksPerQuarter;
     NSUInteger _tempoMicrosecondsPerQuarter;
     NSUInteger _timeSignatureNumerator;
@@ -38,6 +39,8 @@
 - (void)setNotes:(NSMutableArray *)notes;
 - (NSMutableDictionary *)partNames;
 - (void)setPartNames:(NSMutableDictionary *)partNames;
+- (NSString *)annotationText;
+- (void)setAnnotationText:(NSString *)annotationText;
 - (NSUInteger)ticksPerQuarter;
 - (void)setTicksPerQuarter:(NSUInteger)ticksPerQuarter;
 - (NSUInteger)tempoMicrosecondsPerQuarter;

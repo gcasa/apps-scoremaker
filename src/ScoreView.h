@@ -7,4 +7,5 @@
 }
 - (ScoreDocument *)document;
 - (void)setDocument:(ScoreDocument *)document;
+- (void)reloadDocument;
 @end

@@ -104,6 +104,19 @@
     }
 }
 
+- (NSString *)annotationText
+{
+    return _annotationText;
+}
+
+- (void)setAnnotationText:(NSString *)annotationText
+{
+    if (_annotationText != annotationText) {
+        [_annotationText release];
+        _annotationText = [annotationText retain];
+    }
+}
+
 - (NSUInteger)ticksPerQuarter
 {
     return _ticksPerQuarter;
@@ -160,6 +173,7 @@
     if (self) {
         _notes = [[NSMutableArray alloc] init];
         _partNames = [[NSMutableDictionary alloc] init];
+        _annotationText = [@"" retain];
         _ticksPerQuarter = 480;
         _tempoMicrosecondsPerQuarter = 500000;
         _timeSignatureNumerator = 4;
@@ -174,6 +188,7 @@
     [_title release];
     [_notes release];
     [_partNames release];
+    [_annotationText release];
     [super dealloc];
 }
 

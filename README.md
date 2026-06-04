@@ -11,6 +11,7 @@ The renderer is intentionally lightweight. It focuses on extracting timing, pitc
 - Save the currently loaded score as a MusicKit-style `.score` file.
 - Render notes across treble and bass staves with measure lines.
 - Read MIDI tempo and time-signature metadata when available.
+- Add pitched notes and edit score notes, tempo, and time signature from the inspector next to the sheet.
 - Support common MusicKit scorefile timing, variable, `freq`, `keyNum`, `noteOn`, `noteOff`, `noteUpdate`, and duration-note patterns.
 
 ## Build
@@ -34,6 +35,8 @@ The GNUstep build expects `gnustep-config`, GNUstep GUI libraries, and an Object
 ## Use
 
 Open the app, then choose `File > Open...` to load a `.mid`, `.midi`, or `.score` file.
+
+Use the inspector on the right side of the sheet to add pitched notes, add freeform score notes, change the tempo in BPM, or change the time signature.
 
 To save the displayed score as a MusicKit-style scorefile, choose `File > Save Score As...`.
 
