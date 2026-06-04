@@ -6,12 +6,21 @@
 {
     (void)notification;
     [self buildMenu];
+
+    NSDocumentController *controller = [NSDocumentController sharedDocumentController];
+    if ([[controller documents] count] == 0) {
+        NSError *error = nil;
+        NSDocument *document = [controller openUntitledDocumentAndDisplay:YES error:&error];
+        if (!document && error) {
+            [controller presentError:error];
+        }
+    }
 }
 
 - (BOOL)applicationShouldOpenUntitledFile:(NSApplication *)sender
 {
     (void)sender;
-    return YES;
+    return NO;
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender

@@ -37,4 +37,8 @@ ScoreMaker_APPLICATION_ICON = ScoreMakerAppIcon.png
 
 include $(GNUSTEP_MAKEFILES)/application.make
 
+.PHONY: run
+run:: all
+	openapp ./$(APP_NAME).app
+
 endif
