@@ -1,7 +1,7 @@
 APP_NAME := ScoreMaker
 BUILD_DIR := build
 SRC_DIR := src
-SOURCES := $(SRC_DIR)/main.m $(SRC_DIR)/AppDelegate.m $(SRC_DIR)/MidiParser.m $(SRC_DIR)/ScorefileParser.m $(SRC_DIR)/ScoreModel.m $(SRC_DIR)/ScoreView.m
+SOURCES := $(SRC_DIR)/main.m $(SRC_DIR)/AppDelegate.m $(SRC_DIR)/ScoreMakerDocument.m $(SRC_DIR)/MidiParser.m $(SRC_DIR)/ScorefileParser.m $(SRC_DIR)/ScoreModel.m $(SRC_DIR)/ScoreView.m
 RESOURCE_FILES := Resources/treble_clef.png Resources/bass_clef.png
 
 UNAME_S := $(shell uname -s)

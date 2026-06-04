@@ -106,7 +106,7 @@ static CGFloat const FirstSystemOffset = 54.0;
                                 [NSFont boldSystemFontOfSize:24.0], NSFontAttributeName,
                                 [NSColor blackColor], NSForegroundColorAttributeName,
                                 nil];
-    NSString *title = [_document title] ? [_document title] : @"Untitled MIDI";
+    NSString *title = [_document title] ? [_document title] : @"Untitled";
     [title drawAtPoint:NSMakePoint(Margin, Margin - 18.0) withAttributes:titleAttrs];
 }
 

@@ -1,4 +1,5 @@
 #import "MidiParser.h"
+#import <stdint.h>
 
 static NSString * const MidiParserErrorDomain = @"ScoreMakerMidiParser";
 
@@ -35,6 +36,74 @@ static NSError *ParserError(NSString *message)
 {
     NSDictionary *info = [NSDictionary dictionaryWithObject:message forKey:NSLocalizedDescriptionKey];
     return [NSError errorWithDomain:MidiParserErrorDomain code:1 userInfo:info];
+}
+
+static void AppendByte(NSMutableData *data, unsigned char value)
+{
+    [data appendBytes:&value length:1];
+}
+
+static void AppendBE16(NSMutableData *data, uint16_t value)
+{
+    unsigned char bytes[] = {
+        (unsigned char)((value >> 8) & 0xff),
+        (unsigned char)(value & 0xff)
+    };
+    [data appendBytes:bytes length:2];
+}
+
+static void AppendBE32(NSMutableData *data, uint32_t value)
+{
+    unsigned char bytes[] = {
+        (unsigned char)((value >> 24) & 0xff),
+        (unsigned char)((value >> 16) & 0xff),
+        (unsigned char)((value >> 8) & 0xff),
+        (unsigned char)(value & 0xff)
+    };
+    [data appendBytes:bytes length:4];
+}
+
+static void AppendVarLen(NSMutableData *data, NSUInteger value)
+{
+    unsigned char buffer[5];
+    NSUInteger count = 0;
+    buffer[count++] = (unsigned char)(value & 0x7f);
+    while ((value >>= 7) > 0 && count < 5) {
+        buffer[count++] = (unsigned char)((value & 0x7f) | 0x80);
+    }
+    while (count > 0) {
+        AppendByte(data, buffer[--count]);
+    }
+}
+
+static void AppendMetaText(NSMutableData *data, unsigned char type, NSString *text)
+{
+    NSData *textData = [text dataUsingEncoding:NSUTF8StringEncoding];
+    if (!textData) {
+        textData = [text dataUsingEncoding:NSISOLatin1StringEncoding];
+    }
+    if (!textData) {
+        return;
+    }
+    AppendByte(data, 0xff);
+    AppendByte(data, type);
+    AppendVarLen(data, [textData length]);
+    [data appendData:textData];
+}
+
+static NSComparisonResult CompareMidiEventDictionaries(id a, id b, void *context)
+{
+    (void)context;
+    NSUInteger tickA = [[a objectForKey:@"tick"] unsignedIntegerValue];
+    NSUInteger tickB = [[b objectForKey:@"tick"] unsignedIntegerValue];
+    if (tickA < tickB) return NSOrderedAscending;
+    if (tickA > tickB) return NSOrderedDescending;
+
+    NSInteger orderA = [[a objectForKey:@"order"] integerValue];
+    NSInteger orderB = [[b objectForKey:@"order"] integerValue];
+    if (orderA < orderB) return NSOrderedAscending;
+    if (orderA > orderB) return NSOrderedDescending;
+    return NSOrderedSame;
 }
 
 static NSString *MidiTextFromBytes(const unsigned char *bytes, NSUInteger length)
@@ -117,7 +186,7 @@ static NSString *GeneralMidiProgramName(unsigned char program)
     }
 
     ScoreDocument *document = [[[ScoreDocument alloc] init] autorelease];
-    [document setTitle:[path lastPathComponent]];
+    [document setTitle:[[path lastPathComponent] stringByDeletingPathExtension]];
     [document setTicksPerQuarter:division];
 
     NSUInteger offset = 8 + headerLength;
@@ -265,6 +334,132 @@ static NSString *GeneralMidiProgramName(unsigned char program)
             }
         }
     }
+}
+
++ (NSData *)dataForDocument:(ScoreDocument *)document error:(NSError **)error
+{
+    if (!document) {
+        if (error) *error = ParserError(@"There is no score to save.");
+        return nil;
+    }
+    if ([document ticksPerQuarter] == 0 || [document ticksPerQuarter] > UINT16_MAX) {
+        if (error) *error = ParserError(@"The score uses an unsupported MIDI time division.");
+        return nil;
+    }
+
+    NSMutableArray *tracks = [NSMutableArray array];
+    NSEnumerator *noteEnumerator = [[document notes] objectEnumerator];
+    ScoreNote *note = nil;
+    while ((note = [noteEnumerator nextObject]) != nil) {
+        NSNumber *track = [NSNumber numberWithInteger:[note track]];
+        if (![tracks containsObject:track]) {
+            [tracks addObject:track];
+        }
+    }
+    if ([tracks count] == 0) {
+        [tracks addObject:[NSNumber numberWithInteger:0]];
+    }
+    [tracks sortUsingSelector:@selector(compare:)];
+    if ([tracks count] > UINT16_MAX) {
+        if (error) *error = ParserError(@"The score has too many tracks for a Standard MIDI file.");
+        return nil;
+    }
+
+    NSMutableData *file = [NSMutableData data];
+    [file appendBytes:"MThd" length:4];
+    AppendBE32(file, 6);
+    AppendBE16(file, [tracks count] > 1 ? 1 : 0);
+    AppendBE16(file, (uint16_t)[tracks count]);
+    AppendBE16(file, (uint16_t)[document ticksPerQuarter]);
+
+    NSEnumerator *trackEnumerator = [tracks objectEnumerator];
+    NSNumber *trackNumber = nil;
+    BOOL wroteGlobalMetadata = NO;
+    while ((trackNumber = [trackEnumerator nextObject]) != nil) {
+        NSInteger trackIndex = [trackNumber integerValue];
+        NSMutableData *trackData = [NSMutableData data];
+
+        if (!wroteGlobalMetadata) {
+            AppendVarLen(trackData, 0);
+            AppendByte(trackData, 0xff);
+            AppendByte(trackData, 0x51);
+            AppendByte(trackData, 3);
+            NSUInteger tempo = [document tempoMicrosecondsPerQuarter] > 0 ? [document tempoMicrosecondsPerQuarter] : 500000;
+            AppendByte(trackData, (unsigned char)((tempo >> 16) & 0xff));
+            AppendByte(trackData, (unsigned char)((tempo >> 8) & 0xff));
+            AppendByte(trackData, (unsigned char)(tempo & 0xff));
+
+            AppendVarLen(trackData, 0);
+            AppendByte(trackData, 0xff);
+            AppendByte(trackData, 0x58);
+            AppendByte(trackData, 4);
+            AppendByte(trackData, (unsigned char)MIN([document timeSignatureNumerator], (NSUInteger)255));
+            NSUInteger denominator = MAX([document timeSignatureDenominator], (NSUInteger)1);
+            unsigned char denominatorPower = 0;
+            while (denominator > 1 && denominatorPower < 7) {
+                denominator >>= 1;
+                denominatorPower++;
+            }
+            AppendByte(trackData, denominatorPower);
+            AppendByte(trackData, 24);
+            AppendByte(trackData, 8);
+            wroteGlobalMetadata = YES;
+        }
+
+        NSString *trackName = [document nameForTrack:trackIndex];
+        if ([trackName length] > 0) {
+            AppendVarLen(trackData, 0);
+            AppendMetaText(trackData, 0x03, trackName);
+        }
+
+        NSMutableArray *events = [NSMutableArray array];
+        noteEnumerator = [[document notes] objectEnumerator];
+        while ((note = [noteEnumerator nextObject]) != nil) {
+            if ([note track] != trackIndex) {
+                continue;
+            }
+            unsigned char pitch = (unsigned char)MIN(MAX([note pitch], (NSInteger)0), (NSInteger)127);
+            unsigned char channel = (unsigned char)MIN(MAX([note channel], (NSInteger)0), (NSInteger)15);
+            [events addObject:[NSDictionary dictionaryWithObjectsAndKeys:
+                               [NSNumber numberWithUnsignedInteger:[note startTick]], @"tick",
+                               [NSNumber numberWithInteger:1], @"order",
+                               [NSNumber numberWithUnsignedChar:(unsigned char)(0x90 | channel)], @"status",
+                               [NSNumber numberWithUnsignedChar:pitch], @"data1",
+                               [NSNumber numberWithUnsignedChar:64], @"data2",
+                               nil]];
+            [events addObject:[NSDictionary dictionaryWithObjectsAndKeys:
+                               [NSNumber numberWithUnsignedInteger:[note startTick] + MAX([note durationTicks], (NSUInteger)1)], @"tick",
+                               [NSNumber numberWithInteger:0], @"order",
+                               [NSNumber numberWithUnsignedChar:(unsigned char)(0x80 | channel)], @"status",
+                               [NSNumber numberWithUnsignedChar:pitch], @"data1",
+                               [NSNumber numberWithUnsignedChar:64], @"data2",
+                               nil]];
+        }
+        [events sortUsingFunction:CompareMidiEventDictionaries context:NULL];
+
+        NSUInteger previousTick = 0;
+        NSEnumerator *eventEnumerator = [events objectEnumerator];
+        NSDictionary *event = nil;
+        while ((event = [eventEnumerator nextObject]) != nil) {
+            NSUInteger tick = [[event objectForKey:@"tick"] unsignedIntegerValue];
+            AppendVarLen(trackData, tick >= previousTick ? tick - previousTick : 0);
+            AppendByte(trackData, (unsigned char)[[event objectForKey:@"status"] unsignedCharValue]);
+            AppendByte(trackData, (unsigned char)[[event objectForKey:@"data1"] unsignedCharValue]);
+            AppendByte(trackData, (unsigned char)[[event objectForKey:@"data2"] unsignedCharValue]);
+            previousTick = tick;
+        }
+
+        AppendVarLen(trackData, 0);
+        AppendByte(trackData, 0xff);
+        AppendByte(trackData, 0x2f);
+        AppendByte(trackData, 0);
+
+        [file appendBytes:"MTrk" length:4];
+        AppendBE32(file, (uint32_t)[trackData length]);
+        [file appendData:trackData];
+    }
+
+    return file;
 }
 
 @end

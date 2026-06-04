@@ -21,17 +21,6 @@
   <array>
     <dict>
       <key>CFBundleTypeName</key>
-      <string>MIDI File</string>
-      <key>CFBundleTypeExtensions</key>
-      <array>
-        <string>mid</string>
-        <string>midi</string>
-      </array>
-      <key>CFBundleTypeRole</key>
-      <string>Viewer</string>
-    </dict>
-    <dict>
-      <key>CFBundleTypeName</key>
       <string>MusicKit Scorefile</string>
       <key>CFBundleTypeExtensions</key>
       <array>
@@ -39,6 +28,21 @@
       </array>
       <key>CFBundleTypeRole</key>
       <string>Editor</string>
+      <key>NSDocumentClass</key>
+      <string>ScoreMakerDocument</string>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>MIDI File</string>
+      <key>CFBundleTypeExtensions</key>
+      <array>
+        <string>mid</string>
+        <string>midi</string>
+      </array>
+      <key>CFBundleTypeRole</key>
+      <string>Editor</string>
+      <key>NSDocumentClass</key>
+      <string>ScoreMakerDocument</string>
     </dict>
   </array>
 </dict>

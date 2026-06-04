@@ -340,7 +340,7 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
     NSMutableDictionary *variables = [NSMutableDictionary dictionary];
     NSMutableDictionary *activeNotes = [NSMutableDictionary dictionary];
     ScoreDocument *document = [[[ScoreDocument alloc] init] autorelease];
-    [document setTitle:[path lastPathComponent]];
+    [document setTitle:[[path lastPathComponent] stringByDeletingPathExtension]];
     [document setTicksPerQuarter:480];
 
     double tempoBPM = 120.0;
@@ -563,9 +563,18 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
 
 + (BOOL)writeDocument:(ScoreDocument *)document toFileAtPath:(NSString *)path error:(NSError **)error
 {
+    NSData *data = [self dataForDocument:document error:error];
+    if (!data) {
+        return NO;
+    }
+    return [data writeToFile:path options:NSDataWritingAtomic error:error];
+}
+
++ (NSData *)dataForDocument:(ScoreDocument *)document error:(NSError **)error
+{
     if (!document) {
         if (error) *error = ScorefileError(@"There is no score to save.");
-        return NO;
+        return nil;
     }
 
     double tempoBPM = [document tempoMicrosecondsPerQuarter] > 0 ? 60000000.0 / (double)[document tempoMicrosecondsPerQuarter] : 120.0;
@@ -624,7 +633,11 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
     }
 
     [output appendString:@"\nEND;\n"];
-    return [output writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:error];
+    NSData *data = [output dataUsingEncoding:NSUTF8StringEncoding];
+    if (!data && error) {
+        *error = ScorefileError(@"The scorefile could not be encoded as UTF-8.");
+    }
+    return data;
 }
 
 @end
