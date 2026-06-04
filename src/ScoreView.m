@@ -7,6 +7,8 @@ static CGFloat const SystemHeight = 210.0;
 static CGFloat const StaffGap = 82.0;
 static CGFloat const LineSpacing = 10.0;
 static CGFloat const TicksPerSystemQuarters = 16.0;
+static CGFloat const ClefImageWidth = 20.0;
+static CGFloat const ClefImageHeight = 60.0;
 
 @implementation ScoreView
 @synthesize document = _document;
@@ -116,12 +118,14 @@ static CGFloat const TicksPerSystemQuarters = 16.0;
     [self drawStaffFromX:left toX:right topY:bassTop];
     [self drawBraceAtX:left - 14.0 topY:trebleTop bottomY:bassTop + 4.0 * LineSpacing];
 
-    NSDictionary *clefAttrs = [NSDictionary dictionaryWithObjectsAndKeys:
-                               [NSFont fontWithName:@"Times New Roman" size:42.0] ?: [NSFont boldSystemFontOfSize:38.0], NSFontAttributeName,
-                               [NSColor blackColor], NSForegroundColorAttributeName,
-                               nil];
-    [@"G" drawAtPoint:NSMakePoint(left + 10.0, trebleTop - 14.0) withAttributes:clefAttrs];
-    [@"F" drawAtPoint:NSMakePoint(left + 14.0, bassTop - 12.0) withAttributes:clefAttrs];
+    [self drawClefNamed:@"treble_clef" fallback:@"G" inRect:NSMakeRect(left + 14.0,
+                                                                        trebleTop - 10.0,
+                                                                        ClefImageWidth,
+                                                                        ClefImageHeight)];
+    [self drawClefNamed:@"bass_clef" fallback:@"F" inRect:NSMakeRect(left + 16.0,
+                                                                      bassTop - 10.0,
+                                                                      ClefImageWidth,
+                                                                      ClefImageHeight)];
 
     if (systemIndex == 0) {
         [self drawTimeSignatureAtX:left + 58.0 trebleY:trebleTop bassY:bassTop];
@@ -131,6 +135,52 @@ static CGFloat const TicksPerSystemQuarters = 16.0;
     CGFloat musicRight = right - 18.0;
     [self drawMeasureLinesFromX:musicLeft toX:musicRight topY:trebleTop systemStart:startTick systemEnd:endTick];
     [self drawNotesFromX:musicLeft toX:musicRight trebleY:trebleTop bassY:bassTop systemStart:startTick systemEnd:endTick];
+}
+
+- (NSImage *)clefImageNamed:(NSString *)name
+{
+    static NSMutableDictionary *clefImageCache = nil;
+    NSImage *cached = [clefImageCache objectForKey:name];
+    if (cached) {
+        return cached;
+    }
+
+    NSString *path = [[NSBundle mainBundle] pathForResource:name ofType:@"png"];
+    if (!path) {
+        path = [[NSString stringWithFormat:@"Resources/%@.png", name] stringByStandardizingPath];
+    }
+    NSImage *image = [[[NSImage alloc] initWithContentsOfFile:path] autorelease];
+    if (image) {
+        if (!clefImageCache) {
+            clefImageCache = [[NSMutableDictionary alloc] init];
+        }
+        [clefImageCache setObject:image forKey:name];
+    }
+    return image;
+}
+
+- (void)drawClefNamed:(NSString *)name fallback:(NSString *)fallback inRect:(NSRect)rect
+{
+    NSImage *image = [self clefImageNamed:name];
+    if (image) {
+        [NSGraphicsContext saveGraphicsState];
+        NSAffineTransform *transform = [NSAffineTransform transform];
+        [transform translateXBy:0.0 yBy:NSMaxY(rect)];
+        [transform scaleXBy:1.0 yBy:-1.0];
+        [transform concat];
+        [image drawInRect:NSMakeRect(rect.origin.x, 0.0, rect.size.width, rect.size.height)
+                 fromRect:NSZeroRect
+                operation:NSCompositingOperationSourceOver
+                 fraction:1.0];
+        [NSGraphicsContext restoreGraphicsState];
+        return;
+    }
+
+    NSDictionary *clefAttrs = [NSDictionary dictionaryWithObjectsAndKeys:
+                               [NSFont fontWithName:@"Times New Roman" size:42.0] ?: [NSFont boldSystemFontOfSize:38.0], NSFontAttributeName,
+                               [NSColor blackColor], NSForegroundColorAttributeName,
+                               nil];
+    [fallback drawAtPoint:NSMakePoint(rect.origin.x - 4.0, rect.origin.y - 4.0) withAttributes:clefAttrs];
 }
 
 - (void)drawPartNamesForSystemStart:(NSUInteger)systemStart
