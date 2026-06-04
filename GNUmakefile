@@ -28,12 +28,12 @@ ScoreMaker_HEADER_FILES = \
 ScoreMaker_RESOURCE_FILES = \
 	Resources/bass_clef.png \
 	Resources/ScoreMakerAppIcon.icns \
-	Resources/ScoreMakerAppIcon.tiff \
+	Resources/ScoreMakerAppIcon.png \
 	Resources/ScoreMakerDocumentIcon.icns \
-	Resources/ScoreMakerDocumentIcon.tiff \
+	Resources/ScoreMakerDocumentIcon.png \
 	Resources/treble_clef.png
 
-ScoreMaker_APPLICATION_ICON = Resources/ScoreMakerAppIcon.tiff
+ScoreMaker_APPLICATION_ICON = ScoreMakerAppIcon.png
 
 include $(GNUSTEP_MAKEFILES)/application.make
 
