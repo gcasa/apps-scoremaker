@@ -27,7 +27,7 @@ On GNUstep:
 
 ```sh
 make
-./build/gnustep/ScoreMaker
+gopen ./build/gnustep/ScoreMaker.app
 ```
 
 The GNUstep build expects `gnustep-config`, GNUstep GUI libraries, and an Objective-C compiler to be installed.
