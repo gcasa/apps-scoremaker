@@ -1,32 +1,158 @@
 #import "ScoreModel.h"
 
 @implementation ScoreNote
-@synthesize pitch = _pitch;
-@synthesize channel = _channel;
-@synthesize track = _track;
-@synthesize startTick = _startTick;
-@synthesize durationTicks = _durationTicks;
+
+- (NSInteger)pitch
+{
+    return _pitch;
+}
+
+- (void)setPitch:(NSInteger)pitch
+{
+    _pitch = pitch;
+}
+
+- (NSInteger)channel
+{
+    return _channel;
+}
+
+- (void)setChannel:(NSInteger)channel
+{
+    _channel = channel;
+}
+
+- (NSInteger)track
+{
+    return _track;
+}
+
+- (void)setTrack:(NSInteger)track
+{
+    _track = track;
+}
+
+- (NSUInteger)startTick
+{
+    return _startTick;
+}
+
+- (void)setStartTick:(NSUInteger)startTick
+{
+    _startTick = startTick;
+}
+
+- (NSUInteger)durationTicks
+{
+    return _durationTicks;
+}
+
+- (void)setDurationTicks:(NSUInteger)durationTicks
+{
+    _durationTicks = durationTicks;
+}
 
 - (NSComparisonResult)compareScoreNote:(ScoreNote *)other
 {
-    if (_startTick < other.startTick) return NSOrderedAscending;
-    if (_startTick > other.startTick) return NSOrderedDescending;
-    if (_pitch > other.pitch) return NSOrderedAscending;
-    if (_pitch < other.pitch) return NSOrderedDescending;
+    if (_startTick < [other startTick]) return NSOrderedAscending;
+    if (_startTick > [other startTick]) return NSOrderedDescending;
+    if (_pitch > [other pitch]) return NSOrderedAscending;
+    if (_pitch < [other pitch]) return NSOrderedDescending;
     return NSOrderedSame;
 }
 
 @end
 
 @implementation ScoreDocument
-@synthesize title = _title;
-@synthesize notes = _notes;
-@synthesize partNames = _partNames;
-@synthesize ticksPerQuarter = _ticksPerQuarter;
-@synthesize tempoMicrosecondsPerQuarter = _tempoMicrosecondsPerQuarter;
-@synthesize timeSignatureNumerator = _timeSignatureNumerator;
-@synthesize timeSignatureDenominator = _timeSignatureDenominator;
-@synthesize totalTicks = _totalTicks;
+
+- (NSString *)title
+{
+    return _title;
+}
+
+- (void)setTitle:(NSString *)title
+{
+    if (_title != title) {
+        [_title release];
+        _title = [title retain];
+    }
+}
+
+- (NSMutableArray *)notes
+{
+    return _notes;
+}
+
+- (void)setNotes:(NSMutableArray *)notes
+{
+    if (_notes != notes) {
+        [_notes release];
+        _notes = [notes retain];
+    }
+}
+
+- (NSMutableDictionary *)partNames
+{
+    return _partNames;
+}
+
+- (void)setPartNames:(NSMutableDictionary *)partNames
+{
+    if (_partNames != partNames) {
+        [_partNames release];
+        _partNames = [partNames retain];
+    }
+}
+
+- (NSUInteger)ticksPerQuarter
+{
+    return _ticksPerQuarter;
+}
+
+- (void)setTicksPerQuarter:(NSUInteger)ticksPerQuarter
+{
+    _ticksPerQuarter = ticksPerQuarter;
+}
+
+- (NSUInteger)tempoMicrosecondsPerQuarter
+{
+    return _tempoMicrosecondsPerQuarter;
+}
+
+- (void)setTempoMicrosecondsPerQuarter:(NSUInteger)tempoMicrosecondsPerQuarter
+{
+    _tempoMicrosecondsPerQuarter = tempoMicrosecondsPerQuarter;
+}
+
+- (NSUInteger)timeSignatureNumerator
+{
+    return _timeSignatureNumerator;
+}
+
+- (void)setTimeSignatureNumerator:(NSUInteger)timeSignatureNumerator
+{
+    _timeSignatureNumerator = timeSignatureNumerator;
+}
+
+- (NSUInteger)timeSignatureDenominator
+{
+    return _timeSignatureDenominator;
+}
+
+- (void)setTimeSignatureDenominator:(NSUInteger)timeSignatureDenominator
+{
+    _timeSignatureDenominator = timeSignatureDenominator;
+}
+
+- (NSUInteger)totalTicks
+{
+    return _totalTicks;
+}
+
+- (void)setTotalTicks:(NSUInteger)totalTicks
+{
+    _totalTicks = totalTicks;
+}
 
 - (id)init
 {

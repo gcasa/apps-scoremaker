@@ -8,11 +8,16 @@
     NSUInteger _startTick;
     NSUInteger _durationTicks;
 }
-@property NSInteger pitch;
-@property NSInteger channel;
-@property NSInteger track;
-@property NSUInteger startTick;
-@property NSUInteger durationTicks;
+- (NSInteger)pitch;
+- (void)setPitch:(NSInteger)pitch;
+- (NSInteger)channel;
+- (void)setChannel:(NSInteger)channel;
+- (NSInteger)track;
+- (void)setTrack:(NSInteger)track;
+- (NSUInteger)startTick;
+- (void)setStartTick:(NSUInteger)startTick;
+- (NSUInteger)durationTicks;
+- (void)setDurationTicks:(NSUInteger)durationTicks;
 - (NSComparisonResult)compareScoreNote:(ScoreNote *)other;
 @end
 
@@ -27,14 +32,22 @@
     NSUInteger _timeSignatureDenominator;
     NSUInteger _totalTicks;
 }
-@property(retain) NSString *title;
-@property(retain) NSMutableArray *notes;
-@property(retain) NSMutableDictionary *partNames;
-@property NSUInteger ticksPerQuarter;
-@property NSUInteger tempoMicrosecondsPerQuarter;
-@property NSUInteger timeSignatureNumerator;
-@property NSUInteger timeSignatureDenominator;
-@property NSUInteger totalTicks;
+- (NSString *)title;
+- (void)setTitle:(NSString *)title;
+- (NSMutableArray *)notes;
+- (void)setNotes:(NSMutableArray *)notes;
+- (NSMutableDictionary *)partNames;
+- (void)setPartNames:(NSMutableDictionary *)partNames;
+- (NSUInteger)ticksPerQuarter;
+- (void)setTicksPerQuarter:(NSUInteger)ticksPerQuarter;
+- (NSUInteger)tempoMicrosecondsPerQuarter;
+- (void)setTempoMicrosecondsPerQuarter:(NSUInteger)tempoMicrosecondsPerQuarter;
+- (NSUInteger)timeSignatureNumerator;
+- (void)setTimeSignatureNumerator:(NSUInteger)timeSignatureNumerator;
+- (NSUInteger)timeSignatureDenominator;
+- (void)setTimeSignatureDenominator:(NSUInteger)timeSignatureDenominator;
+- (NSUInteger)totalTicks;
+- (void)setTotalTicks:(NSUInteger)totalTicks;
 - (NSString *)nameForTrack:(NSInteger)track;
 - (void)setName:(NSString *)name forTrack:(NSInteger)track;
 @end

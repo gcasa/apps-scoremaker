@@ -228,8 +228,8 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
     NSMutableDictionary *variables = [NSMutableDictionary dictionary];
     NSMutableDictionary *activeNotes = [NSMutableDictionary dictionary];
     ScoreDocument *document = [[[ScoreDocument alloc] init] autorelease];
-    document.title = [path lastPathComponent];
-    document.ticksPerQuarter = 480;
+    [document setTitle:[path lastPathComponent]];
+    [document setTicksPerQuarter:480];
 
     double tempoBPM = 120.0;
     double currentTime = 0.0;
@@ -237,7 +237,9 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
     NSUInteger trackForPart = 0;
     NSMutableDictionary *partTracks = [NSMutableDictionary dictionary];
 
-    for (NSString *rawStatement in statements) {
+    NSEnumerator *statementEnumerator = [statements objectEnumerator];
+    NSString *rawStatement = nil;
+    while ((rawStatement = [statementEnumerator nextObject]) != nil) {
         NSString *statement = Trim(rawStatement);
         if ([statement length] == 0) {
             continue;
@@ -258,7 +260,7 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
                 double scannedTempo = 0.0;
                 if ([scanner scanDouble:&scannedTempo] && scannedTempo > 0.0) {
                     tempoBPM = scannedTempo;
-                    document.tempoMicrosecondsPerQuarter = (NSUInteger)(60000000.0 / tempoBPM);
+                    [document setTempoMicrosecondsPerQuarter:(NSUInteger)(60000000.0 / tempoBPM)];
                 }
             }
             continue;
@@ -351,7 +353,7 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
         if (pitchString) {
             pitch = pitchIsFrequency ? PitchForFrequency(pitchString, variables, &pitchOK) : PitchForName(pitchString, &pitchOK);
         }
-        double ticksPerBeat = (double)document.ticksPerQuarter;
+        double ticksPerBeat = (double)[document ticksPerQuarter];
         NSUInteger currentTick = (NSUInteger)llround(currentTime * ticksPerBeat);
 
         if ([event hasPrefix:@"noteOff"]) {
@@ -359,10 +361,10 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
             NSString *tag = [eventParts count] > 1 ? [eventParts objectAtIndex:1] : @"0";
             NSString *key = [NSString stringWithFormat:@"%@:%@", partName, tag];
             ScoreNote *note = [activeNotes objectForKey:key];
-            if (note && currentTick > note.startTick) {
-                note.durationTicks = currentTick - note.startTick;
-                if (note.startTick + note.durationTicks > document.totalTicks) {
-                    document.totalTicks = note.startTick + note.durationTicks;
+            if (note && currentTick > [note startTick]) {
+                [note setDurationTicks:currentTick - [note startTick]];
+                if ([note startTick] + [note durationTicks] > [document totalTicks]) {
+                    [document setTotalTicks:[note startTick] + [note durationTicks]];
                 }
                 [activeNotes removeObjectForKey:key];
             }
@@ -374,17 +376,17 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
             NSString *tag = [eventParts count] > 1 ? [eventParts objectAtIndex:1] : partName;
             NSString *key = [NSString stringWithFormat:@"%@:%@", partName, tag];
             ScoreNote *previous = [activeNotes objectForKey:key];
-            if (previous && currentTick > previous.startTick) {
-                previous.durationTicks = currentTick - previous.startTick;
+            if (previous && currentTick > [previous startTick]) {
+                [previous setDurationTicks:currentTick - [previous startTick]];
             }
             if (pitchOK) {
                 ScoreNote *note = [[[ScoreNote alloc] init] autorelease];
-                note.pitch = pitch;
-                note.channel = 0;
-                note.track = [trackNumber integerValue];
-                note.startTick = currentTick;
-                note.durationTicks = document.ticksPerQuarter;
-                [document.notes addObject:note];
+                [note setPitch:pitch];
+                [note setChannel:0];
+                [note setTrack:[trackNumber integerValue]];
+                [note setStartTick:currentTick];
+                [note setDurationTicks:[document ticksPerQuarter]];
+                [[document notes] addObject:note];
                 [activeNotes setObject:note forKey:key];
             }
             continue;
@@ -394,33 +396,35 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
         double durationSeconds = EvaluateExpression(event, variables, &durationOK);
         if (durationOK && durationSeconds > 0.0 && pitchOK) {
             ScoreNote *note = [[[ScoreNote alloc] init] autorelease];
-            note.pitch = pitch;
-            note.channel = 0;
-            note.track = [trackNumber integerValue];
-            note.startTick = currentTick;
-            note.durationTicks = MAX((NSUInteger)1, (NSUInteger)llround(durationSeconds * ticksPerBeat));
-            [document.notes addObject:note];
-            if (note.startTick + note.durationTicks > document.totalTicks) {
-                document.totalTicks = note.startTick + note.durationTicks;
+            [note setPitch:pitch];
+            [note setChannel:0];
+            [note setTrack:[trackNumber integerValue]];
+            [note setStartTick:currentTick];
+            [note setDurationTicks:MAX((NSUInteger)1, (NSUInteger)llround(durationSeconds * ticksPerBeat))];
+            [[document notes] addObject:note];
+            if ([note startTick] + [note durationTicks] > [document totalTicks]) {
+                [document setTotalTicks:[note startTick] + [note durationTicks]];
             }
         }
     }
 
-    for (ScoreNote *note in [activeNotes allValues]) {
-        if (note.durationTicks == 0) {
-            note.durationTicks = document.ticksPerQuarter;
+    NSEnumerator *activeNoteEnumerator = [[activeNotes allValues] objectEnumerator];
+    ScoreNote *activeNote = nil;
+    while ((activeNote = [activeNoteEnumerator nextObject]) != nil) {
+        if ([activeNote durationTicks] == 0) {
+            [activeNote setDurationTicks:[document ticksPerQuarter]];
         }
-        if (note.startTick + note.durationTicks > document.totalTicks) {
-            document.totalTicks = note.startTick + note.durationTicks;
+        if ([activeNote startTick] + [activeNote durationTicks] > [document totalTicks]) {
+            [document setTotalTicks:[activeNote startTick] + [activeNote durationTicks]];
         }
     }
 
-    if ([document.notes count] == 0) {
+    if ([[document notes] count] == 0) {
         if (error) *error = ScorefileError(@"No renderable notes were found in the scorefile.");
         return nil;
     }
 
-    [document.notes sortUsingSelector:@selector(compareScoreNote:)];
+    [[document notes] sortUsingSelector:@selector(compareScoreNote:)];
     return document;
 }
 
@@ -431,20 +435,24 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
         return NO;
     }
 
-    double tempoBPM = document.tempoMicrosecondsPerQuarter > 0 ? 60000000.0 / (double)document.tempoMicrosecondsPerQuarter : 120.0;
+    double tempoBPM = [document tempoMicrosecondsPerQuarter] > 0 ? 60000000.0 / (double)[document tempoMicrosecondsPerQuarter] : 120.0;
     NSMutableString *output = [NSMutableString string];
     [output appendString:@"/* Written by ScoreMaker. */\n\n"];
     [output appendFormat:@"info tempo:%.6g;\n", tempoBPM];
     NSMutableDictionary *partIdentifiers = [NSMutableDictionary dictionary];
     NSMutableArray *tracks = [NSMutableArray array];
-    for (ScoreNote *note in document.notes) {
-        NSNumber *track = [NSNumber numberWithInteger:note.track];
+    NSEnumerator *noteEnumerator = [[document notes] objectEnumerator];
+    ScoreNote *note = nil;
+    while ((note = [noteEnumerator nextObject]) != nil) {
+        NSNumber *track = [NSNumber numberWithInteger:[note track]];
         if (![tracks containsObject:track]) {
             [tracks addObject:track];
         }
     }
     [tracks sortUsingSelector:@selector(compare:)];
-    for (NSNumber *track in tracks) {
+    NSEnumerator *trackEnumerator = [tracks objectEnumerator];
+    NSNumber *track = nil;
+    while ((track = [trackEnumerator nextObject]) != nil) {
         NSString *name = [document nameForTrack:[track integerValue]];
         if ([name length] == 0) {
             name = [NSString stringWithFormat:@"part%@", track];
@@ -461,15 +469,19 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
     [output appendString:@"\nBEGIN;\n\n"];
 
     NSUInteger lastTick = NSNotFound;
-    for (ScoreNote *note in document.notes) {
-        if (note.startTick != lastTick) {
-            double time = (double)note.startTick / (double)document.ticksPerQuarter;
+    noteEnumerator = [[document notes] objectEnumerator];
+    while ((note = [noteEnumerator nextObject]) != nil) {
+        if ([note startTick] != lastTick) {
+            double time = (double)[note startTick] / (double)[document ticksPerQuarter];
             [output appendFormat:@"t %.6g;\n", time];
-            lastTick = note.startTick;
+            lastTick = [note startTick];
         }
-        double duration = (double)MAX((NSUInteger)1, note.durationTicks) / (double)document.ticksPerQuarter;
-        NSString *identifier = [partIdentifiers objectForKey:[NSNumber numberWithInteger:note.track]] ?: @"score";
-        [output appendFormat:@"%@ (%.6g) keyNum:%@;\n", identifier, duration, NoteNameForPitch(note.pitch)];
+        double duration = (double)MAX((NSUInteger)1, [note durationTicks]) / (double)[document ticksPerQuarter];
+        NSString *identifier = [partIdentifiers objectForKey:[NSNumber numberWithInteger:[note track]]];
+        if (!identifier) {
+            identifier = @"score";
+        }
+        [output appendFormat:@"%@ (%.6g) keyNum:%@;\n", identifier, duration, NoteNameForPitch([note pitch])];
     }
 
     [output appendString:@"\nEND;\n"];

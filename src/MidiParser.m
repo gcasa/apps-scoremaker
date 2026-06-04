@@ -90,8 +90,9 @@ static NSString *GeneralMidiProgramName(unsigned char program)
 
 + (ScoreDocument *)parseFileAtPath:(NSString *)path error:(NSError **)error
 {
-    NSData *data = [NSData dataWithContentsOfFile:path options:0 error:error];
+    NSData *data = [NSData dataWithContentsOfFile:path];
     if (!data) {
+        if (error) *error = ParserError(@"The MIDI file could not be read.");
         return nil;
     }
 
@@ -116,8 +117,8 @@ static NSString *GeneralMidiProgramName(unsigned char program)
     }
 
     ScoreDocument *document = [[[ScoreDocument alloc] init] autorelease];
-    document.title = [path lastPathComponent];
-    document.ticksPerQuarter = division;
+    [document setTitle:[path lastPathComponent]];
+    [document setTicksPerQuarter:division];
 
     NSUInteger offset = 8 + headerLength;
     for (NSUInteger trackIndex = 0; trackIndex < trackCount && offset + 8 <= length; trackIndex++) {
@@ -140,7 +141,7 @@ static NSString *GeneralMidiProgramName(unsigned char program)
         offset += trackLength;
     }
 
-    [document.notes sortUsingSelector:@selector(compareScoreNote:)];
+    [[document notes] sortUsingSelector:@selector(compareScoreNote:)];
 
     return document;
 }
@@ -162,8 +163,8 @@ static NSString *GeneralMidiProgramName(unsigned char program)
             break;
         }
         absoluteTick += delta;
-        if (absoluteTick > document.totalTicks) {
-            document.totalTicks = absoluteTick;
+        if (absoluteTick > [document totalTicks]) {
+            [document setTotalTicks:absoluteTick];
         }
         if (offset >= length) {
             break;
@@ -192,12 +193,12 @@ static NSString *GeneralMidiProgramName(unsigned char program)
                     [document setName:name forTrack:(NSInteger)trackIndex];
                 }
             } else if (metaType == 0x51 && metaLength == 3) {
-                document.tempoMicrosecondsPerQuarter = ((NSUInteger)bytes[offset] << 16) |
-                                                       ((NSUInteger)bytes[offset + 1] << 8) |
-                                                       (NSUInteger)bytes[offset + 2];
+                [document setTempoMicrosecondsPerQuarter:((NSUInteger)bytes[offset] << 16) |
+                                                        ((NSUInteger)bytes[offset + 1] << 8) |
+                                                        (NSUInteger)bytes[offset + 2]];
             } else if (metaType == 0x58 && metaLength >= 2) {
-                document.timeSignatureNumerator = bytes[offset];
-                document.timeSignatureDenominator = (NSUInteger)1 << bytes[offset + 1];
+                [document setTimeSignatureNumerator:bytes[offset]];
+                [document setTimeSignatureDenominator:(NSUInteger)1 << bytes[offset + 1]];
             }
 
             offset += metaLength;
@@ -245,11 +246,11 @@ static NSString *GeneralMidiProgramName(unsigned char program)
                 [starts removeObjectAtIndex:0];
                 if (absoluteTick > startTick) {
                     ScoreNote *note = [[[ScoreNote alloc] init] autorelease];
-                    note.pitch = data1;
-                    note.channel = channel;
-                    note.track = trackIndex;
-                    note.startTick = startTick;
-                    note.durationTicks = absoluteTick - startTick;
+                    [note setPitch:data1];
+                    [note setChannel:channel];
+                    [note setTrack:trackIndex];
+                    [note setStartTick:startTick];
+                    [note setDurationTicks:absoluteTick - startTick];
                     if (![document nameForTrack:(NSInteger)trackIndex]) {
                         NSString *name = [channelNames objectForKey:[NSNumber numberWithUnsignedChar:channel]];
                         if (!name && channel == 9) {
@@ -259,7 +260,7 @@ static NSString *GeneralMidiProgramName(unsigned char program)
                             [document setName:name forTrack:(NSInteger)trackIndex];
                         }
                     }
-                    [document.notes addObject:note];
+                    [[document notes] addObject:note];
                 }
             }
         }

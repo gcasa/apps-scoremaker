@@ -11,7 +11,11 @@ static CGFloat const ClefImageWidth = 20.0;
 static CGFloat const ClefImageHeight = 60.0;
 
 @implementation ScoreView
-@synthesize document = _document;
+
+- (ScoreDocument *)document
+{
+    return _document;
+}
 
 - (BOOL)isFlipped
 {
@@ -39,7 +43,7 @@ static CGFloat const ClefImageHeight = 60.0;
     NSUInteger ticksPerSystem = [self ticksPerSystem];
     NSUInteger systems = 1;
     if (_document && ticksPerSystem > 0) {
-        systems = MAX((NSUInteger)1, (_document.totalTicks / ticksPerSystem) + 1);
+        systems = MAX((NSUInteger)1, ([_document totalTicks] / ticksPerSystem) + 1);
     }
     CGFloat height = Margin + (CGFloat)systems * SystemHeight + Margin;
     [self setFrameSize:NSMakeSize(PageWidth, height)];
@@ -47,7 +51,7 @@ static CGFloat const ClefImageHeight = 60.0;
 
 - (NSUInteger)ticksPerSystem
 {
-    NSUInteger tpq = _document ? _document.ticksPerQuarter : 480;
+    NSUInteger tpq = _document ? [_document ticksPerQuarter] : 480;
     return (NSUInteger)(TicksPerSystemQuarters * (CGFloat)tpq);
 }
 
@@ -70,7 +74,7 @@ static CGFloat const ClefImageHeight = 60.0;
 
     [self drawTitle];
     NSUInteger ticksPerSystem = [self ticksPerSystem];
-    NSUInteger systemCount = MAX((NSUInteger)1, (_document.totalTicks / ticksPerSystem) + 1);
+    NSUInteger systemCount = MAX((NSUInteger)1, ([_document totalTicks] / ticksPerSystem) + 1);
     for (NSUInteger system = 0; system < systemCount; system++) {
         CGFloat y = Margin + 54.0 + (CGFloat)system * SystemHeight;
         [self drawSystemAtY:y systemIndex:system ticksPerSystem:ticksPerSystem];
@@ -96,7 +100,7 @@ static CGFloat const ClefImageHeight = 60.0;
                                 [NSFont boldSystemFontOfSize:24.0], NSFontAttributeName,
                                 [NSColor blackColor], NSForegroundColorAttributeName,
                                 nil];
-    NSString *title = _document.title ? _document.title : @"Untitled MIDI";
+    NSString *title = [_document title] ? [_document title] : @"Untitled MIDI";
     [title drawAtPoint:NSMakePoint(Margin, Margin - 18.0) withAttributes:titleAttrs];
 }
 
@@ -168,16 +172,27 @@ static CGFloat const ClefImageHeight = 60.0;
         [transform translateXBy:0.0 yBy:NSMaxY(rect)];
         [transform scaleXBy:1.0 yBy:-1.0];
         [transform concat];
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
         [image drawInRect:NSMakeRect(rect.origin.x, 0.0, rect.size.width, rect.size.height)
                  fromRect:NSZeroRect
-                operation:NSCompositingOperationSourceOver
+                operation:NSCompositeSourceOver
                  fraction:1.0];
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
         [NSGraphicsContext restoreGraphicsState];
         return;
     }
 
+    NSFont *clefFont = [NSFont fontWithName:@"Times New Roman" size:42.0];
+    if (!clefFont) {
+        clefFont = [NSFont boldSystemFontOfSize:38.0];
+    }
     NSDictionary *clefAttrs = [NSDictionary dictionaryWithObjectsAndKeys:
-                               [NSFont fontWithName:@"Times New Roman" size:42.0] ?: [NSFont boldSystemFontOfSize:38.0], NSFontAttributeName,
+                               clefFont, NSFontAttributeName,
                                [NSColor blackColor], NSForegroundColorAttributeName,
                                nil];
     [fallback drawAtPoint:NSMakePoint(rect.origin.x - 4.0, rect.origin.y - 4.0) withAttributes:clefAttrs];
@@ -190,11 +205,13 @@ static CGFloat const ClefImageHeight = 60.0;
                               height:(CGFloat)height
 {
     NSMutableArray *tracks = [NSMutableArray array];
-    for (ScoreNote *note in _document.notes) {
-        if (note.startTick >= systemEnd || note.startTick + note.durationTicks <= systemStart) {
+    NSEnumerator *noteEnumerator = [[_document notes] objectEnumerator];
+    ScoreNote *note = nil;
+    while ((note = [noteEnumerator nextObject]) != nil) {
+        if ([note startTick] >= systemEnd || [note startTick] + [note durationTicks] <= systemStart) {
             continue;
         }
-        NSNumber *track = [NSNumber numberWithInteger:note.track];
+        NSNumber *track = [NSNumber numberWithInteger:[note track]];
         if (![tracks containsObject:track]) {
             [tracks addObject:track];
         }
@@ -205,7 +222,9 @@ static CGFloat const ClefImageHeight = 60.0;
     [tracks sortUsingSelector:@selector(compare:)];
 
     NSMutableArray *names = [NSMutableArray array];
-    for (NSNumber *track in tracks) {
+    NSEnumerator *trackEnumerator = [tracks objectEnumerator];
+    NSNumber *track = nil;
+    while ((track = [trackEnumerator nextObject]) != nil) {
         NSString *name = [_document nameForTrack:[track integerValue]];
         if ([name length] == 0) {
             name = [NSString stringWithFormat:@"Part %ld", (long)([track integerValue] + 1)];
@@ -214,7 +233,14 @@ static CGFloat const ClefImageHeight = 60.0;
     }
 
     NSMutableParagraphStyle *style = [[[NSMutableParagraphStyle alloc] init] autorelease];
-    [style setAlignment:NSTextAlignmentRight];
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+    [style setAlignment:NSRightTextAlignment];
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
     [style setLineBreakMode:NSLineBreakByWordWrapping];
     NSDictionary *attrs = [NSDictionary dictionaryWithObjectsAndKeys:
                            [NSFont systemFontOfSize:10.0], NSFontAttributeName,
@@ -253,8 +279,8 @@ static CGFloat const ClefImageHeight = 60.0;
                            [NSFont boldSystemFontOfSize:22.0], NSFontAttributeName,
                            [NSColor blackColor], NSForegroundColorAttributeName,
                            nil];
-    NSString *top = [NSString stringWithFormat:@"%lu", (unsigned long)_document.timeSignatureNumerator];
-    NSString *bottom = [NSString stringWithFormat:@"%lu", (unsigned long)_document.timeSignatureDenominator];
+    NSString *top = [NSString stringWithFormat:@"%lu", (unsigned long)[_document timeSignatureNumerator]];
+    NSString *bottom = [NSString stringWithFormat:@"%lu", (unsigned long)[_document timeSignatureDenominator]];
     [top drawAtPoint:NSMakePoint(x, trebleY - 2.0) withAttributes:attrs];
     [bottom drawAtPoint:NSMakePoint(x, trebleY + 20.0) withAttributes:attrs];
     [top drawAtPoint:NSMakePoint(x, bassY - 2.0) withAttributes:attrs];
@@ -267,10 +293,10 @@ static CGFloat const ClefImageHeight = 60.0;
                   systemStart:(NSUInteger)systemStart
                     systemEnd:(NSUInteger)systemEnd
 {
-    NSUInteger beatsPerMeasure = _document.timeSignatureNumerator;
-    NSUInteger beatUnit = _document.timeSignatureDenominator;
-    NSUInteger ticksPerMeasure = (_document.ticksPerQuarter * 4 * beatsPerMeasure) / MAX((NSUInteger)1, beatUnit);
-    if (ticksPerMeasure == 0) ticksPerMeasure = _document.ticksPerQuarter * 4;
+    NSUInteger beatsPerMeasure = [_document timeSignatureNumerator];
+    NSUInteger beatUnit = [_document timeSignatureDenominator];
+    NSUInteger ticksPerMeasure = ([_document ticksPerQuarter] * 4 * beatsPerMeasure) / MAX((NSUInteger)1, beatUnit);
+    if (ticksPerMeasure == 0) ticksPerMeasure = [_document ticksPerQuarter] * 4;
 
     NSUInteger firstMeasure = ((systemStart + ticksPerMeasure - 1) / ticksPerMeasure) * ticksPerMeasure;
     for (NSUInteger tick = firstMeasure; tick <= systemEnd; tick += ticksPerMeasure) {
@@ -288,16 +314,18 @@ static CGFloat const ClefImageHeight = 60.0;
            systemStart:(NSUInteger)systemStart
              systemEnd:(NSUInteger)systemEnd
 {
-    for (ScoreNote *note in _document.notes) {
-        if (note.startTick >= systemEnd || note.startTick + note.durationTicks <= systemStart) {
+    NSEnumerator *noteEnumerator = [[_document notes] objectEnumerator];
+    ScoreNote *note = nil;
+    while ((note = [noteEnumerator nextObject]) != nil) {
+        if ([note startTick] >= systemEnd || [note startTick] + [note durationTicks] <= systemStart) {
             continue;
         }
 
-        BOOL treble = note.pitch >= 60;
+        BOOL treble = [note pitch] >= 60;
         CGFloat staffTop = treble ? trebleY : bassY;
-        CGFloat x = [self xForTick:note.startTick start:systemStart end:systemEnd left:left right:right];
-        CGFloat y = [self yForPitch:note.pitch treble:treble staffTop:staffTop];
-        [self drawNoteAtX:x y:y pitch:note.pitch treble:treble staffTop:staffTop duration:note.durationTicks];
+        CGFloat x = [self xForTick:[note startTick] start:systemStart end:systemEnd left:left right:right];
+        CGFloat y = [self yForPitch:[note pitch] treble:treble staffTop:staffTop];
+        [self drawNoteAtX:x y:y pitch:[note pitch] treble:treble staffTop:staffTop duration:[note durationTicks]];
     }
 }
 
@@ -348,7 +376,7 @@ static CGFloat const ClefImageHeight = 60.0;
            duration:(NSUInteger)duration
 {
     (void)pitch;
-    BOOL filled = duration < (_document.ticksPerQuarter * 2);
+    BOOL filled = duration < ([_document ticksPerQuarter] * 2);
     NSRect oval = NSMakeRect(x - 5.5, y - 4.0, 11.0, 8.0);
     NSBezierPath *head = [NSBezierPath bezierPathWithOvalInRect:oval];
     [[NSColor blackColor] setStroke];
@@ -377,7 +405,7 @@ static CGFloat const ClefImageHeight = 60.0;
         [NSBezierPath strokeLineFromPoint:NSMakePoint(x - 10.0, ledger) toPoint:NSMakePoint(x + 10.0, ledger)];
     }
 
-    if (duration <= _document.ticksPerQuarter / 2) {
+    if (duration <= [_document ticksPerQuarter] / 2) {
         NSBezierPath *flag = [NSBezierPath bezierPath];
         [flag moveToPoint:NSMakePoint(stemX, stemEnd)];
         [flag curveToPoint:NSMakePoint(stemX + (stemEnd < y ? 14.0 : -14.0), stemEnd + (stemEnd < y ? 10.0 : -10.0))

@@ -10,6 +10,6 @@ int main(int argc, const char *argv[])
     AppDelegate *delegate = [[[AppDelegate alloc] init] autorelease];
     [application setDelegate:delegate];
     [application run];
-    [pool drain];
+    [pool release];
     return 0;
 }

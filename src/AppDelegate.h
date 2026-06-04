@@ -8,10 +8,14 @@
     ScoreView *_scoreView;
     NSString *_currentPath;
 }
-@property(nonatomic, retain) NSWindow *window;
-@property(nonatomic, retain) NSScrollView *scrollView;
-@property(nonatomic, retain) ScoreView *scoreView;
-@property(nonatomic, retain) NSString *currentPath;
+- (NSWindow *)window;
+- (void)setWindow:(NSWindow *)window;
+- (NSScrollView *)scrollView;
+- (void)setScrollView:(NSScrollView *)scrollView;
+- (ScoreView *)scoreView;
+- (void)setScoreView:(ScoreView *)scoreView;
+- (NSString *)currentPath;
+- (void)setCurrentPath:(NSString *)currentPath;
 - (void)openDocument:(id)sender;
 - (void)saveDocumentAs:(id)sender;
 - (void)openScoreAtPath:(NSString *)path;

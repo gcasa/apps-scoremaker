@@ -3,10 +3,58 @@
 #import "ScorefileParser.h"
 
 @implementation AppDelegate
-@synthesize window = _window;
-@synthesize scrollView = _scrollView;
-@synthesize scoreView = _scoreView;
-@synthesize currentPath = _currentPath;
+
+- (NSWindow *)window
+{
+    return _window;
+}
+
+- (void)setWindow:(NSWindow *)window
+{
+    if (_window != window) {
+        [_window release];
+        _window = [window retain];
+    }
+}
+
+- (NSScrollView *)scrollView
+{
+    return _scrollView;
+}
+
+- (void)setScrollView:(NSScrollView *)scrollView
+{
+    if (_scrollView != scrollView) {
+        [_scrollView release];
+        _scrollView = [scrollView retain];
+    }
+}
+
+- (ScoreView *)scoreView
+{
+    return _scoreView;
+}
+
+- (void)setScoreView:(ScoreView *)scoreView
+{
+    if (_scoreView != scoreView) {
+        [_scoreView release];
+        _scoreView = [scoreView retain];
+    }
+}
+
+- (NSString *)currentPath
+{
+    return _currentPath;
+}
+
+- (void)setCurrentPath:(NSString *)currentPath
+{
+    if (_currentPath != currentPath) {
+        [_currentPath release];
+        _currentPath = [currentPath retain];
+    }
+}
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification
 {
@@ -70,26 +118,29 @@
 - (void)buildWindow
 {
     NSRect frame = NSMakeRect(100.0, 100.0, 1040.0, 760.0);
-#if defined(__APPLE__)
-    NSUInteger style = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable;
-#else
-    NSUInteger style = NSTitledWindowMask | NSClosableWindowMask | NSMiniaturizableWindowMask | NSResizableWindowMask;
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #endif
-    self.window = [[[NSWindow alloc] initWithContentRect:frame
-                                               styleMask:style
-                                                 backing:NSBackingStoreBuffered
-                                                   defer:NO] autorelease];
-    [self.window setTitle:@"ScoreMaker"];
+    NSUInteger style = NSTitledWindowMask | NSClosableWindowMask | NSMiniaturizableWindowMask | NSResizableWindowMask;
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+    [self setWindow:[[[NSWindow alloc] initWithContentRect:frame
+                                                 styleMask:style
+                                                   backing:NSBackingStoreBuffered
+                                                     defer:NO] autorelease]];
+    [[self window] setTitle:@"ScoreMaker"];
 
-    self.scoreView = [[[ScoreView alloc] initWithFrame:NSMakeRect(0.0, 0.0, 980.0, 760.0)] autorelease];
-    self.scrollView = [[[NSScrollView alloc] initWithFrame:[[self.window contentView] bounds]] autorelease];
-    [self.scrollView setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
-    [self.scrollView setHasVerticalScroller:YES];
-    [self.scrollView setHasHorizontalScroller:YES];
-    [self.scrollView setDocumentView:self.scoreView];
+    [self setScoreView:[[[ScoreView alloc] initWithFrame:NSMakeRect(0.0, 0.0, 980.0, 760.0)] autorelease]];
+    [self setScrollView:[[[NSScrollView alloc] initWithFrame:[[[self window] contentView] bounds]] autorelease]];
+    [[self scrollView] setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
+    [[self scrollView] setHasVerticalScroller:YES];
+    [[self scrollView] setHasHorizontalScroller:YES];
+    [[self scrollView] setDocumentView:[self scoreView]];
 
-    [[self.window contentView] addSubview:self.scrollView];
-    [self.window makeKeyAndOrderFront:nil];
+    [[[self window] contentView] addSubview:[self scrollView]];
+    [[self window] makeKeyAndOrderFront:nil];
 }
 
 - (void)openDocument:(id)sender
@@ -109,20 +160,33 @@
 #endif
 
     NSInteger result = [panel runModal];
-#if defined(__APPLE__)
-    if (result == NSModalResponseOK) {
-#else
-    if (result == NSOKButton) {
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #endif
-        NSURL *url = [[panel URLs] objectAtIndex:0];
-        [self openScoreAtPath:[url path]];
+    BOOL accepted = (result == NSOKButton);
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+    if (accepted) {
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+        NSArray *filenames = [panel filenames];
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+        if ([filenames count] > 0) {
+            [self openScoreAtPath:[filenames objectAtIndex:0]];
+        }
     }
 }
 
 - (void)saveDocumentAs:(id)sender
 {
     (void)sender;
-    if (!self.scoreView.document) {
+    if (![[self scoreView] document]) {
         NSAlert *alert = [[[NSAlert alloc] init] autorelease];
         [alert setMessageText:@"There is no score to save"];
         [alert runModal];
@@ -139,28 +203,39 @@
 #pragma clang diagnostic pop
 #endif
     NSString *defaultName = @"Untitled.score";
-    if ([self.currentPath length] > 0) {
-        defaultName = [[[self.currentPath lastPathComponent] stringByDeletingPathExtension] stringByAppendingPathExtension:@"score"];
+    if ([[self currentPath] length] > 0) {
+        defaultName = [[[[self currentPath] lastPathComponent] stringByDeletingPathExtension] stringByAppendingPathExtension:@"score"];
     }
     [panel setNameFieldStringValue:defaultName];
 
     NSInteger result = [panel runModal];
-#if defined(__APPLE__)
-    if (result == NSModalResponseOK) {
-#else
-    if (result == NSOKButton) {
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #endif
-        NSURL *url = [panel URL];
+    BOOL accepted = (result == NSOKButton);
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+    if (accepted) {
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+        NSString *filename = [panel filename];
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
         NSError *error = nil;
-        if (![ScorefileParser writeDocument:self.scoreView.document toFileAtPath:[url path] error:&error]) {
+        if (![ScorefileParser writeDocument:[[self scoreView] document] toFileAtPath:filename error:&error]) {
             NSAlert *alert = [[[NSAlert alloc] init] autorelease];
             [alert setMessageText:@"Could not save scorefile"];
-            [alert setInformativeText:[error localizedDescription] ?: @"Unknown error"];
+            [alert setInformativeText:error ? [error localizedDescription] : @"Unknown error"];
             [alert runModal];
             return;
         }
-        self.currentPath = [url path];
-        [self.window setTitle:[NSString stringWithFormat:@"ScoreMaker - %@", [[url path] lastPathComponent]]];
+        [self setCurrentPath:filename];
+        [[self window] setTitle:[NSString stringWithFormat:@"ScoreMaker - %@", [filename lastPathComponent]]];
     }
 }
 
@@ -177,14 +252,14 @@
     if (!document) {
         NSAlert *alert = [[[NSAlert alloc] init] autorelease];
         [alert setMessageText:@"Could not open file"];
-        [alert setInformativeText:[error localizedDescription] ?: @"Unknown error"];
+        [alert setInformativeText:error ? [error localizedDescription] : @"Unknown error"];
         [alert runModal];
         return;
     }
 
-    self.scoreView.document = document;
-    self.currentPath = path;
-    [self.window setTitle:[NSString stringWithFormat:@"ScoreMaker - %@", [path lastPathComponent]]];
+    [[self scoreView] setDocument:document];
+    [self setCurrentPath:path];
+    [[self window] setTitle:[NSString stringWithFormat:@"ScoreMaker - %@", [path lastPathComponent]]];
 }
 
 @end

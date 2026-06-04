@@ -5,5 +5,6 @@
 {
     ScoreDocument *_document;
 }
-@property(nonatomic, retain) ScoreDocument *document;
+- (ScoreDocument *)document;
+- (void)setDocument:(ScoreDocument *)document;
 @end
