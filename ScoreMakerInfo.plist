@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>MusicKit Scorefile</string>
+      <key>CFBundleTypeExtensions</key>
+      <array>
+        <string>score</string>
+      </array>
+      <key>CFBundleTypeRole</key>
+      <string>Editor</string>
+      <key>NSDocumentClass</key>
+      <string>ScoreMakerDocument</string>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>MIDI File</string>
+      <key>CFBundleTypeExtensions</key>
+      <array>
+        <string>mid</string>
+        <string>midi</string>
+      </array>
+      <key>CFBundleTypeRole</key>
+      <string>Editor</string>
+      <key>NSDocumentClass</key>
+      <string>ScoreMakerDocument</string>
+    </dict>
+  </array>
+  <key>NSTypes</key>
+  <array>
+    <dict>
+      <key>NSName</key>
+      <string>MusicKit Scorefile</string>
+      <key>NSHumanReadableName</key>
+      <string>MusicKit Scorefile</string>
+      <key>NSUnixExtensions</key>
+      <array>
+        <string>score</string>
+      </array>
+      <key>NSRole</key>
+      <string>Editor</string>
+      <key>NSDocumentClass</key>
+      <string>ScoreMakerDocument</string>
+    </dict>
+    <dict>
+      <key>NSName</key>
+      <string>MIDI File</string>
+      <key>NSHumanReadableName</key>
+      <string>MIDI File</string>
+      <key>NSUnixExtensions</key>
+      <array>
+        <string>mid</string>
+        <string>midi</string>
+      </array>
+      <key>NSRole</key>
+      <string>Editor</string>
+      <key>NSDocumentClass</key>
+      <string>ScoreMakerDocument</string>
+    </dict>
+  </array>
+</dict>
+</plist>
