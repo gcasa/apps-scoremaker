@@ -20,6 +20,7 @@
 {
     NSString *_title;
     NSMutableArray *_notes;
+    NSMutableDictionary *_partNames;
     NSUInteger _ticksPerQuarter;
     NSUInteger _tempoMicrosecondsPerQuarter;
     NSUInteger _timeSignatureNumerator;
@@ -28,9 +29,12 @@
 }
 @property(retain) NSString *title;
 @property(retain) NSMutableArray *notes;
+@property(retain) NSMutableDictionary *partNames;
 @property NSUInteger ticksPerQuarter;
 @property NSUInteger tempoMicrosecondsPerQuarter;
 @property NSUInteger timeSignatureNumerator;
 @property NSUInteger timeSignatureDenominator;
 @property NSUInteger totalTicks;
+- (NSString *)nameForTrack:(NSInteger)track;
+- (void)setName:(NSString *)name forTrack:(NSInteger)track;
 @end

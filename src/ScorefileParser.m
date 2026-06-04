@@ -190,6 +190,27 @@ static NSString *NoteNameForPitch(NSInteger pitch)
     return [NSString stringWithFormat:@"%@%ld", names[pc], (long)octave];
 }
 
+static NSString *ScorefileIdentifierForPartName(NSString *name)
+{
+    NSMutableString *identifier = [NSMutableString string];
+    NSCharacterSet *letters = [NSCharacterSet alphanumericCharacterSet];
+    for (NSUInteger i = 0; i < [name length]; i++) {
+        unichar c = [name characterAtIndex:i];
+        if ([letters characterIsMember:c]) {
+            [identifier appendFormat:@"%C", c];
+        } else if ([identifier length] > 0 && ![identifier hasSuffix:@"_"]) {
+            [identifier appendString:@"_"];
+        }
+    }
+    if ([identifier length] == 0) {
+        [identifier appendString:@"part"];
+    }
+    if ([[NSCharacterSet decimalDigitCharacterSet] characterIsMember:[identifier characterAtIndex:0]]) {
+        [identifier insertString:@"part_" atIndex:0];
+    }
+    return identifier;
+}
+
 @implementation ScorefileParser
 
 + (ScoreDocument *)parseFileAtPath:(NSString *)path error:(NSError **)error
@@ -258,6 +279,18 @@ static NSString *NoteNameForPitch(NSInteger pitch)
             continue;
         }
 
+        if (!inBody && [statement hasPrefix:@"part "]) {
+            NSString *partName = Trim([statement substringFromIndex:5]);
+            NSArray *partTokens = [partName componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+            partName = [partTokens count] > 0 ? [partTokens objectAtIndex:0] : @"part";
+            if ([partName length] > 0 && ![partTracks objectForKey:partName]) {
+                NSNumber *trackNumber = [NSNumber numberWithUnsignedInteger:trackForPart++];
+                [partTracks setObject:trackNumber forKey:partName];
+                [document setName:partName forTrack:[trackNumber integerValue]];
+            }
+            continue;
+        }
+
         if (!inBody) {
             continue;
         }
@@ -287,6 +320,7 @@ static NSString *NoteNameForPitch(NSInteger pitch)
         if (!trackNumber) {
             trackNumber = [NSNumber numberWithUnsignedInteger:trackForPart++];
             [partTracks setObject:trackNumber forKey:partName];
+            [document setName:partName forTrack:[trackNumber integerValue]];
         }
 
         NSString *event = Trim([statement substringWithRange:NSMakeRange(open.location + 1, close.location - open.location - 1)]);
@@ -401,7 +435,30 @@ static NSString *NoteNameForPitch(NSInteger pitch)
     NSMutableString *output = [NSMutableString string];
     [output appendString:@"/* Written by ScoreMaker. */\n\n"];
     [output appendFormat:@"info tempo:%.6g;\n", tempoBPM];
-    [output appendString:@"part score;\n\nBEGIN;\n\n"];
+    NSMutableDictionary *partIdentifiers = [NSMutableDictionary dictionary];
+    NSMutableArray *tracks = [NSMutableArray array];
+    for (ScoreNote *note in document.notes) {
+        NSNumber *track = [NSNumber numberWithInteger:note.track];
+        if (![tracks containsObject:track]) {
+            [tracks addObject:track];
+        }
+    }
+    [tracks sortUsingSelector:@selector(compare:)];
+    for (NSNumber *track in tracks) {
+        NSString *name = [document nameForTrack:[track integerValue]];
+        if ([name length] == 0) {
+            name = [NSString stringWithFormat:@"part%@", track];
+        }
+        NSString *identifier = ScorefileIdentifierForPartName(name);
+        NSString *base = identifier;
+        NSUInteger suffix = 2;
+        while ([[partIdentifiers allValues] containsObject:identifier]) {
+            identifier = [NSString stringWithFormat:@"%@_%lu", base, (unsigned long)suffix++];
+        }
+        [partIdentifiers setObject:identifier forKey:track];
+        [output appendFormat:@"part %@;\n", identifier];
+    }
+    [output appendString:@"\nBEGIN;\n\n"];
 
     NSUInteger lastTick = NSNotFound;
     for (ScoreNote *note in document.notes) {
@@ -411,7 +468,8 @@ static NSString *NoteNameForPitch(NSInteger pitch)
             lastTick = note.startTick;
         }
         double duration = (double)MAX((NSUInteger)1, note.durationTicks) / (double)document.ticksPerQuarter;
-        [output appendFormat:@"score (%.6g) keyNum:%@;\n", duration, NoteNameForPitch(note.pitch)];
+        NSString *identifier = [partIdentifiers objectForKey:[NSNumber numberWithInteger:note.track]] ?: @"score";
+        [output appendFormat:@"%@ (%.6g) keyNum:%@;\n", identifier, duration, NoteNameForPitch(note.pitch)];
     }
 
     [output appendString:@"\nEND;\n"];

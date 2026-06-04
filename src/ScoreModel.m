@@ -21,6 +21,7 @@
 @implementation ScoreDocument
 @synthesize title = _title;
 @synthesize notes = _notes;
+@synthesize partNames = _partNames;
 @synthesize ticksPerQuarter = _ticksPerQuarter;
 @synthesize tempoMicrosecondsPerQuarter = _tempoMicrosecondsPerQuarter;
 @synthesize timeSignatureNumerator = _timeSignatureNumerator;
@@ -32,6 +33,7 @@
     self = [super init];
     if (self) {
         _notes = [[NSMutableArray alloc] init];
+        _partNames = [[NSMutableDictionary alloc] init];
         _ticksPerQuarter = 480;
         _tempoMicrosecondsPerQuarter = 500000;
         _timeSignatureNumerator = 4;
@@ -45,7 +47,22 @@
 {
     [_title release];
     [_notes release];
+    [_partNames release];
     [super dealloc];
+}
+
+- (NSString *)nameForTrack:(NSInteger)track
+{
+    return [_partNames objectForKey:[NSNumber numberWithInteger:track]];
+}
+
+- (void)setName:(NSString *)name forTrack:(NSInteger)track
+{
+    NSString *trimmed = [name stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if ([trimmed length] == 0) {
+        return;
+    }
+    [_partNames setObject:trimmed forKey:[NSNumber numberWithInteger:track]];
 }
 
 @end

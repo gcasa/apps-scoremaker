@@ -2,6 +2,7 @@
 
 static CGFloat const PageWidth = 980.0;
 static CGFloat const Margin = 48.0;
+static CGFloat const PartLabelWidth = 82.0;
 static CGFloat const SystemHeight = 210.0;
 static CGFloat const StaffGap = 82.0;
 static CGFloat const LineSpacing = 10.0;
@@ -99,11 +100,18 @@ static CGFloat const TicksPerSystemQuarters = 16.0;
 
 - (void)drawSystemAtY:(CGFloat)y systemIndex:(NSUInteger)systemIndex ticksPerSystem:(NSUInteger)ticksPerSystem
 {
-    CGFloat left = Margin;
+    CGFloat left = Margin + PartLabelWidth;
     CGFloat right = PageWidth - Margin;
     CGFloat trebleTop = y;
     CGFloat bassTop = y + StaffGap;
+    NSUInteger startTick = systemIndex * ticksPerSystem;
+    NSUInteger endTick = startTick + ticksPerSystem;
 
+    [self drawPartNamesForSystemStart:startTick
+                            systemEnd:endTick
+                                    x:Margin - 10.0
+                                    y:trebleTop
+                               height:bassTop + 4.0 * LineSpacing - trebleTop];
     [self drawStaffFromX:left toX:right topY:trebleTop];
     [self drawStaffFromX:left toX:right topY:bassTop];
     [self drawBraceAtX:left - 14.0 topY:trebleTop bottomY:bassTop + 4.0 * LineSpacing];
@@ -121,10 +129,51 @@ static CGFloat const TicksPerSystemQuarters = 16.0;
 
     CGFloat musicLeft = left + 100.0;
     CGFloat musicRight = right - 18.0;
-    NSUInteger startTick = systemIndex * ticksPerSystem;
-    NSUInteger endTick = startTick + ticksPerSystem;
     [self drawMeasureLinesFromX:musicLeft toX:musicRight topY:trebleTop systemStart:startTick systemEnd:endTick];
     [self drawNotesFromX:musicLeft toX:musicRight trebleY:trebleTop bassY:bassTop systemStart:startTick systemEnd:endTick];
+}
+
+- (void)drawPartNamesForSystemStart:(NSUInteger)systemStart
+                           systemEnd:(NSUInteger)systemEnd
+                                   x:(CGFloat)x
+                                   y:(CGFloat)y
+                              height:(CGFloat)height
+{
+    NSMutableArray *tracks = [NSMutableArray array];
+    for (ScoreNote *note in _document.notes) {
+        if (note.startTick >= systemEnd || note.startTick + note.durationTicks <= systemStart) {
+            continue;
+        }
+        NSNumber *track = [NSNumber numberWithInteger:note.track];
+        if (![tracks containsObject:track]) {
+            [tracks addObject:track];
+        }
+    }
+    if ([tracks count] == 0) {
+        return;
+    }
+    [tracks sortUsingSelector:@selector(compare:)];
+
+    NSMutableArray *names = [NSMutableArray array];
+    for (NSNumber *track in tracks) {
+        NSString *name = [_document nameForTrack:[track integerValue]];
+        if ([name length] == 0) {
+            name = [NSString stringWithFormat:@"Part %ld", (long)([track integerValue] + 1)];
+        }
+        [names addObject:name];
+    }
+
+    NSMutableParagraphStyle *style = [[[NSMutableParagraphStyle alloc] init] autorelease];
+    [style setAlignment:NSTextAlignmentRight];
+    [style setLineBreakMode:NSLineBreakByWordWrapping];
+    NSDictionary *attrs = [NSDictionary dictionaryWithObjectsAndKeys:
+                           [NSFont systemFontOfSize:10.0], NSFontAttributeName,
+                           [NSColor colorWithCalibratedWhite:0.2 alpha:1.0], NSForegroundColorAttributeName,
+                           style, NSParagraphStyleAttributeName,
+                           nil];
+    NSString *label = [names componentsJoinedByString:@"\n"];
+    NSRect rect = NSMakeRect(x, y + height / 2.0 - 26.0, PartLabelWidth, 52.0);
+    [label drawInRect:rect withAttributes:attrs];
 }
 
 - (void)drawStaffFromX:(CGFloat)left toX:(CGFloat)right topY:(CGFloat)top

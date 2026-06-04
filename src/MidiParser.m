@@ -37,6 +37,55 @@ static NSError *ParserError(NSString *message)
     return [NSError errorWithDomain:MidiParserErrorDomain code:1 userInfo:info];
 }
 
+static NSString *MidiTextFromBytes(const unsigned char *bytes, NSUInteger length)
+{
+    NSData *data = [NSData dataWithBytes:bytes length:length];
+    NSString *text = [[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] autorelease];
+    if (!text) {
+        text = [[[NSString alloc] initWithData:data encoding:NSISOLatin1StringEncoding] autorelease];
+    }
+    return text;
+}
+
+static NSString *GeneralMidiProgramName(unsigned char program)
+{
+    static NSString *names[] = {
+        @"Acoustic Grand Piano", @"Bright Acoustic Piano", @"Electric Grand Piano", @"Honky-tonk Piano",
+        @"Electric Piano 1", @"Electric Piano 2", @"Harpsichord", @"Clavinet",
+        @"Celesta", @"Glockenspiel", @"Music Box", @"Vibraphone",
+        @"Marimba", @"Xylophone", @"Tubular Bells", @"Dulcimer",
+        @"Drawbar Organ", @"Percussive Organ", @"Rock Organ", @"Church Organ",
+        @"Reed Organ", @"Accordion", @"Harmonica", @"Tango Accordion",
+        @"Acoustic Guitar Nylon", @"Acoustic Guitar Steel", @"Electric Guitar Jazz", @"Electric Guitar Clean",
+        @"Electric Guitar Muted", @"Overdriven Guitar", @"Distortion Guitar", @"Guitar Harmonics",
+        @"Acoustic Bass", @"Electric Bass Finger", @"Electric Bass Pick", @"Fretless Bass",
+        @"Slap Bass 1", @"Slap Bass 2", @"Synth Bass 1", @"Synth Bass 2",
+        @"Violin", @"Viola", @"Cello", @"Contrabass",
+        @"Tremolo Strings", @"Pizzicato Strings", @"Orchestral Harp", @"Timpani",
+        @"String Ensemble 1", @"String Ensemble 2", @"Synth Strings 1", @"Synth Strings 2",
+        @"Choir Aahs", @"Voice Oohs", @"Synth Voice", @"Orchestra Hit",
+        @"Trumpet", @"Trombone", @"Tuba", @"Muted Trumpet",
+        @"French Horn", @"Brass Section", @"Synth Brass 1", @"Synth Brass 2",
+        @"Soprano Sax", @"Alto Sax", @"Tenor Sax", @"Baritone Sax",
+        @"Oboe", @"English Horn", @"Bassoon", @"Clarinet",
+        @"Piccolo", @"Flute", @"Recorder", @"Pan Flute",
+        @"Blown Bottle", @"Shakuhachi", @"Whistle", @"Ocarina",
+        @"Lead 1 Square", @"Lead 2 Sawtooth", @"Lead 3 Calliope", @"Lead 4 Chiff",
+        @"Lead 5 Charang", @"Lead 6 Voice", @"Lead 7 Fifths", @"Lead 8 Bass Lead",
+        @"Pad 1 New Age", @"Pad 2 Warm", @"Pad 3 Polysynth", @"Pad 4 Choir",
+        @"Pad 5 Bowed", @"Pad 6 Metallic", @"Pad 7 Halo", @"Pad 8 Sweep",
+        @"FX 1 Rain", @"FX 2 Soundtrack", @"FX 3 Crystal", @"FX 4 Atmosphere",
+        @"FX 5 Brightness", @"FX 6", @"FX 7 Echoes", @"FX 8 Sci-fi",
+        @"Sitar", @"Banjo", @"Shamisen", @"Koto",
+        @"Kalimba", @"Bag Pipe", @"Fiddle", @"Shanai",
+        @"Tinkle Bell", @"Agogo", @"Steel Drums", @"Woodblock",
+        @"Taiko Drum", @"Melodic Tom", @"Synth Drum", @"Reverse Cymbal",
+        @"Guitar Fret Noise", @"Breath Noise", @"Seashore", @"Bird Tweet",
+        @"Telephone Ring", @"Helicopter", @"Applause", @"Gunshot"
+    };
+    return names[MIN((NSUInteger)program, (NSUInteger)127)];
+}
+
 @implementation MidiParser
 
 + (ScoreDocument *)parseFileAtPath:(NSString *)path error:(NSError **)error
@@ -102,6 +151,7 @@ static NSError *ParserError(NSString *message)
                document:(ScoreDocument *)document
 {
     NSMutableDictionary *activeNotes = [NSMutableDictionary dictionary];
+    NSMutableDictionary *channelNames = [NSMutableDictionary dictionary];
     NSUInteger offset = 0;
     NSUInteger absoluteTick = 0;
     unsigned char runningStatus = 0;
@@ -136,7 +186,12 @@ static NSError *ParserError(NSString *message)
             NSUInteger metaLength = 0;
             if (!ReadVarLen(bytes, length, &offset, &metaLength) || offset + metaLength > length) break;
 
-            if (metaType == 0x51 && metaLength == 3) {
+            if (metaType == 0x03 || metaType == 0x04) {
+                NSString *name = MidiTextFromBytes(bytes + offset, metaLength);
+                if ([name length] > 0) {
+                    [document setName:name forTrack:(NSInteger)trackIndex];
+                }
+            } else if (metaType == 0x51 && metaLength == 3) {
                 document.tempoMicrosecondsPerQuarter = ((NSUInteger)bytes[offset] << 16) |
                                                        ((NSUInteger)bytes[offset + 1] << 8) |
                                                        (NSUInteger)bytes[offset + 2];
@@ -168,7 +223,13 @@ static NSError *ParserError(NSString *message)
         unsigned char data1 = bytes[offset++];
         unsigned char data2 = dataLength == 2 ? bytes[offset++] : 0;
 
-        if (eventType == 0x90 && data2 > 0) {
+        if (eventType == 0xc0) {
+            NSString *name = channel == 9 ? @"Percussion" : GeneralMidiProgramName(data1);
+            [channelNames setObject:name forKey:[NSNumber numberWithUnsignedChar:channel]];
+            if (![document nameForTrack:(NSInteger)trackIndex]) {
+                [document setName:name forTrack:(NSInteger)trackIndex];
+            }
+        } else if (eventType == 0x90 && data2 > 0) {
             NSString *key = [NSString stringWithFormat:@"%lu:%u:%u", (unsigned long)trackIndex, channel, data1];
             NSMutableArray *starts = [activeNotes objectForKey:key];
             if (!starts) {
@@ -189,6 +250,15 @@ static NSError *ParserError(NSString *message)
                     note.track = trackIndex;
                     note.startTick = startTick;
                     note.durationTicks = absoluteTick - startTick;
+                    if (![document nameForTrack:(NSInteger)trackIndex]) {
+                        NSString *name = [channelNames objectForKey:[NSNumber numberWithUnsignedChar:channel]];
+                        if (!name && channel == 9) {
+                            name = @"Percussion";
+                        }
+                        if (name) {
+                            [document setName:name forTrack:(NSInteger)trackIndex];
+                        }
+                    }
                     [document.notes addObject:note];
                 }
             }
