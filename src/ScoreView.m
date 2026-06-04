@@ -9,6 +9,7 @@ static CGFloat const LineSpacing = 10.0;
 static CGFloat const TicksPerSystemQuarters = 16.0;
 static CGFloat const ClefImageWidth = 20.0;
 static CGFloat const ClefImageHeight = 60.0;
+static CGFloat const FirstSystemOffset = 54.0;
 
 @implementation ScoreView
 
@@ -68,7 +69,7 @@ static CGFloat const ClefImageHeight = 60.0;
     NSFrameRect(page);
 
     if (!_document) {
-        [self drawCenteredMessage:@"Open a MIDI file to display sheet music."];
+        [self drawCenteredMessage:@"Open a MIDI or score file to display sheet music."];
         return;
     }
 
@@ -76,7 +77,7 @@ static CGFloat const ClefImageHeight = 60.0;
     NSUInteger ticksPerSystem = [self ticksPerSystem];
     NSUInteger systemCount = MAX((NSUInteger)1, ([_document totalTicks] / ticksPerSystem) + 1);
     for (NSUInteger system = 0; system < systemCount; system++) {
-        CGFloat y = Margin + 54.0 + (CGFloat)system * SystemHeight;
+        CGFloat y = Margin + FirstSystemOffset + (CGFloat)system * SystemHeight;
         [self drawSystemAtY:y systemIndex:system ticksPerSystem:ticksPerSystem];
     }
 }
@@ -131,14 +132,46 @@ static CGFloat const ClefImageHeight = 60.0;
                                                                       ClefImageWidth,
                                                                       ClefImageHeight)];
 
+    CGFloat musicLeft = left + 100.0;
+    CGFloat musicRight = right - 18.0;
     if (systemIndex == 0) {
+        [self drawTempoMarkAtX:musicLeft y:trebleTop - 30.0];
         [self drawTimeSignatureAtX:left + 58.0 trebleY:trebleTop bassY:bassTop];
     }
 
-    CGFloat musicLeft = left + 100.0;
-    CGFloat musicRight = right - 18.0;
     [self drawMeasureLinesFromX:musicLeft toX:musicRight topY:trebleTop systemStart:startTick systemEnd:endTick];
     [self drawNotesFromX:musicLeft toX:musicRight trebleY:trebleTop bassY:bassTop systemStart:startTick systemEnd:endTick];
+}
+
+- (void)drawTempoMarkAtX:(CGFloat)x y:(CGFloat)y
+{
+    NSUInteger tempo = [_document tempoMicrosecondsPerQuarter];
+    if (tempo == 0) {
+        return;
+    }
+
+    NSUInteger beatsPerMinute = (NSUInteger)((60000000.0 / (double)tempo) + 0.5);
+    NSDictionary *attrs = [NSDictionary dictionaryWithObjectsAndKeys:
+                           [NSFont systemFontOfSize:13.0], NSFontAttributeName,
+                           [NSColor blackColor], NSForegroundColorAttributeName,
+                           nil];
+
+    CGFloat noteCenterY = y + 8.0;
+    NSBezierPath *head = [NSBezierPath bezierPathWithOvalInRect:NSMakeRect(x, noteCenterY - 3.0, 8.0, 6.0)];
+    NSAffineTransform *slant = [NSAffineTransform transform];
+    [slant translateXBy:x + 4.0 yBy:noteCenterY];
+    [slant rotateByDegrees:-18.0];
+    [slant translateXBy:-(x + 4.0) yBy:-noteCenterY];
+    [head transformUsingAffineTransform:slant];
+    [[NSColor blackColor] setFill];
+    [head fill];
+
+    CGFloat stemX = x + 7.5;
+    [NSBezierPath strokeLineFromPoint:NSMakePoint(stemX, noteCenterY)
+                              toPoint:NSMakePoint(stemX, noteCenterY - 24.0)];
+
+    NSString *tempoText = [NSString stringWithFormat:@"= %lu", (unsigned long)beatsPerMinute];
+    [tempoText drawAtPoint:NSMakePoint(x + 17.0, y) withAttributes:attrs];
 }
 
 - (NSImage *)clefImageNamed:(NSString *)name
