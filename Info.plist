@@ -15,6 +15,8 @@
   <string>1.0</string>
   <key>CFBundleShortVersionString</key>
   <string>1.0</string>
+  <key>CFBundleIconFile</key>
+  <string>ScoreMakerAppIcon</string>
   <key>NSHighResolutionCapable</key>
   <true/>
   <key>CFBundleDocumentTypes</key>
@@ -22,6 +24,8 @@
     <dict>
       <key>CFBundleTypeName</key>
       <string>MusicKit Scorefile</string>
+      <key>CFBundleTypeIconFile</key>
+      <string>ScoreMakerDocumentIcon</string>
       <key>CFBundleTypeExtensions</key>
       <array>
         <string>score</string>
@@ -34,6 +38,8 @@
     <dict>
       <key>CFBundleTypeName</key>
       <string>MIDI File</string>
+      <key>CFBundleTypeIconFile</key>
+      <string>ScoreMakerDocumentIcon</string>
       <key>CFBundleTypeExtensions</key>
       <array>
         <string>mid</string>
@@ -52,6 +58,8 @@
       <string>MusicKit Scorefile</string>
       <key>NSHumanReadableName</key>
       <string>MusicKit Scorefile</string>
+      <key>NSIcon</key>
+      <string>ScoreMakerDocumentIcon</string>
       <key>NSUnixExtensions</key>
       <array>
         <string>score</string>
@@ -66,6 +74,8 @@
       <string>MIDI File</string>
       <key>NSHumanReadableName</key>
       <string>MIDI File</string>
+      <key>NSIcon</key>
+      <string>ScoreMakerDocumentIcon</string>
       <key>NSUnixExtensions</key>
       <array>
         <string>mid</string>

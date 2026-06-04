@@ -1,3 +1,7 @@
+ifeq ($(GNUSTEP_MAKEFILES),)
+include Makefile
+else
+
 include $(GNUSTEP_MAKEFILES)/common.make
 
 APP_NAME = ScoreMaker
@@ -23,8 +27,14 @@ ScoreMaker_HEADER_FILES = \
 
 ScoreMaker_RESOURCE_FILES = \
 	Resources/bass_clef.png \
+	Resources/ScoreMakerAppIcon.icns \
+	Resources/ScoreMakerAppIcon.tiff \
+	Resources/ScoreMakerDocumentIcon.icns \
+	Resources/ScoreMakerDocumentIcon.tiff \
 	Resources/treble_clef.png
 
-ScoreMaker_APPLICATION_ICON =
+ScoreMaker_APPLICATION_ICON = Resources/ScoreMakerAppIcon.tiff
 
 include $(GNUSTEP_MAKEFILES)/application.make
+
+endif
