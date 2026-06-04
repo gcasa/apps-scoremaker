@@ -4,7 +4,6 @@
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification
 {
-    (void)notification;
     [self buildMenu];
 
     NSDocumentController *controller = [NSDocumentController sharedDocumentController];
@@ -19,13 +18,11 @@
 
 - (BOOL)applicationShouldOpenUntitledFile:(NSApplication *)sender
 {
-    (void)sender;
     return NO;
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender
 {
-    (void)sender;
     return YES;
 }
 
