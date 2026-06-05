@@ -417,6 +417,9 @@ static NSString *GeneralMidiProgramName(unsigned char program)
             if ([note track] != trackIndex) {
                 continue;
             }
+            if ([note isRest]) {
+                continue;
+            }
             unsigned char pitch = (unsigned char)MIN(MAX([note pitch], (NSInteger)0), (NSInteger)127);
             unsigned char channel = (unsigned char)MIN(MAX([note channel], (NSInteger)0), (NSInteger)15);
             [events addObject:[NSDictionary dictionaryWithObjectsAndKeys:

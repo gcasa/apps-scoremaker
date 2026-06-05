@@ -2,6 +2,23 @@
 
 @implementation ScoreNote
 
+static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
+{
+    NSInteger pitchClass = pitch % 12;
+    if (pitchClass < 0) pitchClass += 12;
+    switch (pitchClass) {
+        case 1:
+        case 6:
+            return 1;
+        case 3:
+        case 8:
+        case 10:
+            return -1;
+        default:
+            return 0;
+    }
+}
+
 - (NSInteger)pitch
 {
     return _pitch;
@@ -10,6 +27,7 @@
 - (void)setPitch:(NSInteger)pitch
 {
     _pitch = pitch;
+    _accidental = DefaultAccidentalForPitch(pitch);
 }
 
 - (NSInteger)channel
@@ -52,10 +70,32 @@
     _durationTicks = durationTicks;
 }
 
+- (BOOL)isRest
+{
+    return _rest;
+}
+
+- (void)setRest:(BOOL)rest
+{
+    _rest = rest;
+}
+
+- (NSInteger)accidental
+{
+    return _accidental;
+}
+
+- (void)setAccidental:(NSInteger)accidental
+{
+    _accidental = MIN(MAX(accidental, (NSInteger)-1), (NSInteger)1);
+}
+
 - (NSComparisonResult)compareScoreNote:(ScoreNote *)other
 {
     if (_startTick < [other startTick]) return NSOrderedAscending;
     if (_startTick > [other startTick]) return NSOrderedDescending;
+    if (_rest && ![other isRest]) return NSOrderedDescending;
+    if (!_rest && [other isRest]) return NSOrderedAscending;
     if (_pitch > [other pitch]) return NSOrderedAscending;
     if (_pitch < [other pitch]) return NSOrderedDescending;
     return NSOrderedSame;

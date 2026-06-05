@@ -56,7 +56,19 @@
     [fileMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Save As..."
                                                   action:@selector(saveDocumentAs:)
                                            keyEquivalent:@"S"] autorelease]];
+    [fileMenu addItem:[NSMenuItem separatorItem]];
+    [fileMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Print..."
+                                                  action:@selector(printDocument:)
+                                           keyEquivalent:@"p"] autorelease]];
     [fileItem setSubmenu:fileMenu];
+
+    NSMenuItem *scoreItem = [[[NSMenuItem alloc] initWithTitle:@"Score" action:NULL keyEquivalent:@""] autorelease];
+    [mainMenu addItem:scoreItem];
+    NSMenu *scoreMenu = [[[NSMenu alloc] initWithTitle:@"Score"] autorelease];
+    [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Play"
+                                                   action:@selector(playScore:)
+                                            keyEquivalent:@""] autorelease]];
+    [scoreItem setSubmenu:scoreMenu];
 
     [NSApp setMainMenu:mainMenu];
 }

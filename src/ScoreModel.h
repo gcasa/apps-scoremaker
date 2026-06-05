@@ -7,6 +7,8 @@
     NSInteger _track;
     NSUInteger _startTick;
     NSUInteger _durationTicks;
+    BOOL _rest;
+    NSInteger _accidental;
 }
 - (NSInteger)pitch;
 - (void)setPitch:(NSInteger)pitch;
@@ -18,6 +20,10 @@
 - (void)setStartTick:(NSUInteger)startTick;
 - (NSUInteger)durationTicks;
 - (void)setDurationTicks:(NSUInteger)durationTicks;
+- (BOOL)isRest;
+- (void)setRest:(BOOL)rest;
+- (NSInteger)accidental;
+- (void)setAccidental:(NSInteger)accidental;
 - (NSComparisonResult)compareScoreNote:(ScoreNote *)other;
 @end
 

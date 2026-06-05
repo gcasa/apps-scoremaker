@@ -17,7 +17,10 @@
     NSTextField *_noteDurationField;
     NSTextField *_noteTrackField;
     NSButton *_addNoteButton;
+    NSButton *_playButton;
     NSTextView *_annotationTextView;
+    NSSound *_playbackSound;
+    id _midiPlayer;
     BOOL _updatingInspector;
 }
 - (NSWindow *)window;
@@ -35,4 +38,6 @@
 - (void)syncInspectorMetadataMarkingChange:(BOOL)markChange;
 - (void)scoreMetadataDidChange:(id)sender;
 - (void)addNote:(id)sender;
+- (void)playScore:(id)sender;
+- (void)printDocument:(id)sender;
 @end

@@ -281,6 +281,21 @@ static NSInteger PitchForName(NSString *value, BOOL *ok)
     return (octave + 1) * 12 + semitone;
 }
 
+static NSInteger AccidentalForName(NSString *value)
+{
+    NSString *s = [[Trim(value) lowercaseString] stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@","]];
+    if ([s hasSuffix:@"k"]) {
+        s = [s substringToIndex:[s length] - 1];
+    }
+    if ([s length] < 2) {
+        return 0;
+    }
+    unichar accidental = [s characterAtIndex:1];
+    if (accidental == 's' || accidental == '#') return 1;
+    if (accidental == 'f' || accidental == 'b') return -1;
+    return 0;
+}
+
 static NSInteger PitchForFrequency(NSString *value, NSDictionary *variables, BOOL *ok)
 {
     BOOL expressionOK = NO;
@@ -293,12 +308,14 @@ static NSInteger PitchForFrequency(NSString *value, NSDictionary *variables, BOO
     return PitchForName(value, ok);
 }
 
-static NSString *NoteNameForPitch(NSInteger pitch)
+static NSString *NoteNameForPitch(NSInteger pitch, NSInteger accidental)
 {
-    static NSString *names[] = {@"c", @"cs", @"d", @"ds", @"e", @"f", @"fs", @"g", @"gs", @"a", @"as", @"b"};
+    static NSString *sharpNames[] = {@"c", @"cs", @"d", @"ds", @"e", @"f", @"fs", @"g", @"gs", @"a", @"as", @"b"};
+    static NSString *flatNames[] = {@"c", @"df", @"d", @"ef", @"e", @"f", @"gf", @"g", @"af", @"a", @"bf", @"b"};
     NSInteger pc = pitch % 12;
     if (pc < 0) pc += 12;
     NSInteger octave = (pitch / 12) - 1;
+    NSString **names = accidental < 0 ? flatNames : sharpNames;
     return [NSString stringWithFormat:@"%@%ld", names[pc], (long)octave];
 }
 
@@ -515,6 +532,7 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
             if (pitchOK) {
                 ScoreNote *note = [[[ScoreNote alloc] init] autorelease];
                 [note setPitch:pitch];
+                [note setAccidental:AccidentalForName(pitchString)];
                 [note setChannel:0];
                 [note setTrack:[trackNumber integerValue]];
                 [note setStartTick:currentTick];
@@ -527,9 +545,13 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
 
         BOOL durationOK = NO;
         double durationSeconds = EvaluateExpression(event, variables, &durationOK);
-        if (durationOK && durationSeconds > 0.0 && pitchOK) {
+        if (durationOK && durationSeconds > 0.0 && (pitchOK || !pitchString)) {
             ScoreNote *note = [[[ScoreNote alloc] init] autorelease];
-            [note setPitch:pitch];
+            [note setRest:!pitchOK];
+            [note setPitch:pitchOK ? pitch : 60];
+            if (pitchOK && !pitchIsFrequency) {
+                [note setAccidental:AccidentalForName(pitchString)];
+            }
             [note setChannel:0];
             [note setTrack:[trackNumber integerValue]];
             [note setStartTick:currentTick];
@@ -629,7 +651,11 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
         if (!identifier) {
             identifier = @"score";
         }
-        [output appendFormat:@"%@ (%.6g) keyNum:%@;\n", identifier, duration, NoteNameForPitch([note pitch])];
+        if ([note isRest]) {
+            [output appendFormat:@"%@ (%.6g);\n", identifier, duration];
+        } else {
+            [output appendFormat:@"%@ (%.6g) keyNum:%@;\n", identifier, duration, NoteNameForPitch([note pitch], [note accidental])];
+        }
     }
 
     [output appendString:@"\nEND;\n"];

@@ -9,11 +9,11 @@ UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
 CC := clang
 CFLAGS := -Wall -Wextra -fobjc-exceptions -fconstant-string-class=NSConstantString
-LDFLAGS := -framework Cocoa
+LDFLAGS := -framework Cocoa -framework AVFoundation
 APP_DIR := $(BUILD_DIR)/macos/$(APP_NAME).app
 APP_BIN := $(APP_DIR)/Contents/MacOS/$(APP_NAME)
 
-.PHONY: all clean run
+.PHONY: all clean run release
 all: $(APP_BIN)
 
 $(APP_BIN): $(SOURCES) Info.plist $(RESOURCE_FILES)
@@ -26,6 +26,9 @@ $(APP_BIN): $(SOURCES) Info.plist $(RESOURCE_FILES)
 run: $(APP_BIN)
 	open "$(APP_DIR)"
 
+release:
+	$(MAKE) BUILD_DIR=build/release CFLAGS="-Wall -Wextra -O2 -DNDEBUG -fobjc-exceptions -fconstant-string-class=NSConstantString"
+
 else
 CC := clang
 GNUSTEP_CONFIG := gnustep-config
@@ -33,7 +36,7 @@ GNUSTEP_CFLAGS := $(shell $(GNUSTEP_CONFIG) --objc-flags)
 GNUSTEP_LIBS := $(shell $(GNUSTEP_CONFIG) --gui-libs)
 APP_BIN := $(BUILD_DIR)/gnustep/$(APP_NAME)
 
-.PHONY: all clean run
+.PHONY: all clean run release
 all: $(APP_BIN)
 
 $(APP_BIN): $(SOURCES)
@@ -42,6 +45,9 @@ $(APP_BIN): $(SOURCES)
 
 run: $(APP_BIN)
 	"$(APP_BIN)"
+
+release:
+	$(MAKE) BUILD_DIR=build/release
 endif
 
 clean:
