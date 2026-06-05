@@ -1,6 +1,6 @@
 #import <AppKit/AppKit.h>
 
-@interface AppDelegate : NSObject <NSApplicationDelegate, NSMenuDelegate>
+@interface AppDelegate : NSObject <NSApplicationDelegate>
 {
     NSMenu *_recentDocumentsMenu;
 }
