@@ -21,6 +21,9 @@ The renderer is intentionally lightweight. It focuses on extracting timing, pitc
 ### macOS
 <img width="1555" height="1081" alt="scoremaker" src="https://github.com/user-attachments/assets/4fdb1678-1407-4168-a3e5-f73f4fa958d8" />
 
+### GNUstep
+<img width="1572" height="1105" alt="scoremaker-gnustep" src="https://github.com/user-attachments/assets/d338857c-d2fa-4711-ad0d-8f0963ff4d41" />
+
 ## Build
 
 On macOS:
