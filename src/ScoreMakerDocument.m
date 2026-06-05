@@ -145,10 +145,7 @@ static CGFloat const InspectorPadding = 18.0;
 
 - (void)setWindow:(NSWindow *)window
 {
-    if (_documentWindow != window) {
-        [_documentWindow release];
-        _documentWindow = [window retain];
-    }
+    _documentWindow = window;
 }
 
 - (NSWindowController *)windowController
@@ -158,10 +155,7 @@ static CGFloat const InspectorPadding = 18.0;
 
 - (void)setWindowController:(NSWindowController *)windowController
 {
-    if (_windowController != windowController) {
-        [_windowController release];
-        _windowController = [windowController retain];
-    }
+    _windowController = windowController;
 }
 
 - (NSScrollView *)scrollView
@@ -225,7 +219,6 @@ static CGFloat const InspectorPadding = 18.0;
 {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
     [self stopCurrentPlayback];
-    [_documentWindow release];
     [_scoreDocument release];
     [_scrollView release];
     [_scoreView release];
@@ -240,7 +233,6 @@ static CGFloat const InspectorPadding = 18.0;
     [_addNoteButton release];
     [_playButton release];
     [_annotationTextView release];
-    [_windowController release];
     [super dealloc];
 }
 
