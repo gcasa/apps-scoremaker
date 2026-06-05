@@ -16,6 +16,11 @@ The renderer is intentionally lightweight. It focuses on extracting timing, pitc
 - Print the rendered score from the standard print panel.
 - Support common MusicKit scorefile timing, variable, `freq`, `keyNum`, `noteOn`, `noteOff`, `noteUpdate`, and duration-note patterns.
 
+## Screenshots
+
+### macOS
+<img width="1555" height="1081" alt="scoremaker" src="https://github.com/user-attachments/assets/4fdb1678-1407-4168-a3e5-f73f4fa958d8" />
+
 ## Build
 
 On macOS:
