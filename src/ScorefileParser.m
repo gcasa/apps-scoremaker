@@ -319,6 +319,181 @@ static NSString *NoteNameForPitch(NSInteger pitch, NSInteger accidental)
     return [NSString stringWithFormat:@"%@%ld", names[pc], (long)octave];
 }
 
+static BOOL StringContains(NSString *haystack, NSString *needle)
+{
+    return [haystack rangeOfString:needle options:NSCaseInsensitiveSearch].location != NSNotFound;
+}
+
+static BOOL StringHasPrefix(NSString *haystack, NSString *prefix)
+{
+    return [haystack rangeOfString:prefix options:(NSCaseInsensitiveSearch | NSAnchoredSearch)].location != NSNotFound;
+}
+
+static BOOL IsPercussionDescriptor(NSString *value)
+{
+    NSString *s = Trim(value);
+    return StringContains(s, @"percussion") || StringContains(s, @"drum");
+}
+
+static NSNumber *GeneralMidiProgramForDescriptor(NSString *value)
+{
+    NSString *s = [Trim(value) stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"\"'"]];
+    if ([s length] == 0) {
+        return nil;
+    }
+
+    NSScanner *numberScanner = [NSScanner scannerWithString:s];
+    NSInteger numericProgram = -1;
+    if ([numberScanner scanInteger:&numericProgram] && [numberScanner isAtEnd]) {
+        if (numericProgram >= 0 && numericProgram <= 127) {
+            return [NSNumber numberWithInteger:numericProgram];
+        }
+        if (numericProgram >= 1 && numericProgram <= 128) {
+            return [NSNumber numberWithInteger:numericProgram - 1];
+        }
+    }
+
+    if (StringContains(s, @"honky")) return [NSNumber numberWithInteger:3];
+    if (StringContains(s, @"bright") && StringContains(s, @"piano")) return [NSNumber numberWithInteger:1];
+    if ((StringContains(s, @"electric") || StringContains(s, @"rhodes")) && StringContains(s, @"piano")) return [NSNumber numberWithInteger:4];
+    if (StringContains(s, @"harpsichord")) return [NSNumber numberWithInteger:6];
+    if (StringContains(s, @"clav")) return [NSNumber numberWithInteger:7];
+    if (StringContains(s, @"piano")) return [NSNumber numberWithInteger:0];
+
+    if (StringContains(s, @"glockenspiel")) return [NSNumber numberWithInteger:9];
+    if (StringContains(s, @"vibraphone")) return [NSNumber numberWithInteger:11];
+    if (StringContains(s, @"marimba")) return [NSNumber numberWithInteger:12];
+    if (StringContains(s, @"xylophone")) return [NSNumber numberWithInteger:13];
+    if (StringContains(s, @"bells")) return [NSNumber numberWithInteger:14];
+
+    if (StringContains(s, @"church") && StringContains(s, @"organ")) return [NSNumber numberWithInteger:19];
+    if (StringContains(s, @"organ")) return [NSNumber numberWithInteger:16];
+    if (StringContains(s, @"accordion")) return [NSNumber numberWithInteger:21];
+    if (StringContains(s, @"harmonica")) return [NSNumber numberWithInteger:22];
+
+    if (StringContains(s, @"nylon") && StringContains(s, @"guitar")) return [NSNumber numberWithInteger:24];
+    if (StringContains(s, @"steel") && StringContains(s, @"guitar")) return [NSNumber numberWithInteger:25];
+    if (StringContains(s, @"distortion") && StringContains(s, @"guitar")) return [NSNumber numberWithInteger:30];
+    if (StringContains(s, @"overdriven") && StringContains(s, @"guitar")) return [NSNumber numberWithInteger:29];
+    if (StringContains(s, @"electric") && StringContains(s, @"guitar")) return [NSNumber numberWithInteger:27];
+    if (StringContains(s, @"pluck")) return [NSNumber numberWithInteger:24];
+    if (StringContains(s, @"guitar")) return [NSNumber numberWithInteger:24];
+
+    if (StringContains(s, @"contrabass") || StringContains(s, @"double bass")) return [NSNumber numberWithInteger:43];
+    if (StringContains(s, @"electric") && StringContains(s, @"bass")) return [NSNumber numberWithInteger:33];
+    if (StringContains(s, @"bass guitar")) return [NSNumber numberWithInteger:33];
+    if (StringContains(s, @"fretless")) return [NSNumber numberWithInteger:35];
+    if (StringContains(s, @"bassoon")) return [NSNumber numberWithInteger:70];
+    if (StringContains(s, @"bass")) return [NSNumber numberWithInteger:32];
+
+    if (StringContains(s, @"violin")) return [NSNumber numberWithInteger:40];
+    if (StringContains(s, @"viola")) return [NSNumber numberWithInteger:41];
+    if (StringContains(s, @"cello")) return [NSNumber numberWithInteger:42];
+    if (StringContains(s, @"harp")) return [NSNumber numberWithInteger:46];
+    if (StringContains(s, @"timpani")) return [NSNumber numberWithInteger:47];
+    if (StringContains(s, @"pizzicato")) return [NSNumber numberWithInteger:45];
+    if (StringContains(s, @"strings") || StringContains(s, @"string")) return [NSNumber numberWithInteger:48];
+
+    if (StringContains(s, @"choir")) return [NSNumber numberWithInteger:52];
+    if (StringContains(s, @"voice") || StringContains(s, @"vocal")) return [NSNumber numberWithInteger:53];
+
+    if (StringContains(s, @"trumpet")) return [NSNumber numberWithInteger:56];
+    if (StringContains(s, @"trombone")) return [NSNumber numberWithInteger:57];
+    if (StringContains(s, @"tuba")) return [NSNumber numberWithInteger:58];
+    if (StringContains(s, @"horn")) return [NSNumber numberWithInteger:60];
+    if (StringContains(s, @"brass")) return [NSNumber numberWithInteger:61];
+
+    if (StringContains(s, @"soprano sax")) return [NSNumber numberWithInteger:64];
+    if (StringContains(s, @"alto sax")) return [NSNumber numberWithInteger:65];
+    if (StringContains(s, @"tenor sax")) return [NSNumber numberWithInteger:66];
+    if (StringContains(s, @"baritone sax")) return [NSNumber numberWithInteger:67];
+    if (StringContains(s, @"sax")) return [NSNumber numberWithInteger:65];
+    if (StringContains(s, @"oboe")) return [NSNumber numberWithInteger:68];
+    if (StringContains(s, @"english horn")) return [NSNumber numberWithInteger:69];
+    if (StringContains(s, @"clarinet")) return [NSNumber numberWithInteger:71];
+    if (StringContains(s, @"piccolo")) return [NSNumber numberWithInteger:72];
+    if (StringContains(s, @"flute")) return [NSNumber numberWithInteger:73];
+    if (StringContains(s, @"recorder")) return [NSNumber numberWithInteger:74];
+
+    return nil;
+}
+
+static NSString *ScorefileParameterValue(NSString *params, NSString *name)
+{
+    NSString *prefix = [name stringByAppendingString:@":"];
+    NSRange range = [params rangeOfString:prefix options:NSCaseInsensitiveSearch];
+    if (range.location == NSNotFound) {
+        return nil;
+    }
+
+    NSUInteger index = range.location + range.length;
+    while (index < [params length] &&
+           [[NSCharacterSet whitespaceAndNewlineCharacterSet] characterIsMember:[params characterAtIndex:index]]) {
+        index++;
+    }
+    if (index >= [params length]) {
+        return nil;
+    }
+
+    if ([params characterAtIndex:index] == '"') {
+        NSMutableString *quoted = [NSMutableString string];
+        BOOL escaping = NO;
+        index++;
+        while (index < [params length]) {
+            unichar c = [params characterAtIndex:index++];
+            if (escaping) {
+                [quoted appendFormat:@"%C", c];
+                escaping = NO;
+            } else if (c == '\\') {
+                escaping = YES;
+            } else if (c == '"') {
+                break;
+            } else {
+                [quoted appendFormat:@"%C", c];
+            }
+        }
+        return quoted;
+    }
+
+    NSCharacterSet *stopSet = [NSCharacterSet characterSetWithCharactersInString:@" ,;\t\r\n"];
+    NSMutableString *value = [NSMutableString string];
+    while (index < [params length]) {
+        unichar c = [params characterAtIndex:index];
+        if ([stopSet characterIsMember:c]) {
+            break;
+        }
+        [value appendFormat:@"%C", c];
+        index++;
+    }
+    return [value length] > 0 ? value : nil;
+}
+
+static NSString *InstrumentDescriptorInParameters(NSString *params)
+{
+    NSArray *names = [NSArray arrayWithObjects:@"instrument", @"sound", @"synthPatch", @"patch", @"preset", @"program", @"gmProgram", nil];
+    NSEnumerator *enumerator = [names objectEnumerator];
+    NSString *name = nil;
+    while ((name = [enumerator nextObject]) != nil) {
+        NSString *value = ScorefileParameterValue(params, name);
+        if ([value length] > 0) {
+            return value;
+        }
+    }
+    return nil;
+}
+
+static NSInteger MidiChannelForScorefileTrack(NSInteger track, NSString *descriptor)
+{
+    if (descriptor && IsPercussionDescriptor(descriptor)) {
+        return 9;
+    }
+    NSInteger channel = track % 15;
+    if (channel >= 9) {
+        channel++;
+    }
+    return channel;
+}
+
 static NSString *ScorefileIdentifierForPartName(NSString *name)
 {
     NSMutableString *identifier = [NSMutableString string];
@@ -378,16 +553,16 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
             [document setAnnotationText:annotation];
             continue;
         }
-        if ([statement rangeOfString:@"BEGIN"].location != NSNotFound) {
+        if ([statement rangeOfString:@"BEGIN" options:NSCaseInsensitiveSearch].location != NSNotFound) {
             inBody = YES;
             continue;
         }
-        if ([statement rangeOfString:@"END"].location != NSNotFound) {
+        if ([statement rangeOfString:@"END" options:NSCaseInsensitiveSearch].location != NSNotFound) {
             break;
         }
 
-        if ([statement hasPrefix:@"info "]) {
-            NSRange tempoRange = [statement rangeOfString:@"tempo:"];
+        if (StringHasPrefix(statement, @"info ")) {
+            NSRange tempoRange = [statement rangeOfString:@"tempo:" options:NSCaseInsensitiveSearch];
             if (tempoRange.location != NSNotFound) {
                 NSString *tempoString = [statement substringFromIndex:tempoRange.location + tempoRange.length];
                 NSScanner *scanner = [NSScanner scannerWithString:tempoString];
@@ -397,7 +572,7 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
                     [document setTempoMicrosecondsPerQuarter:(NSUInteger)(60000000.0 / tempoBPM)];
                 }
             }
-            NSRange timingRange = [statement rangeOfString:@"timeSignature:"];
+            NSRange timingRange = [statement rangeOfString:@"timeSignature:" options:NSCaseInsensitiveSearch];
             if (timingRange.location != NSNotFound) {
                 NSString *timingString = [statement substringFromIndex:timingRange.location + timingRange.length];
                 NSScanner *scanner = [NSScanner scannerWithString:timingString];
@@ -416,7 +591,7 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
             continue;
         }
 
-        if ([statement hasPrefix:@"var "]) {
+        if (StringHasPrefix(statement, @"var ")) {
             NSString *assignment = Trim([statement substringFromIndex:4]);
             NSArray *parts = [assignment componentsSeparatedByString:@"="];
             if ([parts count] >= 2) {
@@ -431,23 +606,41 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
             continue;
         }
 
-        if (!inBody && [statement hasPrefix:@"part "]) {
-            NSString *partName = Trim([statement substringFromIndex:5]);
-            NSArray *partTokens = [partName componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-            partName = [partTokens count] > 0 ? [partTokens objectAtIndex:0] : @"part";
+        if (!inBody && StringHasPrefix(statement, @"part ")) {
+            NSString *partDeclaration = Trim([statement substringFromIndex:5]);
+            NSArray *partTokens = [partDeclaration componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+            NSString *partName = [partTokens count] > 0 ? [partTokens objectAtIndex:0] : @"part";
             if ([partName length] > 0 && ![partTracks objectForKey:partName]) {
                 NSNumber *trackNumber = [NSNumber numberWithUnsignedInteger:trackForPart++];
                 [partTracks setObject:trackNumber forKey:partName];
                 [document setName:partName forTrack:[trackNumber integerValue]];
+                NSString *descriptor = InstrumentDescriptorInParameters(partDeclaration);
+                NSNumber *program = descriptor ? GeneralMidiProgramForDescriptor(descriptor) : nil;
+                if (!program) {
+                    program = GeneralMidiProgramForDescriptor(partName);
+                }
+                if (program) {
+                    [document setProgram:program forTrack:[trackNumber integerValue]];
+                }
             }
             continue;
         }
 
         if (!inBody) {
+            NSArray *partInfoTokens = [statement componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+            NSString *partName = [partInfoTokens count] > 0 ? [partInfoTokens objectAtIndex:0] : nil;
+            NSNumber *trackNumber = partName ? [partTracks objectForKey:partName] : nil;
+            if (trackNumber) {
+                NSString *instrumentDescriptor = InstrumentDescriptorInParameters(statement);
+                NSNumber *program = instrumentDescriptor ? GeneralMidiProgramForDescriptor(instrumentDescriptor) : nil;
+                if (program) {
+                    [document setProgram:program forTrack:[trackNumber integerValue]];
+                }
+            }
             continue;
         }
 
-        if ([statement hasPrefix:@"t "]) {
+        if (StringHasPrefix(statement, @"t ")) {
             NSString *expr = Trim([statement substringFromIndex:2]);
             BOOL relative = [expr hasPrefix:@"+"] || [expr hasPrefix:@"-"];
             BOOL ok = NO;
@@ -473,14 +666,27 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
             trackNumber = [NSNumber numberWithUnsignedInteger:trackForPart++];
             [partTracks setObject:trackNumber forKey:partName];
             [document setName:partName forTrack:[trackNumber integerValue]];
+            NSNumber *program = GeneralMidiProgramForDescriptor(partName);
+            if (program) {
+                [document setProgram:program forTrack:[trackNumber integerValue]];
+            }
         }
 
         NSString *event = Trim([statement substringWithRange:NSMakeRange(open.location + 1, close.location - open.location - 1)]);
         NSString *params = [statement substringFromIndex:close.location + 1];
+        NSString *instrumentDescriptor = InstrumentDescriptorInParameters(params);
+        if ([instrumentDescriptor length] > 0) {
+            NSNumber *program = GeneralMidiProgramForDescriptor(instrumentDescriptor);
+            if (program) {
+                [document setProgram:program forTrack:[trackNumber integerValue]];
+            }
+        }
+        NSString *channelDescriptor = instrumentDescriptor ? instrumentDescriptor : [document nameForTrack:[trackNumber integerValue]];
+        NSInteger scorefileChannel = MidiChannelForScorefileTrack([trackNumber integerValue], channelDescriptor);
         NSString *pitchString = nil;
         BOOL pitchIsFrequency = NO;
-        NSRange keyNumRange = [params rangeOfString:@"keyNum:"];
-        NSRange freqRange = [params rangeOfString:@"freq:"];
+        NSRange keyNumRange = [params rangeOfString:@"keyNum:" options:NSCaseInsensitiveSearch];
+        NSRange freqRange = [params rangeOfString:@"freq:" options:NSCaseInsensitiveSearch];
         if (keyNumRange.location != NSNotFound || freqRange.location != NSNotFound) {
             NSRange paramRange = keyNumRange;
             NSString *paramName = @"keyNum:";
@@ -506,7 +712,7 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
         double ticksPerBeat = (double)[document ticksPerQuarter];
         NSUInteger currentTick = (NSUInteger)llround(currentTime * ticksPerBeat);
 
-        if ([event hasPrefix:@"noteOff"]) {
+        if (StringHasPrefix(event, @"noteOff")) {
             NSArray *eventParts = [event componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
             NSString *tag = [eventParts count] > 1 ? [eventParts objectAtIndex:1] : @"0";
             NSString *key = [NSString stringWithFormat:@"%@:%@", partName, tag];
@@ -521,7 +727,7 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
             continue;
         }
 
-        if ([event hasPrefix:@"noteOn"] || ([event hasPrefix:@"noteUpdate"] && pitchOK)) {
+        if (StringHasPrefix(event, @"noteOn") || (StringHasPrefix(event, @"noteUpdate") && pitchOK)) {
             NSArray *eventParts = [event componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
             NSString *tag = [eventParts count] > 1 ? [eventParts objectAtIndex:1] : partName;
             NSString *key = [NSString stringWithFormat:@"%@:%@", partName, tag];
@@ -533,7 +739,7 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
                 ScoreNote *note = [[[ScoreNote alloc] init] autorelease];
                 [note setPitch:pitch];
                 [note setAccidental:AccidentalForName(pitchString)];
-                [note setChannel:0];
+                [note setChannel:scorefileChannel];
                 [note setTrack:[trackNumber integerValue]];
                 [note setStartTick:currentTick];
                 [note setDurationTicks:[document ticksPerQuarter]];
@@ -552,7 +758,7 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
             if (pitchOK && !pitchIsFrequency) {
                 [note setAccidental:AccidentalForName(pitchString)];
             }
-            [note setChannel:0];
+            [note setChannel:scorefileChannel];
             [note setTrack:[trackNumber integerValue]];
             [note setStartTick:currentTick];
             [note setDurationTicks:MAX((NSUInteger)1, (NSUInteger)llround(durationSeconds * ticksPerBeat))];
@@ -634,7 +840,12 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
             identifier = [NSString stringWithFormat:@"%@_%lu", base, (unsigned long)suffix++];
         }
         [partIdentifiers setObject:identifier forKey:track];
-        [output appendFormat:@"part %@;\n", identifier];
+        NSNumber *program = [document programForTrack:[track integerValue]];
+        if (program) {
+            [output appendFormat:@"part %@ program:%ld;\n", identifier, (long)[program integerValue]];
+        } else {
+            [output appendFormat:@"part %@;\n", identifier];
+        }
     }
     [output appendString:@"\nBEGIN;\n\n"];
 

@@ -144,6 +144,19 @@ static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
     }
 }
 
+- (NSMutableDictionary *)trackPrograms
+{
+    return _trackPrograms;
+}
+
+- (void)setTrackPrograms:(NSMutableDictionary *)trackPrograms
+{
+    if (_trackPrograms != trackPrograms) {
+        [_trackPrograms release];
+        _trackPrograms = [trackPrograms retain];
+    }
+}
+
 - (NSString *)annotationText
 {
     return _annotationText;
@@ -213,6 +226,7 @@ static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
     if (self) {
         _notes = [[NSMutableArray alloc] init];
         _partNames = [[NSMutableDictionary alloc] init];
+        _trackPrograms = [[NSMutableDictionary alloc] init];
         _annotationText = [@"" retain];
         _ticksPerQuarter = 480;
         _tempoMicrosecondsPerQuarter = 500000;
@@ -228,6 +242,7 @@ static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
     [_title release];
     [_notes release];
     [_partNames release];
+    [_trackPrograms release];
     [_annotationText release];
     [super dealloc];
 }
@@ -244,6 +259,27 @@ static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
         return;
     }
     [_partNames setObject:trimmed forKey:[NSNumber numberWithInteger:track]];
+}
+
+- (NSNumber *)programForTrack:(NSInteger)track
+{
+    return [_trackPrograms objectForKey:[NSNumber numberWithInteger:track]];
+}
+
+- (void)setProgram:(NSNumber *)program forTrack:(NSInteger)track
+{
+    NSNumber *trackNumber = [NSNumber numberWithInteger:track];
+    if (!program) {
+        [_trackPrograms removeObjectForKey:trackNumber];
+        return;
+    }
+
+    NSInteger value = [program integerValue];
+    if (value < 0 || value > 127) {
+        [_trackPrograms removeObjectForKey:trackNumber];
+        return;
+    }
+    [_trackPrograms setObject:[NSNumber numberWithInteger:value] forKey:trackNumber];
 }
 
 @end

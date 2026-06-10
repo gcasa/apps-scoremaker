@@ -32,6 +32,7 @@
     NSString *_title;
     NSMutableArray *_notes;
     NSMutableDictionary *_partNames;
+    NSMutableDictionary *_trackPrograms;
     NSString *_annotationText;
     NSUInteger _ticksPerQuarter;
     NSUInteger _tempoMicrosecondsPerQuarter;
@@ -45,6 +46,8 @@
 - (void)setNotes:(NSMutableArray *)notes;
 - (NSMutableDictionary *)partNames;
 - (void)setPartNames:(NSMutableDictionary *)partNames;
+- (NSMutableDictionary *)trackPrograms;
+- (void)setTrackPrograms:(NSMutableDictionary *)trackPrograms;
 - (NSString *)annotationText;
 - (void)setAnnotationText:(NSString *)annotationText;
 - (NSUInteger)ticksPerQuarter;
@@ -59,4 +62,6 @@
 - (void)setTotalTicks:(NSUInteger)totalTicks;
 - (NSString *)nameForTrack:(NSInteger)track;
 - (void)setName:(NSString *)name forTrack:(NSInteger)track;
+- (NSNumber *)programForTrack:(NSInteger)track;
+- (void)setProgram:(NSNumber *)program forTrack:(NSInteger)track;
 @end

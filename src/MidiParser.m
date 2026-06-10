@@ -295,6 +295,7 @@ static NSString *GeneralMidiProgramName(unsigned char program)
         if (eventType == 0xc0) {
             NSString *name = channel == 9 ? @"Percussion" : GeneralMidiProgramName(data1);
             [channelNames setObject:name forKey:[NSNumber numberWithUnsignedChar:channel]];
+            [document setProgram:[NSNumber numberWithUnsignedChar:data1] forTrack:(NSInteger)trackIndex];
             if (![document nameForTrack:(NSInteger)trackIndex]) {
                 [document setName:name forTrack:(NSInteger)trackIndex];
             }
@@ -409,6 +410,26 @@ static NSString *GeneralMidiProgramName(unsigned char program)
         if ([trackName length] > 0) {
             AppendVarLen(trackData, 0);
             AppendMetaText(trackData, 0x03, trackName);
+        }
+
+        NSNumber *trackProgram = [document programForTrack:trackIndex];
+        if (trackProgram) {
+            AppendVarLen(trackData, 0);
+            unsigned char channel = 0;
+            BOOL foundChannel = NO;
+            noteEnumerator = [[document notes] objectEnumerator];
+            while ((note = [noteEnumerator nextObject]) != nil) {
+                if ([note track] == trackIndex && ![note isRest]) {
+                    channel = (unsigned char)MIN(MAX([note channel], (NSInteger)0), (NSInteger)15);
+                    foundChannel = YES;
+                    break;
+                }
+            }
+            if (!foundChannel) {
+                channel = (unsigned char)MIN(MAX(trackIndex, (NSInteger)0), (NSInteger)15);
+            }
+            AppendByte(trackData, (unsigned char)(0xc0 | channel));
+            AppendByte(trackData, (unsigned char)MIN(MAX([trackProgram integerValue], (NSInteger)0), (NSInteger)127));
         }
 
         NSMutableArray *events = [NSMutableArray array];
