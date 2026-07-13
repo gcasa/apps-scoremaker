@@ -35,6 +35,8 @@ ScoreMaker_RESOURCE_FILES = \
 
 ScoreMaker_APPLICATION_ICON = ScoreMakerAppIcon.png
 
+ADDITIONAL_LDFLAGS = -lAVFoundation
+
 include $(GNUSTEP_MAKEFILES)/application.make
 
 .PHONY: run

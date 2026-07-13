@@ -34,6 +34,7 @@ CC := clang
 GNUSTEP_CONFIG := gnustep-config
 GNUSTEP_CFLAGS := $(shell $(GNUSTEP_CONFIG) --objc-flags)
 GNUSTEP_LIBS := $(shell $(GNUSTEP_CONFIG) --gui-libs)
+GNUSTEP_AVFOUNDATION_LIBS := -lAVFoundation
 APP_BIN := $(BUILD_DIR)/gnustep/$(APP_NAME)
 
 .PHONY: all clean run release
@@ -41,7 +42,7 @@ all: $(APP_BIN)
 
 $(APP_BIN): $(SOURCES)
 	mkdir -p "$(BUILD_DIR)/gnustep"
-	$(CC) $(GNUSTEP_CFLAGS) -Wall -Wextra -fobjc-exceptions $(SOURCES) $(GNUSTEP_LIBS) -o "$@"
+	$(CC) $(GNUSTEP_CFLAGS) -Wall -Wextra -fobjc-exceptions $(SOURCES) $(GNUSTEP_LIBS) $(GNUSTEP_AVFOUNDATION_LIBS) -o "$@"
 
 run: $(APP_BIN)
 	"$(APP_BIN)"

@@ -3,9 +3,12 @@
 #import "ScorefileParser.h"
 #import <float.h>
 #import <math.h>
-#if defined(__APPLE__)
 #import <AVFoundation/AVFoundation.h>
-#endif
+
+@interface AVMIDIPlayer (ScoreMakerPlaybackStatus)
+- (BOOL)isPlaying;
+- (NSError *)error;
+@end
 
 static CGFloat const InspectorWidth = 280.0;
 static CGFloat const InspectorPadding = 18.0;
@@ -594,35 +597,42 @@ static CGFloat const InspectorPadding = 18.0;
     [_playbackSound stop];
     [_playbackSound release];
     _playbackSound = nil;
-#if defined(__APPLE__)
     [(AVMIDIPlayer *)_midiPlayer stop];
-#endif
     [_midiPlayer release];
     _midiPlayer = nil;
 }
 
 - (BOOL)playMIDIDataDirectly:(NSData *)midiData error:(NSError **)error
 {
-#if defined(__APPLE__)
     NSError *playerError = nil;
     AVMIDIPlayer *player = [[[AVMIDIPlayer alloc] initWithData:midiData soundBankURL:nil error:&playerError] autorelease];
     if (player) {
         [player prepareToPlay];
         [player play:nil];
+        if ([player respondsToSelector:@selector(isPlaying)] && ![player isPlaying]) {
+            if (error) {
+                NSError *playbackError = [player respondsToSelector:@selector(error)] ? [player error] : nil;
+                NSString *description = playbackError ? [playbackError localizedDescription] : @"The generated MIDI was loaded, but MIDI playback could not start.";
+                NSDictionary *userInfo = [NSDictionary dictionaryWithObject:description
+                                                                     forKey:NSLocalizedDescriptionKey];
+                *error = [NSError errorWithDomain:@"ScoreMakerPlayback"
+                                             code:2
+                                         userInfo:userInfo];
+            }
+            return NO;
+        }
         _midiPlayer = [player retain];
         return YES;
     }
-#endif
 
+#if defined(__APPLE__)
     NSSound *sound = [[[NSSound alloc] initWithData:midiData] autorelease];
     if (!sound) {
         if (error) {
             NSString *description = @"The generated MIDI could not be loaded by the system MIDI player.";
-#if defined(__APPLE__)
             if (playerError) {
                 description = [description stringByAppendingFormat:@" %@", [playerError localizedDescription]];
             }
-#endif
             NSDictionary *userInfo = [NSDictionary dictionaryWithObject:description
                                                                  forKey:NSLocalizedDescriptionKey];
             *error = [NSError errorWithDomain:@"ScoreMakerPlayback"
@@ -645,6 +655,20 @@ static CGFloat const InspectorPadding = 18.0;
 
     _playbackSound = [sound retain];
     return YES;
+#else
+    if (error) {
+        NSString *description = @"The generated MIDI could not be loaded by AVMIDIPlayer.";
+        if (playerError) {
+            description = [description stringByAppendingFormat:@" %@", [playerError localizedDescription]];
+        }
+        NSDictionary *userInfo = [NSDictionary dictionaryWithObject:description
+                                                             forKey:NSLocalizedDescriptionKey];
+        *error = [NSError errorWithDomain:@"ScoreMakerPlayback"
+                                     code:1
+                                 userInfo:userInfo];
+    }
+    return NO;
+#endif
 }
 
 - (void)playScore:(id)sender
