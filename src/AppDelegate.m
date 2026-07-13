@@ -1,4 +1,5 @@
 #import "AppDelegate.h"
+#import "ScoreMakerDocument.h"
 
 @implementation AppDelegate
 
@@ -24,6 +25,16 @@
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender
 {
     return YES;
+}
+
+- (void)applicationWillTerminate:(NSNotification *)notification
+{
+    (void)notification;
+    for (NSDocument *document in [[NSDocumentController sharedDocumentController] documents]) {
+        if ([document isKindOfClass:[ScoreMakerDocument class]]) {
+            [(ScoreMakerDocument *)document stopCurrentPlayback];
+        }
+    }
 }
 
 - (void)dealloc

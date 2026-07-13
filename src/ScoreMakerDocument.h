@@ -38,6 +38,7 @@
 - (void)syncInspectorMetadataMarkingChange:(BOOL)markChange;
 - (void)scoreMetadataDidChange:(id)sender;
 - (void)addNote:(id)sender;
+- (void)stopCurrentPlayback;
 - (void)playScore:(id)sender;
 - (void)printDocument:(id)sender;
 @end
