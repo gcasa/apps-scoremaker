@@ -153,6 +153,9 @@
     [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Play"
                                                    action:@selector(playScore:)
                                             keyEquivalent:@""] autorelease]];
+    [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Stop"
+                                                   action:@selector(stopPlayback:)
+                                            keyEquivalent:@""] autorelease]];
     [scoreItem setSubmenu:scoreMenu];
 
     [NSApp setMainMenu:mainMenu];

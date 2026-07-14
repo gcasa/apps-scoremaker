@@ -18,6 +18,7 @@
     NSTextField *_noteTrackField;
     NSButton *_addNoteButton;
     NSButton *_playButton;
+    NSButton *_stopButton;
     NSTextView *_annotationTextView;
     NSSound *_playbackSound;
     id _midiPlayer;
@@ -39,6 +40,7 @@
 - (void)scoreMetadataDidChange:(id)sender;
 - (void)addNote:(id)sender;
 - (void)stopCurrentPlayback;
+- (void)stopPlayback:(id)sender;
 - (void)playScore:(id)sender;
 - (void)printDocument:(id)sender;
 @end

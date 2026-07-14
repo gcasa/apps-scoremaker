@@ -235,6 +235,7 @@ static CGFloat const InspectorPadding = 18.0;
     [_noteTrackField release];
     [_addNoteButton release];
     [_playButton release];
+    [_stopButton release];
     [_annotationTextView release];
     [super dealloc];
 }
@@ -320,7 +321,7 @@ static CGFloat const InspectorPadding = 18.0;
     [title setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:title];
 
-    _playButton = [[NSButton alloc] initWithFrame:NSMakeRect(frame.size.width - InspectorPadding - 86.0, frame.size.height - 42.0, 86.0, 28.0)];
+    _playButton = [[NSButton alloc] initWithFrame:NSMakeRect(frame.size.width - InspectorPadding - 176.0, frame.size.height - 42.0, 82.0, 28.0)];
     [_playButton setTitle:@"Play"];
 #if defined(__clang__)
 #pragma clang diagnostic push
@@ -335,6 +336,22 @@ static CGFloat const InspectorPadding = 18.0;
     [_playButton setAction:@selector(playScore:)];
     [_playButton setAutoresizingMask:NSViewMinXMargin | NSViewMinYMargin];
     [[self inspectorView] addSubview:_playButton];
+
+    _stopButton = [[NSButton alloc] initWithFrame:NSMakeRect(frame.size.width - InspectorPadding - 86.0, frame.size.height - 42.0, 86.0, 28.0)];
+    [_stopButton setTitle:@"Stop"];
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+    [_stopButton setButtonType:NSMomentaryPushInButton];
+    [_stopButton setBezelStyle:NSRoundedBezelStyle];
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+    [_stopButton setTarget:self];
+    [_stopButton setAction:@selector(stopPlayback:)];
+    [_stopButton setAutoresizingMask:NSViewMinXMargin | NSViewMinYMargin];
+    [[self inspectorView] addSubview:_stopButton];
 
     NSTextField *tempoLabel = [self labelWithString:@"Tempo (BPM)" frame:NSMakeRect(InspectorPadding, frame.size.height - 76.0, 120.0, 18.0)];
     [tempoLabel setAutoresizingMask:NSViewMinYMargin];
@@ -469,6 +486,7 @@ static CGFloat const InspectorPadding = 18.0;
     [_noteTrackField setEnabled:hasDocument];
     [_addNoteButton setEnabled:hasDocument];
     [_playButton setEnabled:hasDocument];
+    [_stopButton setEnabled:hasDocument];
     [_annotationTextView setEditable:hasDocument];
 
     if (!hasDocument) {
@@ -600,6 +618,12 @@ static CGFloat const InspectorPadding = 18.0;
     [(AVMIDIPlayer *)_midiPlayer stop];
     [_midiPlayer release];
     _midiPlayer = nil;
+}
+
+- (void)stopPlayback:(id)sender
+{
+    (void)sender;
+    [self stopCurrentPlayback];
 }
 
 - (BOOL)playMIDIDataDirectly:(NSData *)midiData error:(NSError **)error
