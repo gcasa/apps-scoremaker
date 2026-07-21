@@ -16,12 +16,16 @@
     NSTextField *_noteStartField;
     NSTextField *_noteDurationField;
     NSTextField *_noteTrackField;
+    NSPopUpButton *_noteTypePopUp;
+    NSPopUpButton *_noteValuePopUp;
     NSButton *_addNoteButton;
     NSButton *_playButton;
     NSButton *_stopButton;
     NSTextView *_annotationTextView;
     NSSound *_playbackSound;
     id _midiPlayer;
+    NSTask *_playbackTask;
+    NSString *_playbackFilePath;
     BOOL _updatingInspector;
 }
 - (NSWindow *)window;

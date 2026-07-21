@@ -607,6 +607,27 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
          controlPoint2:NSMakePoint(x - 7.0, y + 8.0)];
     [path setLineWidth:2.0];
     [path stroke];
+    NSUInteger flags = [self flagCountForDuration:duration];
+    for (NSUInteger i = 1; i < flags; i++) {
+        CGFloat offset = (CGFloat)i * 6.0;
+        [NSBezierPath strokeLineFromPoint:NSMakePoint(x + 1.0, y - 8.0 + offset)
+                                  toPoint:NSMakePoint(x + 10.0, y - 2.0 + offset)];
+    }
+}
+
+- (NSUInteger)flagCountForDuration:(NSUInteger)duration
+{
+    NSUInteger quarter = MAX((NSUInteger)1, [_document ticksPerQuarter]);
+    if (duration >= quarter) {
+        return 0;
+    }
+    NSUInteger flags = 1;
+    NSUInteger threshold = quarter / 2;
+    while (threshold > 1 && duration <= threshold / 2) {
+        flags++;
+        threshold /= 2;
+    }
+    return flags;
 }
 
 - (BOOL)scoreLayoutForPoint:(NSPoint)point
@@ -658,7 +679,7 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     CGFloat clampedX = MIN(MAX(point.x, left), right);
     CGFloat fraction = right > left ? (clampedX - left) / (right - left) : 0.0;
     NSUInteger tick = systemStart + (NSUInteger)llround(fraction * (CGFloat)(systemEnd - systemStart));
-    NSUInteger quantum = MAX((NSUInteger)1, [_document ticksPerQuarter]);
+    NSUInteger quantum = MAX((NSUInteger)1, [_document ticksPerQuarter] / 8);
     return ((tick + quantum / 2) / quantum) * quantum;
 }
 
@@ -860,13 +881,17 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     }
 
     if (drawFlag && duration <= [_document ticksPerQuarter] / 2) {
-        NSBezierPath *flag = [NSBezierPath bezierPath];
-        [flag moveToPoint:NSMakePoint(stemX, stemEnd)];
+        NSUInteger flags = [self flagCountForDuration:duration];
         CGFloat direction = stemsUp ? 1.0 : -1.0;
-        [flag curveToPoint:NSMakePoint(stemX + direction * 14.0, stemEnd + (stemsUp ? 10.0 : -10.0))
-             controlPoint1:NSMakePoint(stemX + direction * 12.0, stemEnd + (stemsUp ? 2.0 : -2.0))
-             controlPoint2:NSMakePoint(stemX + direction * 14.0, stemEnd + (stemsUp ? 8.0 : -8.0))];
-        [flag stroke];
+        for (NSUInteger i = 0; i < flags; i++) {
+            CGFloat flagY = stemEnd + (stemsUp ? (CGFloat)i * 6.0 : -(CGFloat)i * 6.0);
+            NSBezierPath *flag = [NSBezierPath bezierPath];
+            [flag moveToPoint:NSMakePoint(stemX, flagY)];
+            [flag curveToPoint:NSMakePoint(stemX + direction * 14.0, flagY + (stemsUp ? 10.0 : -10.0))
+                 controlPoint1:NSMakePoint(stemX + direction * 12.0, flagY + (stemsUp ? 2.0 : -2.0))
+                 controlPoint2:NSMakePoint(stemX + direction * 14.0, flagY + (stemsUp ? 8.0 : -8.0))];
+            [flag stroke];
+        }
     }
 }
 
@@ -897,22 +922,26 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     [beam closePath];
     [beam fill];
 
-    NSUInteger sixteenth = MAX((NSUInteger)1, [_document ticksPerQuarter] / 4);
-    for (NSUInteger i = 0; i + 1 < [notes count]; i++) {
-        ScoreNote *a = [notes objectAtIndex:i];
-        ScoreNote *b = [notes objectAtIndex:i + 1];
-        if ([a durationTicks] > sixteenth || [b durationTicks] > sixteenth) continue;
-        CGFloat ax = [self xForTick:[a startTick] start:systemStart end:systemEnd left:left right:right] + (stemsUp ? 5.5 : -5.5);
-        CGFloat bx = [self xForTick:[b startTick] start:systemStart end:systemEnd left:left right:right] + (stemsUp ? 5.5 : -5.5);
-        CGFloat ay = [[beamEnds objectForKey:[NSValue valueWithPointer:a]] doubleValue] + thickness * 1.8;
-        CGFloat by = [[beamEnds objectForKey:[NSValue valueWithPointer:b]] doubleValue] + thickness * 1.8;
-        NSBezierPath *secondary = [NSBezierPath bezierPath];
-        [secondary moveToPoint:NSMakePoint(ax, ay)];
-        [secondary lineToPoint:NSMakePoint(bx, by)];
-        [secondary lineToPoint:NSMakePoint(bx, by + thickness)];
-        [secondary lineToPoint:NSMakePoint(ax, ay + thickness)];
-        [secondary closePath];
-        [secondary fill];
+    for (NSUInteger beamIndex = 2; beamIndex <= 3; beamIndex++) {
+        for (NSUInteger i = 0; i + 1 < [notes count]; i++) {
+            ScoreNote *a = [notes objectAtIndex:i];
+            ScoreNote *b = [notes objectAtIndex:i + 1];
+            if ([self flagCountForDuration:[a durationTicks]] < beamIndex ||
+                [self flagCountForDuration:[b durationTicks]] < beamIndex) {
+                continue;
+            }
+            CGFloat ax = [self xForTick:[a startTick] start:systemStart end:systemEnd left:left right:right] + (stemsUp ? 5.5 : -5.5);
+            CGFloat bx = [self xForTick:[b startTick] start:systemStart end:systemEnd left:left right:right] + (stemsUp ? 5.5 : -5.5);
+            CGFloat ay = [[beamEnds objectForKey:[NSValue valueWithPointer:a]] doubleValue] + thickness * (0.8 + (CGFloat)beamIndex);
+            CGFloat by = [[beamEnds objectForKey:[NSValue valueWithPointer:b]] doubleValue] + thickness * (0.8 + (CGFloat)beamIndex);
+            NSBezierPath *extraBeam = [NSBezierPath bezierPath];
+            [extraBeam moveToPoint:NSMakePoint(ax, ay)];
+            [extraBeam lineToPoint:NSMakePoint(bx, by)];
+            [extraBeam lineToPoint:NSMakePoint(bx, by + thickness)];
+            [extraBeam lineToPoint:NSMakePoint(ax, ay + thickness)];
+            [extraBeam closePath];
+            [extraBeam fill];
+        }
     }
 }
 

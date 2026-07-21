@@ -20,23 +20,25 @@ static CGFloat const InspectorPadding = 18.0;
     ScoreMakerDocument *_document;
     NSString *_item;
     NSString *_label;
+    NSUInteger _denominator;
 }
-- (id)initWithFrame:(NSRect)frame document:(ScoreMakerDocument *)document item:(NSString *)item label:(NSString *)label;
+- (id)initWithFrame:(NSRect)frame document:(ScoreMakerDocument *)document item:(NSString *)item label:(NSString *)label denominator:(NSUInteger)denominator;
 @end
 
 @interface ScoreMakerDocument (Palette)
-- (NSString *)palettePayloadForItem:(NSString *)item;
+- (NSString *)palettePayloadForItem:(NSString *)item denominator:(NSUInteger)denominator;
 @end
 
 @implementation ScorePaletteItemView
 
-- (id)initWithFrame:(NSRect)frame document:(ScoreMakerDocument *)document item:(NSString *)item label:(NSString *)label
+- (id)initWithFrame:(NSRect)frame document:(ScoreMakerDocument *)document item:(NSString *)item label:(NSString *)label denominator:(NSUInteger)denominator
 {
     self = [super initWithFrame:frame];
     if (self) {
         _document = document;
         _item = [item retain];
         _label = [label retain];
+        _denominator = denominator;
     }
     return self;
 }
@@ -67,12 +69,18 @@ static CGFloat const InspectorPadding = 18.0;
     CGFloat x = 22.0;
     CGFloat y = 24.0;
     if ([_item isEqualToString:@"rest"]) {
-        NSRectFill(NSMakeRect(x - 8.0, y - 6.0, 16.0, 5.0));
+        if (_denominator <= 2) {
+            NSRectFill(NSMakeRect(x - 8.0, y - 2.0, 16.0, 5.0));
+        } else {
+            [self drawRestGlyphAtX:x y:y denominator:_denominator];
+        }
     } else {
+        BOOL filled = (_denominator >= 4);
         NSBezierPath *head = [NSBezierPath bezierPathWithOvalInRect:NSMakeRect(x - 6.0, y - 4.0, 12.0, 8.0)];
-        [head fill];
+        filled ? [head fill] : [head stroke];
         [NSBezierPath strokeLineFromPoint:NSMakePoint(x + 6.0, y)
                                   toPoint:NSMakePoint(x + 6.0, y - 22.0)];
+        [self drawFlagsFromX:x + 6.0 stemEnd:y - 22.0 denominator:_denominator];
     }
 
     NSDictionary *attrs = [NSDictionary dictionaryWithObjectsAndKeys:
@@ -102,9 +110,46 @@ static CGFloat const InspectorPadding = 18.0;
     return image;
 }
 
+- (void)drawFlagsFromX:(CGFloat)x stemEnd:(CGFloat)stemEnd denominator:(NSUInteger)denominator
+{
+    NSUInteger flags = 0;
+    for (NSUInteger value = denominator; value > 4; value /= 2) {
+        flags++;
+    }
+    for (NSUInteger i = 0; i < flags; i++) {
+        CGFloat y = stemEnd + (CGFloat)i * 6.0;
+        NSBezierPath *flag = [NSBezierPath bezierPath];
+        [flag moveToPoint:NSMakePoint(x, y)];
+        [flag curveToPoint:NSMakePoint(x + 12.0, y + 9.0)
+             controlPoint1:NSMakePoint(x + 10.0, y + 1.0)
+             controlPoint2:NSMakePoint(x + 12.0, y + 7.0)];
+        [flag stroke];
+    }
+}
+
+- (void)drawRestGlyphAtX:(CGFloat)x y:(CGFloat)y denominator:(NSUInteger)denominator
+{
+    NSUInteger flags = 0;
+    for (NSUInteger value = denominator; value > 4; value /= 2) {
+        flags++;
+    }
+    NSBezierPath *path = [NSBezierPath bezierPath];
+    [path moveToPoint:NSMakePoint(x - 4.0, y - 14.0)];
+    [path curveToPoint:NSMakePoint(x + 5.0, y + 4.0)
+         controlPoint1:NSMakePoint(x + 8.0, y - 9.0)
+         controlPoint2:NSMakePoint(x - 8.0, y - 2.0)];
+    [path setLineWidth:2.0];
+    [path stroke];
+    for (NSUInteger i = 1; i < flags; i++) {
+        CGFloat offset = (CGFloat)i * 6.0;
+        [NSBezierPath strokeLineFromPoint:NSMakePoint(x + 1.0, y - 8.0 + offset)
+                                  toPoint:NSMakePoint(x + 9.0, y - 3.0 + offset)];
+    }
+}
+
 - (void)mouseDragged:(NSEvent *)event
 {
-    NSString *payload = [_document palettePayloadForItem:_item];
+    NSString *payload = [_document palettePayloadForItem:_item denominator:_denominator];
     if ([payload length] == 0) {
         return;
     }
@@ -233,10 +278,14 @@ static CGFloat const InspectorPadding = 18.0;
     [_noteStartField release];
     [_noteDurationField release];
     [_noteTrackField release];
+    [_noteTypePopUp release];
+    [_noteValuePopUp release];
     [_addNoteButton release];
     [_playButton release];
     [_stopButton release];
     [_annotationTextView release];
+    [_playbackTask release];
+    [_playbackFilePath release];
     [super dealloc];
 }
 
@@ -377,44 +426,69 @@ static CGFloat const InspectorPadding = 18.0;
     [addNoteLabel setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:addNoteLabel];
 
-    NSTextField *pitchLabel = [self labelWithString:@"Pitch" frame:NSMakeRect(InspectorPadding, frame.size.height - 242.0, 48.0, 18.0)];
+    NSTextField *typeLabel = [self labelWithString:@"Type" frame:NSMakeRect(InspectorPadding, frame.size.height - 242.0, 48.0, 18.0)];
+    [typeLabel setFont:[NSFont systemFontOfSize:11.0]];
+    [typeLabel setAutoresizingMask:NSViewMinYMargin];
+    [[self inspectorView] addSubview:typeLabel];
+    _noteTypePopUp = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 270.0, 70.0, 26.0) pullsDown:NO];
+    [_noteTypePopUp addItemWithTitle:@"Note"];
+    [_noteTypePopUp addItemWithTitle:@"Rest"];
+    [_noteTypePopUp setAutoresizingMask:NSViewMinYMargin];
+    [[self inspectorView] addSubview:_noteTypePopUp];
+
+    NSTextField *valueLabel = [self labelWithString:@"Value" frame:NSMakeRect(InspectorPadding + 82.0, frame.size.height - 242.0, 48.0, 18.0)];
+    [valueLabel setFont:[NSFont systemFontOfSize:11.0]];
+    [valueLabel setAutoresizingMask:NSViewMinYMargin];
+    [[self inspectorView] addSubview:valueLabel];
+    _noteValuePopUp = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(InspectorPadding + 82.0, frame.size.height - 270.0, 74.0, 26.0) pullsDown:NO];
+    [_noteValuePopUp addItemWithTitle:@"1/4"];
+    [_noteValuePopUp addItemWithTitle:@"1/8"];
+    [_noteValuePopUp addItemWithTitle:@"1/16"];
+    [_noteValuePopUp addItemWithTitle:@"1/32"];
+    [_noteValuePopUp setTarget:self];
+    [_noteValuePopUp setAction:@selector(noteValueDidChange:)];
+    [_noteValuePopUp setAutoresizingMask:NSViewMinYMargin];
+    [[self inspectorView] addSubview:_noteValuePopUp];
+
+    NSTextField *pitchLabel = [self labelWithString:@"Pitch" frame:NSMakeRect(InspectorPadding + 168.0, frame.size.height - 242.0, 48.0, 18.0)];
     [pitchLabel setFont:[NSFont systemFontOfSize:11.0]];
     [pitchLabel setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:pitchLabel];
-    _notePitchField = [[self metadataFieldWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 270.0, 66.0, 24.0)] retain];
+    _notePitchField = [[self metadataFieldWithFrame:NSMakeRect(InspectorPadding + 168.0, frame.size.height - 270.0, 66.0, 24.0)] retain];
     [_notePitchField setStringValue:@"C4"];
     [_notePitchField setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:_notePitchField];
 
-    NSTextField *startLabel = [self labelWithString:@"Start" frame:NSMakeRect(InspectorPadding + 78.0, frame.size.height - 242.0, 48.0, 18.0)];
+    NSTextField *startLabel = [self labelWithString:@"Start" frame:NSMakeRect(InspectorPadding, frame.size.height - 304.0, 48.0, 18.0)];
     [startLabel setFont:[NSFont systemFontOfSize:11.0]];
     [startLabel setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:startLabel];
-    _noteStartField = [[self metadataFieldWithFrame:NSMakeRect(InspectorPadding + 78.0, frame.size.height - 270.0, 58.0, 24.0)] retain];
+    _noteStartField = [[self metadataFieldWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 332.0, 58.0, 24.0)] retain];
     [_noteStartField setStringValue:@"0"];
     [_noteStartField setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:_noteStartField];
 
-    NSTextField *durationLabel = [self labelWithString:@"Beats" frame:NSMakeRect(InspectorPadding + 148.0, frame.size.height - 242.0, 48.0, 18.0)];
+    NSTextField *durationLabel = [self labelWithString:@"Beats" frame:NSMakeRect(InspectorPadding + 70.0, frame.size.height - 304.0, 48.0, 18.0)];
     [durationLabel setFont:[NSFont systemFontOfSize:11.0]];
     [durationLabel setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:durationLabel];
-    _noteDurationField = [[self metadataFieldWithFrame:NSMakeRect(InspectorPadding + 148.0, frame.size.height - 270.0, 58.0, 24.0)] retain];
+    _noteDurationField = [[self metadataFieldWithFrame:NSMakeRect(InspectorPadding + 70.0, frame.size.height - 332.0, 58.0, 24.0)] retain];
     [_noteDurationField setStringValue:@"1"];
+    [_noteDurationField setEditable:NO];
     [_noteDurationField setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:_noteDurationField];
 
-    NSTextField *trackLabel = [self labelWithString:@"Track" frame:NSMakeRect(InspectorPadding, frame.size.height - 304.0, 48.0, 18.0)];
+    NSTextField *trackLabel = [self labelWithString:@"Track" frame:NSMakeRect(InspectorPadding + 140.0, frame.size.height - 304.0, 48.0, 18.0)];
     [trackLabel setFont:[NSFont systemFontOfSize:11.0]];
     [trackLabel setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:trackLabel];
-    _noteTrackField = [[self metadataFieldWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 332.0, 66.0, 24.0)] retain];
+    _noteTrackField = [[self metadataFieldWithFrame:NSMakeRect(InspectorPadding + 140.0, frame.size.height - 332.0, 50.0, 24.0)] retain];
     [_noteTrackField setStringValue:@"1"];
     [_noteTrackField setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:_noteTrackField];
 
-    _addNoteButton = [[NSButton alloc] initWithFrame:NSMakeRect(InspectorPadding + 78.0, frame.size.height - 332.0, 128.0, 26.0)];
-    [_addNoteButton setTitle:@"Add Note"];
+    _addNoteButton = [[NSButton alloc] initWithFrame:NSMakeRect(InspectorPadding + 198.0, frame.size.height - 332.0, 64.0, 26.0)];
+    [_addNoteButton setTitle:@"Add"];
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -433,25 +507,38 @@ static CGFloat const InspectorPadding = 18.0;
     [paletteLabel setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:paletteLabel];
 
-    ScorePaletteItemView *notePalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 430.0, 110.0, 42.0)
-                                                                            document:self
-                                                                                item:@"note"
-                                                                               label:@"Note"] autorelease];
-    [notePalette setAutoresizingMask:NSViewMinYMargin];
-    [[self inspectorView] addSubview:notePalette];
+    NSArray *denominators = [NSArray arrayWithObjects:
+                             [NSNumber numberWithUnsignedInteger:4],
+                             [NSNumber numberWithUnsignedInteger:8],
+                             [NSNumber numberWithUnsignedInteger:16],
+                             [NSNumber numberWithUnsignedInteger:32],
+                             nil];
+    for (NSUInteger i = 0; i < [denominators count]; i++) {
+        NSUInteger denominator = [[denominators objectAtIndex:i] unsignedIntegerValue];
+        NSString *noteLabel = [NSString stringWithFormat:@"1/%lu Note", (unsigned long)denominator];
+        ScorePaletteItemView *notePalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 430.0 - (CGFloat)i * 48.0, 110.0, 42.0)
+                                                                                document:self
+                                                                                    item:@"note"
+                                                                                   label:noteLabel
+                                                                             denominator:denominator] autorelease];
+        [notePalette setAutoresizingMask:NSViewMinYMargin];
+        [[self inspectorView] addSubview:notePalette];
 
-    ScorePaletteItemView *restPalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding + 122.0, frame.size.height - 430.0, 110.0, 42.0)
-                                                                            document:self
-                                                                                item:@"rest"
-                                                                               label:@"Rest"] autorelease];
-    [restPalette setAutoresizingMask:NSViewMinYMargin];
-    [[self inspectorView] addSubview:restPalette];
+        NSString *restLabel = [NSString stringWithFormat:@"1/%lu Rest", (unsigned long)denominator];
+        ScorePaletteItemView *restPalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding + 122.0, frame.size.height - 430.0 - (CGFloat)i * 48.0, 110.0, 42.0)
+                                                                                document:self
+                                                                                    item:@"rest"
+                                                                                   label:restLabel
+                                                                             denominator:denominator] autorelease];
+        [restPalette setAutoresizingMask:NSViewMinYMargin];
+        [[self inspectorView] addSubview:restPalette];
+    }
 
-    NSTextField *notesLabel = [self labelWithString:@"Score Notes" frame:NSMakeRect(InspectorPadding, frame.size.height - 474.0, 120.0, 18.0)];
+    NSTextField *notesLabel = [self labelWithString:@"Score Notes" frame:NSMakeRect(InspectorPadding, frame.size.height - 622.0, 120.0, 18.0)];
     [notesLabel setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:notesLabel];
 
-    NSScrollView *notesScroll = [[[NSScrollView alloc] initWithFrame:NSMakeRect(InspectorPadding, InspectorPadding, frame.size.width - 2.0 * InspectorPadding, frame.size.height - 508.0)] autorelease];
+    NSScrollView *notesScroll = [[[NSScrollView alloc] initWithFrame:NSMakeRect(InspectorPadding, InspectorPadding, frame.size.width - 2.0 * InspectorPadding, frame.size.height - 656.0)] autorelease];
     [notesScroll setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
     [notesScroll setHasVerticalScroller:YES];
     [notesScroll setBorderType:NSBezelBorder];
@@ -484,6 +571,8 @@ static CGFloat const InspectorPadding = 18.0;
     [_noteStartField setEnabled:hasDocument];
     [_noteDurationField setEnabled:hasDocument];
     [_noteTrackField setEnabled:hasDocument];
+    [_noteTypePopUp setEnabled:hasDocument];
+    [_noteValuePopUp setEnabled:hasDocument];
     [_addNoteButton setEnabled:hasDocument];
     [_playButton setEnabled:hasDocument];
     [_stopButton setEnabled:hasDocument];
@@ -504,6 +593,7 @@ static CGFloat const InspectorPadding = 18.0;
     [_tempoField setIntegerValue:(NSInteger)beatsPerMinute];
     [_timeNumeratorField setIntegerValue:(NSInteger)[document timeSignatureNumerator]];
     [_timeDenominatorField setIntegerValue:(NSInteger)[document timeSignatureDenominator]];
+    [_noteDurationField setDoubleValue:[self beatsForNoteValueDenominator:[self denominatorForSelectedNoteValue]]];
     _updatingInspector = YES;
     [_annotationTextView setString:[document annotationText] ? [document annotationText] : @""];
     _updatingInspector = NO;
@@ -589,19 +679,53 @@ static CGFloat const InspectorPadding = 18.0;
     [self refreshInspector];
 }
 
-- (NSString *)palettePayloadForItem:(NSString *)item
+- (void)noteValueDidChange:(id)sender
+{
+    (void)sender;
+    [_noteDurationField setDoubleValue:[self beatsForNoteValueDenominator:[self denominatorForSelectedNoteValue]]];
+}
+
+- (NSUInteger)denominatorForSelectedNoteValue
+{
+    NSString *title = [_noteValuePopUp titleOfSelectedItem];
+    NSRange slash = [title rangeOfString:@"/"];
+    if (slash.location != NSNotFound && slash.location + 1 < [title length]) {
+        NSInteger denominator = [[title substringFromIndex:slash.location + 1] integerValue];
+        if (denominator > 0) {
+            return (NSUInteger)denominator;
+        }
+    }
+    return 4;
+}
+
+- (double)beatsForNoteValueDenominator:(NSUInteger)denominator
+{
+    if (denominator == 0) {
+        denominator = 4;
+    }
+    return 4.0 / (double)denominator;
+}
+
+- (NSUInteger)durationTicksForNoteValueDenominator:(NSUInteger)denominator
+{
+    ScoreDocument *document = [self scoreDocument];
+    if (!document) {
+        return 1;
+    }
+    return MAX((NSUInteger)1, (NSUInteger)llround([self beatsForNoteValueDenominator:denominator] * (double)[document ticksPerQuarter]));
+}
+
+- (NSString *)palettePayloadForItem:(NSString *)item denominator:(NSUInteger)denominator
 {
     ScoreDocument *document = [self scoreDocument];
     if (!document) {
         return nil;
     }
 
-    double durationBeats = [_noteDurationField doubleValue];
     NSInteger trackNumber = [_noteTrackField integerValue];
-    if (durationBeats <= 0.0) durationBeats = 1.0;
     if (trackNumber < 1) trackNumber = 1;
 
-    NSUInteger durationTicks = MAX((NSUInteger)1, (NSUInteger)llround(durationBeats * (double)[document ticksPerQuarter]));
+    NSUInteger durationTicks = [self durationTicksForNoteValueDenominator:denominator];
     NSInteger pitch = -1;
     return [NSString stringWithFormat:@"%@:%ld:%lu:%ld",
             item,
@@ -618,6 +742,21 @@ static CGFloat const InspectorPadding = 18.0;
     [(AVMIDIPlayer *)_midiPlayer stop];
     [_midiPlayer release];
     _midiPlayer = nil;
+    if (_playbackTask) {
+        [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                        name:NSTaskDidTerminateNotification
+                                                      object:_playbackTask];
+        if ([_playbackTask isRunning]) {
+            [_playbackTask terminate];
+        }
+        [_playbackTask release];
+        _playbackTask = nil;
+    }
+    if (_playbackFilePath) {
+        [[NSFileManager defaultManager] removeFileAtPath:_playbackFilePath handler:nil];
+        [_playbackFilePath release];
+        _playbackFilePath = nil;
+    }
 }
 
 - (void)stopPlayback:(id)sender
@@ -626,8 +765,101 @@ static CGFloat const InspectorPadding = 18.0;
     [self stopCurrentPlayback];
 }
 
+#if !defined(__APPLE__)
+- (NSString *)availableMIDIPlaybackTool
+{
+    NSArray *candidates = [NSArray arrayWithObjects:@"/usr/bin/timidity",
+                           @"/usr/local/bin/timidity",
+                           @"/bin/timidity",
+                           nil];
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    NSEnumerator *enumerator = [candidates objectEnumerator];
+    NSString *path = nil;
+    while ((path = [enumerator nextObject]) != nil) {
+        if ([fileManager isExecutableFileAtPath:path]) {
+            return path;
+        }
+    }
+    return nil;
+}
+
+- (void)externalPlaybackTaskDidTerminate:(NSNotification *)notification
+{
+    if ([notification object] != _playbackTask) {
+        return;
+    }
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                    name:NSTaskDidTerminateNotification
+                                                  object:_playbackTask];
+    [_playbackTask release];
+    _playbackTask = nil;
+    if (_playbackFilePath) {
+        [[NSFileManager defaultManager] removeFileAtPath:_playbackFilePath handler:nil];
+        [_playbackFilePath release];
+        _playbackFilePath = nil;
+    }
+}
+
+- (BOOL)playMIDIDataWithExternalPlayer:(NSData *)midiData error:(NSError **)error
+{
+    NSString *toolPath = [self availableMIDIPlaybackTool];
+    if (!toolPath) {
+        if (error) {
+            NSDictionary *userInfo = [NSDictionary dictionaryWithObject:@"No MIDI playback tool was found. Install TiMidity++ or use the macOS build for direct system MIDI playback."
+                                                                 forKey:NSLocalizedDescriptionKey];
+            *error = [NSError errorWithDomain:@"ScoreMakerPlayback"
+                                         code:3
+                                     userInfo:userInfo];
+        }
+        return NO;
+    }
+
+    NSString *fileName = [NSString stringWithFormat:@"ScoreMaker-%d-%f.mid", getpid(), [NSDate timeIntervalSinceReferenceDate]];
+    NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:fileName];
+    if (![midiData writeToFile:path atomically:YES]) {
+        if (error) {
+            NSDictionary *userInfo = [NSDictionary dictionaryWithObject:@"The generated MIDI could not be written to a temporary playback file."
+                                                                 forKey:NSLocalizedDescriptionKey];
+            *error = [NSError errorWithDomain:@"ScoreMakerPlayback"
+                                         code:4
+                                     userInfo:userInfo];
+        }
+        return NO;
+    }
+
+    NSTask *task = [[[NSTask alloc] init] autorelease];
+    [task setLaunchPath:toolPath];
+    [task setArguments:[NSArray arrayWithObjects:@"-idq", path, nil]];
+
+    NS_DURING
+        [task launch];
+    NS_HANDLER
+        [[NSFileManager defaultManager] removeFileAtPath:path handler:nil];
+        if (error) {
+            NSDictionary *userInfo = [NSDictionary dictionaryWithObject:[NSString stringWithFormat:@"The MIDI playback tool could not be launched: %@", [localException reason]]
+                                                                 forKey:NSLocalizedDescriptionKey];
+            *error = [NSError errorWithDomain:@"ScoreMakerPlayback"
+                                         code:5
+                                     userInfo:userInfo];
+        }
+        return NO;
+    NS_ENDHANDLER
+
+    _playbackTask = [task retain];
+    _playbackFilePath = [path retain];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(externalPlaybackTaskDidTerminate:)
+                                                 name:NSTaskDidTerminateNotification
+                                               object:_playbackTask];
+    return YES;
+}
+#endif
+
 - (BOOL)playMIDIDataDirectly:(NSData *)midiData error:(NSError **)error
 {
+#if !defined(__APPLE__)
+    return [self playMIDIDataWithExternalPlayer:midiData error:error];
+#else
     NSError *playerError = nil;
     AVMIDIPlayer *player = [[[AVMIDIPlayer alloc] initWithData:midiData soundBankURL:nil error:&playerError] autorelease];
     if (player) {
@@ -649,7 +881,6 @@ static CGFloat const InspectorPadding = 18.0;
         return YES;
     }
 
-#if defined(__APPLE__)
     NSSound *sound = [[[NSSound alloc] initWithData:midiData] autorelease];
     if (!sound) {
         if (error) {
@@ -679,19 +910,6 @@ static CGFloat const InspectorPadding = 18.0;
 
     _playbackSound = [sound retain];
     return YES;
-#else
-    if (error) {
-        NSString *description = @"The generated MIDI could not be loaded by AVMIDIPlayer.";
-        if (playerError) {
-            description = [description stringByAppendingFormat:@" %@", [playerError localizedDescription]];
-        }
-        NSDictionary *userInfo = [NSDictionary dictionaryWithObject:description
-                                                             forKey:NSLocalizedDescriptionKey];
-        *error = [NSError errorWithDomain:@"ScoreMakerPlayback"
-                                     code:1
-                                 userInfo:userInfo];
-    }
-    return NO;
 #endif
 }
 
@@ -798,8 +1016,9 @@ static CGFloat const InspectorPadding = 18.0;
         return;
     }
 
+    BOOL rest = [[_noteTypePopUp titleOfSelectedItem] isEqualToString:@"Rest"];
     NSInteger pitch = 0;
-    if (![self pitchString:[_notePitchField stringValue] toMidiPitch:&pitch]) {
+    if (!rest && ![self pitchString:[_notePitchField stringValue] toMidiPitch:&pitch]) {
         NSAlert *alert = [[[NSAlert alloc] init] autorelease];
         [alert setMessageText:@"The note pitch is not valid"];
         [alert setInformativeText:@"Use a MIDI pitch from 0 to 127 or a pitch name like C4, F#3, or Bb5."];
@@ -808,17 +1027,20 @@ static CGFloat const InspectorPadding = 18.0;
     }
 
     double startBeats = [_noteStartField doubleValue];
-    double durationBeats = [_noteDurationField doubleValue];
+    NSUInteger denominator = [self denominatorForSelectedNoteValue];
+    double durationBeats = [self beatsForNoteValueDenominator:denominator];
     NSInteger trackNumber = [_noteTrackField integerValue];
     if (startBeats < 0.0) startBeats = 0.0;
-    if (durationBeats <= 0.0) durationBeats = 1.0;
     if (trackNumber < 1) trackNumber = 1;
 
     NSUInteger startTick = (NSUInteger)llround(startBeats * (double)[document ticksPerQuarter]);
-    NSUInteger durationTicks = MAX((NSUInteger)1, (NSUInteger)llround(durationBeats * (double)[document ticksPerQuarter]));
+    NSUInteger durationTicks = [self durationTicksForNoteValueDenominator:denominator];
     ScoreNote *note = [[[ScoreNote alloc] init] autorelease];
-    [note setPitch:pitch];
-    [note setAccidental:[self accidentalForPitchString:[_notePitchField stringValue]]];
+    [note setRest:rest];
+    [note setPitch:rest ? 60 : pitch];
+    if (!rest) {
+        [note setAccidental:[self accidentalForPitchString:[_notePitchField stringValue]]];
+    }
     [note setChannel:0];
     [note setTrack:trackNumber - 1];
     [note setStartTick:startTick];
