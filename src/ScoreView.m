@@ -587,14 +587,23 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     [[NSColor blackColor] setStroke];
     [[NSColor blackColor] setFill];
     CGFloat quarter = [_document ticksPerQuarter];
-    if (duration >= quarter * 2) {
+    if (duration >= quarter * 4) {
         NSRect rect = NSMakeRect(x - 8.0, y - 1.0, 16.0, 5.0);
         NSRectFill(rect);
         return;
     }
-    if (duration >= quarter) {
+    if (duration >= quarter * 2) {
         NSRect rect = NSMakeRect(x - 8.0, y - 6.0, 16.0, 5.0);
         NSRectFill(rect);
+        return;
+    }
+    if (duration >= quarter) {
+        NSRect rect = NSMakeRect(x - 1.0, y - 12.0, 3.0, 24.0);
+        NSRectFill(rect);
+        [NSBezierPath strokeLineFromPoint:NSMakePoint(x - 5.0, y - 12.0)
+                                  toPoint:NSMakePoint(x + 6.0, y - 2.0)];
+        [NSBezierPath strokeLineFromPoint:NSMakePoint(x - 5.0, y - 2.0)
+                                  toPoint:NSMakePoint(x + 6.0, y + 8.0)];
         return;
     }
     NSBezierPath *path = [NSBezierPath bezierPath];

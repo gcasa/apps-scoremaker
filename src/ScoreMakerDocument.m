@@ -67,10 +67,12 @@ static CGFloat const InspectorPadding = 18.0;
     [[NSColor blackColor] setStroke];
     [[NSColor blackColor] setFill];
     CGFloat x = 22.0;
-    CGFloat y = 24.0;
+    CGFloat y = 20.0;
     if ([_item isEqualToString:@"rest"]) {
-        if (_denominator <= 2) {
-            NSRectFill(NSMakeRect(x - 8.0, y - 2.0, 16.0, 5.0));
+        if (_denominator == 1) {
+            NSRectFill(NSMakeRect(x - 8.0, y - 1.0, 16.0, 5.0));
+        } else if (_denominator == 2) {
+            NSRectFill(NSMakeRect(x - 8.0, y - 6.0, 16.0, 5.0));
         } else {
             [self drawRestGlyphAtX:x y:y denominator:_denominator];
         }
@@ -78,16 +80,18 @@ static CGFloat const InspectorPadding = 18.0;
         BOOL filled = (_denominator >= 4);
         NSBezierPath *head = [NSBezierPath bezierPathWithOvalInRect:NSMakeRect(x - 6.0, y - 4.0, 12.0, 8.0)];
         filled ? [head fill] : [head stroke];
-        [NSBezierPath strokeLineFromPoint:NSMakePoint(x + 6.0, y)
-                                  toPoint:NSMakePoint(x + 6.0, y - 22.0)];
-        [self drawFlagsFromX:x + 6.0 stemEnd:y - 22.0 denominator:_denominator];
+        if (_denominator > 1) {
+            [NSBezierPath strokeLineFromPoint:NSMakePoint(x + 6.0, y)
+                                      toPoint:NSMakePoint(x + 6.0, y - 18.0)];
+            [self drawFlagsFromX:x + 6.0 stemEnd:y - 18.0 denominator:_denominator];
+        }
     }
 
     NSDictionary *attrs = [NSDictionary dictionaryWithObjectsAndKeys:
                            [NSFont systemFontOfSize:12.0], NSFontAttributeName,
                            [NSColor blackColor], NSForegroundColorAttributeName,
                            nil];
-    [_label drawAtPoint:NSMakePoint(44.0, 16.0) withAttributes:attrs];
+    [_label drawAtPoint:NSMakePoint(44.0, 12.0) withAttributes:attrs];
 }
 
 - (NSImage *)dragImage
@@ -99,12 +103,22 @@ static CGFloat const InspectorPadding = 18.0;
     [[NSColor blackColor] setStroke];
     [[NSColor blackColor] setFill];
     if ([_item isEqualToString:@"rest"]) {
-        NSRectFill(NSMakeRect(18.0, 18.0, 18.0, 6.0));
+        if (_denominator == 2) {
+            NSRectFill(NSMakeRect(18.0, 14.0, 18.0, 6.0));
+        } else {
+            NSRectFill(NSMakeRect(18.0, 20.0, 18.0, 6.0));
+        }
     } else {
         NSBezierPath *head = [NSBezierPath bezierPathWithOvalInRect:NSMakeRect(20.0, 20.0, 12.0, 8.0)];
-        [head fill];
-        [NSBezierPath strokeLineFromPoint:NSMakePoint(32.0, 24.0)
-                                  toPoint:NSMakePoint(32.0, 5.0)];
+        if (_denominator >= 4) {
+            [head fill];
+        } else {
+            [head stroke];
+        }
+        if (_denominator > 1) {
+            [NSBezierPath strokeLineFromPoint:NSMakePoint(32.0, 24.0)
+                                      toPoint:NSMakePoint(32.0, 5.0)];
+        }
     }
     [image unlockFocus];
     return image;
@@ -441,6 +455,8 @@ static CGFloat const InspectorPadding = 18.0;
     [valueLabel setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:valueLabel];
     _noteValuePopUp = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(InspectorPadding + 82.0, frame.size.height - 270.0, 74.0, 26.0) pullsDown:NO];
+    [_noteValuePopUp addItemWithTitle:@"Whole"];
+    [_noteValuePopUp addItemWithTitle:@"Half"];
     [_noteValuePopUp addItemWithTitle:@"1/4"];
     [_noteValuePopUp addItemWithTitle:@"1/8"];
     [_noteValuePopUp addItemWithTitle:@"1/16"];
@@ -508,6 +524,8 @@ static CGFloat const InspectorPadding = 18.0;
     [[self inspectorView] addSubview:paletteLabel];
 
     NSArray *denominators = [NSArray arrayWithObjects:
+                             [NSNumber numberWithUnsignedInteger:1],
+                             [NSNumber numberWithUnsignedInteger:2],
                              [NSNumber numberWithUnsignedInteger:4],
                              [NSNumber numberWithUnsignedInteger:8],
                              [NSNumber numberWithUnsignedInteger:16],
@@ -515,8 +533,9 @@ static CGFloat const InspectorPadding = 18.0;
                              nil];
     for (NSUInteger i = 0; i < [denominators count]; i++) {
         NSUInteger denominator = [[denominators objectAtIndex:i] unsignedIntegerValue];
-        NSString *noteLabel = [NSString stringWithFormat:@"1/%lu Note", (unsigned long)denominator];
-        ScorePaletteItemView *notePalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 430.0 - (CGFloat)i * 48.0, 110.0, 42.0)
+        NSString *valueLabel = denominator == 1 ? @"Whole" : (denominator == 2 ? @"Half" : [NSString stringWithFormat:@"1/%lu", (unsigned long)denominator]);
+        NSString *noteLabel = [NSString stringWithFormat:@"%@ Note", valueLabel];
+        ScorePaletteItemView *notePalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 402.0 - (CGFloat)i * 34.0, 110.0, 30.0)
                                                                                 document:self
                                                                                     item:@"note"
                                                                                    label:noteLabel
@@ -524,8 +543,8 @@ static CGFloat const InspectorPadding = 18.0;
         [notePalette setAutoresizingMask:NSViewMinYMargin];
         [[self inspectorView] addSubview:notePalette];
 
-        NSString *restLabel = [NSString stringWithFormat:@"1/%lu Rest", (unsigned long)denominator];
-        ScorePaletteItemView *restPalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding + 122.0, frame.size.height - 430.0 - (CGFloat)i * 48.0, 110.0, 42.0)
+        NSString *restLabel = [NSString stringWithFormat:@"%@ Rest", valueLabel];
+        ScorePaletteItemView *restPalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding + 122.0, frame.size.height - 402.0 - (CGFloat)i * 34.0, 110.0, 30.0)
                                                                                 document:self
                                                                                     item:@"rest"
                                                                                    label:restLabel
@@ -534,11 +553,11 @@ static CGFloat const InspectorPadding = 18.0;
         [[self inspectorView] addSubview:restPalette];
     }
 
-    NSTextField *notesLabel = [self labelWithString:@"Score Notes" frame:NSMakeRect(InspectorPadding, frame.size.height - 622.0, 120.0, 18.0)];
+    NSTextField *notesLabel = [self labelWithString:@"Score Notes" frame:NSMakeRect(InspectorPadding, frame.size.height - 624.0, 120.0, 18.0)];
     [notesLabel setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:notesLabel];
 
-    NSScrollView *notesScroll = [[[NSScrollView alloc] initWithFrame:NSMakeRect(InspectorPadding, InspectorPadding, frame.size.width - 2.0 * InspectorPadding, frame.size.height - 656.0)] autorelease];
+    NSScrollView *notesScroll = [[[NSScrollView alloc] initWithFrame:NSMakeRect(InspectorPadding, InspectorPadding, frame.size.width - 2.0 * InspectorPadding, frame.size.height - 658.0)] autorelease];
     [notesScroll setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
     [notesScroll setHasVerticalScroller:YES];
     [notesScroll setBorderType:NSBezelBorder];
@@ -688,6 +707,12 @@ static CGFloat const InspectorPadding = 18.0;
 - (NSUInteger)denominatorForSelectedNoteValue
 {
     NSString *title = [_noteValuePopUp titleOfSelectedItem];
+    if ([title isEqualToString:@"Whole"]) {
+        return 1;
+    }
+    if ([title isEqualToString:@"Half"]) {
+        return 2;
+    }
     NSRange slash = [title rangeOfString:@"/"];
     if (slash.location != NSNotFound && slash.location + 1 < [title length]) {
         NSInteger denominator = [[title substringFromIndex:slash.location + 1] integerValue];
