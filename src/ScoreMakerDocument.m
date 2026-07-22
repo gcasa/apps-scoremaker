@@ -97,9 +97,23 @@ static CGFloat const InspectorPadding = 18.0;
 - (NSImage *)dragImage
 {
     NSImage *image = [[[NSImage alloc] initWithSize:NSMakeSize(54.0, 42.0)] autorelease];
-    [image lockFocus];
-    [[NSColor clearColor] setFill];
-    NSRectFill(NSMakeRect(0.0, 0.0, 54.0, 42.0));
+    NSBitmapImageRep *rep = [[[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
+                                                                     pixelsWide:54
+                                                                     pixelsHigh:42
+                                                                  bitsPerSample:8
+                                                                samplesPerPixel:4
+                                                                       hasAlpha:YES
+                                                                       isPlanar:NO
+                                                                 colorSpaceName:NSCalibratedRGBColorSpace
+                                                                    bytesPerRow:0
+                                                                   bitsPerPixel:0] autorelease];
+    if (!rep) {
+        return image;
+    }
+
+    memset([rep bitmapData], 0, (size_t)[rep bytesPerRow] * (size_t)[rep pixelsHigh]);
+    [NSGraphicsContext saveGraphicsState];
+    [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithBitmapImageRep:rep]];
     [[NSColor blackColor] setStroke];
     [[NSColor blackColor] setFill];
     if ([_item isEqualToString:@"rest"]) {
@@ -120,7 +134,8 @@ static CGFloat const InspectorPadding = 18.0;
                                       toPoint:NSMakePoint(32.0, 5.0)];
         }
     }
-    [image unlockFocus];
+    [NSGraphicsContext restoreGraphicsState];
+    [image addRepresentation:rep];
     return image;
 }
 
