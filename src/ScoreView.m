@@ -11,6 +11,7 @@ static CGFloat const TicksPerSystemQuarters = 16.0;
 static CGFloat const ClefImageWidth = 20.0;
 static CGFloat const ClefImageHeight = 60.0;
 static CGFloat const FirstSystemOffset = 54.0;
+static CGFloat const PaletteDragNoteHeadYOffset = 25.0;
 NSString * const ScoreViewDidEditScoreNotification = @"ScoreViewDidEditScoreNotification";
 NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
 
@@ -880,6 +881,14 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     NSUInteger durationTicks = [parts count] > 2 ? (NSUInteger)[[parts objectAtIndex:2] integerValue] : [_document ticksPerQuarter];
     NSInteger track = [parts count] > 3 ? [[parts objectAtIndex:3] integerValue] : 0;
     NSPoint point = [self convertPoint:[sender draggingLocation] fromView:nil];
+    if (![item isEqualToString:@"rest"]) {
+        /*
+         * NSDraggingInfo reports the drag image anchor, while the palette
+         * image draws its notehead 25 points above that anchor in this
+         * flipped view. Use the visible notehead as the requested pitch.
+         */
+        point.y -= PaletteDragNoteHeadYOffset;
+    }
     return [self insertPaletteItem:item atPoint:point pitch:pitch durationTicks:durationTicks track:track];
 }
 
