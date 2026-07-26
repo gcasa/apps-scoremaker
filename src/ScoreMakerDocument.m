@@ -1080,7 +1080,10 @@ static CGFloat const InspectorPadding = 18.0;
 
     NSTask *task = [[[NSTask alloc] init] autorelease];
     [task setLaunchPath:toolPath];
-    [task setArguments:[NSArray arrayWithObjects:@"-idq", @"-Os", path, nil]];
+
+    NSMutableArray *arguments = [NSMutableArray arrayWithObject:@"-idq"];
+    [arguments addObject:path];
+    [task setArguments:arguments];
 
     NS_DURING
         [task launch];
