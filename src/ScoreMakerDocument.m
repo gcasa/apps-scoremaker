@@ -1360,6 +1360,7 @@ static CGFloat const InspectorPadding = 18.0;
     }
     [document setTitle:[[path lastPathComponent] stringByDeletingPathExtension]];
     [self setScoreDocument:document];
+    [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:url];
     return YES;
 }
 
@@ -1429,6 +1430,9 @@ static CGFloat const InspectorPadding = 18.0;
 - (void)setFileURL:(NSURL *)absoluteURL
 {
     [super setFileURL:absoluteURL];
+    if (absoluteURL) {
+        [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:absoluteURL];
+    }
     NSString *name = [[[absoluteURL path] lastPathComponent] stringByDeletingPathExtension];
     if ([name length] > 0) {
         [[self scoreDocument] setTitle:name];

@@ -63,6 +63,14 @@
     if (!document && error) {
         [controller presentError:error];
     }
+    [self menuNeedsUpdate:_recentDocumentsMenu];
+}
+
+- (void)clearRecentDocuments:(id)sender
+{
+    (void)sender;
+    [[NSDocumentController sharedDocumentController] clearRecentDocuments:self];
+    [self menuNeedsUpdate:_recentDocumentsMenu];
 }
 
 - (void)menuNeedsUpdate:(NSMenu *)menu
@@ -98,7 +106,7 @@
     NSMenuItem *clearItem = [[[NSMenuItem alloc] initWithTitle:@"Clear Menu"
                                                         action:@selector(clearRecentDocuments:)
                                                  keyEquivalent:@""] autorelease];
-    [clearItem setTarget:[NSDocumentController sharedDocumentController]];
+    [clearItem setTarget:self];
     [clearItem setEnabled:([urls count] > 0)];
     [menu addItem:clearItem];
 }
