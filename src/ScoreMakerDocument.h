@@ -15,9 +15,11 @@
     NSTextField *_notePitchField;
     NSTextField *_noteStartField;
     NSTextField *_noteDurationField;
-    NSTextField *_noteTrackField;
     NSPopUpButton *_noteTypePopUp;
     NSPopUpButton *_noteValuePopUp;
+    NSPopUpButton *_partPopUp;
+    NSPopUpButton *_instrumentPopUp;
+    NSButton *_addPartButton;
     NSButton *_addNoteButton;
     NSButton *_playButton;
     NSButton *_stopButton;

@@ -11,7 +11,9 @@ static CGFloat const TicksPerSystemQuarters = 16.0;
 static CGFloat const ClefImageWidth = 20.0;
 static CGFloat const ClefImageHeight = 60.0;
 static CGFloat const FirstSystemOffset = 54.0;
+static CGFloat const PaletteDragNoteHeadXOffset = 26.0;
 static CGFloat const PaletteDragNoteHeadYOffset = 25.0;
+static CGFloat const ChordSnapDistance = 9.0;
 NSString * const ScoreViewDidEditScoreNotification = @"ScoreViewDidEditScoreNotification";
 NSString * const ScoreViewSelectionDidChangeNotification = @"ScoreViewSelectionDidChangeNotification";
 NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
@@ -731,6 +733,28 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
 - (NSUInteger)tickForPoint:(NSPoint)point systemStart:(NSUInteger)systemStart systemEnd:(NSUInteger)systemEnd left:(CGFloat)left right:(CGFloat)right
 {
     CGFloat clampedX = MIN(MAX(point.x, left), right);
+
+    /*
+     * If the notehead is dropped close to an existing onset, use precisely
+     * the same tick. This makes building chords independent of small mouse
+     * positioning differences and avoids adjacent quantization slots.
+     */
+    NSEnumerator *noteEnumerator = [[_document notes] objectEnumerator];
+    ScoreNote *note = nil;
+    while ((note = [noteEnumerator nextObject]) != nil) {
+        if ([note startTick] < systemStart || [note startTick] >= systemEnd) {
+            continue;
+        }
+        CGFloat noteX = [self xForTick:[note startTick]
+                                 start:systemStart
+                                   end:systemEnd
+                                  left:left
+                                 right:right];
+        if (fabs(noteX - clampedX) <= ChordSnapDistance) {
+            return [note startTick];
+        }
+    }
+
     CGFloat fraction = right > left ? (clampedX - left) / (right - left) : 0.0;
     NSUInteger tick = systemStart + (NSUInteger)llround(fraction * (CGFloat)(systemEnd - systemStart));
     NSUInteger quantum = MAX((NSUInteger)1, [_document ticksPerQuarter] / 8);
@@ -773,7 +797,7 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     if (!rest && pitch >= 0) {
         [note setPitch:pitch];
     }
-    [note setChannel:0];
+    [note setChannel:MAX((NSInteger)0, track) % 16];
     [note setTrack:MAX((NSInteger)0, track)];
     [note setStartTick:[self tickForPoint:point systemStart:systemStart systemEnd:systemEnd left:left right:right]];
     [note setDurationTicks:MAX((NSUInteger)1, durationTicks)];
@@ -886,9 +910,10 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     if (![item isEqualToString:@"rest"]) {
         /*
          * NSDraggingInfo reports the drag image anchor, while the palette
-         * image draws its notehead 25 points above that anchor in this
-         * flipped view. Use the visible notehead as the requested pitch.
+         * image draws its notehead to the right of and above that anchor.
+         * Use the visible notehead as the requested time and pitch.
          */
+        point.x += PaletteDragNoteHeadXOffset;
         point.y -= PaletteDragNoteHeadYOffset;
     }
     return [self insertPaletteItem:item atPoint:point pitch:pitch durationTicks:durationTicks track:track];

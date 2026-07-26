@@ -156,6 +156,15 @@ static NSString *GeneralMidiProgramName(unsigned char program)
 
 @implementation MidiParser
 
++ (NSArray *)generalMidiProgramNames
+{
+    NSMutableArray *programs = [NSMutableArray arrayWithCapacity:128];
+    for (NSUInteger program = 0; program < 128; program++) {
+        [programs addObject:GeneralMidiProgramName((unsigned char)program)];
+    }
+    return programs;
+}
+
 + (ScoreDocument *)parseFileAtPath:(NSString *)path error:(NSError **)error
 {
     NSData *data = [NSData dataWithContentsOfFile:path];
@@ -355,6 +364,15 @@ static NSString *GeneralMidiProgramName(unsigned char program)
         if (![tracks containsObject:track]) {
             [tracks addObject:track];
         }
+    }
+    NSEnumerator *definedTrackEnumerator = [[[document partNames] allKeys] objectEnumerator];
+    NSNumber *definedTrack = nil;
+    while ((definedTrack = [definedTrackEnumerator nextObject]) != nil) {
+        if (![tracks containsObject:definedTrack]) [tracks addObject:definedTrack];
+    }
+    definedTrackEnumerator = [[[document trackPrograms] allKeys] objectEnumerator];
+    while ((definedTrack = [definedTrackEnumerator nextObject]) != nil) {
+        if (![tracks containsObject:definedTrack]) [tracks addObject:definedTrack];
     }
     if ([tracks count] == 0) {
         [tracks addObject:[NSNumber numberWithInteger:0]];

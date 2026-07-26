@@ -306,9 +306,11 @@ static CGFloat const InspectorPadding = 18.0;
     [_notePitchField release];
     [_noteStartField release];
     [_noteDurationField release];
-    [_noteTrackField release];
     [_noteTypePopUp release];
     [_noteValuePopUp release];
+    [_partPopUp release];
+    [_instrumentPopUp release];
+    [_addPartButton release];
     [_addNoteButton release];
     [_playButton release];
     [_stopButton release];
@@ -513,16 +515,24 @@ static CGFloat const InspectorPadding = 18.0;
     [_noteDurationField setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:_noteDurationField];
 
-    NSTextField *trackLabel = [self labelWithString:@"Track" frame:NSMakeRect(InspectorPadding + 140.0, frame.size.height - 304.0, 48.0, 18.0)];
-    [trackLabel setFont:[NSFont systemFontOfSize:11.0]];
-    [trackLabel setAutoresizingMask:NSViewMinYMargin];
-    [[self inspectorView] addSubview:trackLabel];
-    _noteTrackField = [[self metadataFieldWithFrame:NSMakeRect(InspectorPadding + 140.0, frame.size.height - 332.0, 50.0, 24.0)] retain];
-    [_noteTrackField setStringValue:@"1"];
-    [_noteTrackField setAutoresizingMask:NSViewMinYMargin];
-    [[self inspectorView] addSubview:_noteTrackField];
+    NSTextField *partLabel = [self labelWithString:@"Part" frame:NSMakeRect(InspectorPadding + 140.0, frame.size.height - 304.0, 48.0, 18.0)];
+    [partLabel setFont:[NSFont systemFontOfSize:11.0]];
+    [partLabel setAutoresizingMask:NSViewMinYMargin];
+    [[self inspectorView] addSubview:partLabel];
+    _partPopUp = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(InspectorPadding + 140.0, frame.size.height - 332.0, 88.0, 26.0) pullsDown:NO];
+    [_partPopUp setTarget:self];
+    [_partPopUp setAction:@selector(partDidChange:)];
+    [_partPopUp setAutoresizingMask:NSViewMinYMargin];
+    [[self inspectorView] addSubview:_partPopUp];
+    _addPartButton = [[NSButton alloc] initWithFrame:NSMakeRect(InspectorPadding + 230.0, frame.size.height - 332.0, 32.0, 26.0)];
+    [_addPartButton setTitle:@"+"];
+    [_addPartButton setToolTip:@"Add Part"];
+    [_addPartButton setTarget:self];
+    [_addPartButton setAction:@selector(addPart:)];
+    [_addPartButton setAutoresizingMask:NSViewMinYMargin];
+    [[self inspectorView] addSubview:_addPartButton];
 
-    _addNoteButton = [[NSButton alloc] initWithFrame:NSMakeRect(InspectorPadding + 198.0, frame.size.height - 332.0, 64.0, 26.0)];
+    _addNoteButton = [[NSButton alloc] initWithFrame:NSMakeRect(InspectorPadding + 188.0, frame.size.height - 220.0, 74.0, 24.0)];
     [_addNoteButton setTitle:@"Add"];
 #if defined(__clang__)
 #pragma clang diagnostic push
@@ -538,7 +548,17 @@ static CGFloat const InspectorPadding = 18.0;
     [_addNoteButton setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:_addNoteButton];
 
-    NSTextField *paletteLabel = [self labelWithString:@"Palette" frame:NSMakeRect(InspectorPadding, frame.size.height - 376.0, 120.0, 18.0)];
+    NSTextField *instrumentLabel = [self labelWithString:@"Part Instrument" frame:NSMakeRect(InspectorPadding, frame.size.height - 362.0, 120.0, 18.0)];
+    [instrumentLabel setAutoresizingMask:NSViewMinYMargin];
+    [[self inspectorView] addSubview:instrumentLabel];
+    _instrumentPopUp = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 392.0, 244.0, 26.0) pullsDown:NO];
+    [_instrumentPopUp addItemsWithTitles:[MidiParser generalMidiProgramNames]];
+    [_instrumentPopUp setTarget:self];
+    [_instrumentPopUp setAction:@selector(instrumentDidChange:)];
+    [_instrumentPopUp setAutoresizingMask:NSViewMinYMargin];
+    [[self inspectorView] addSubview:_instrumentPopUp];
+
+    NSTextField *paletteLabel = [self labelWithString:@"Palette" frame:NSMakeRect(InspectorPadding, frame.size.height - 424.0, 120.0, 18.0)];
     [paletteLabel setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:paletteLabel];
 
@@ -554,7 +574,7 @@ static CGFloat const InspectorPadding = 18.0;
         NSUInteger denominator = [[denominators objectAtIndex:i] unsignedIntegerValue];
         NSString *valueLabel = denominator == 1 ? @"Whole" : (denominator == 2 ? @"Half" : [NSString stringWithFormat:@"1/%lu", (unsigned long)denominator]);
         NSString *noteLabel = [NSString stringWithFormat:@"%@ Note", valueLabel];
-        ScorePaletteItemView *notePalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 402.0 - (CGFloat)i * 34.0, 110.0, 30.0)
+        ScorePaletteItemView *notePalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 450.0 - (CGFloat)i * 30.0, 110.0, 27.0)
                                                                                 document:self
                                                                                     item:@"note"
                                                                                    label:noteLabel
@@ -563,7 +583,7 @@ static CGFloat const InspectorPadding = 18.0;
         [[self inspectorView] addSubview:notePalette];
 
         NSString *restLabel = [NSString stringWithFormat:@"%@ Rest", valueLabel];
-        ScorePaletteItemView *restPalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding + 122.0, frame.size.height - 402.0 - (CGFloat)i * 34.0, 110.0, 30.0)
+        ScorePaletteItemView *restPalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding + 122.0, frame.size.height - 450.0 - (CGFloat)i * 30.0, 110.0, 27.0)
                                                                                 document:self
                                                                                     item:@"rest"
                                                                                    label:restLabel
@@ -572,11 +592,11 @@ static CGFloat const InspectorPadding = 18.0;
         [[self inspectorView] addSubview:restPalette];
     }
 
-    NSTextField *notesLabel = [self labelWithString:@"Score Notes" frame:NSMakeRect(InspectorPadding, frame.size.height - 624.0, 120.0, 18.0)];
+    NSTextField *notesLabel = [self labelWithString:@"Score Notes" frame:NSMakeRect(InspectorPadding, frame.size.height - 644.0, 120.0, 18.0)];
     [notesLabel setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:notesLabel];
 
-    NSScrollView *notesScroll = [[[NSScrollView alloc] initWithFrame:NSMakeRect(InspectorPadding, InspectorPadding, frame.size.width - 2.0 * InspectorPadding, frame.size.height - 658.0)] autorelease];
+    NSScrollView *notesScroll = [[[NSScrollView alloc] initWithFrame:NSMakeRect(InspectorPadding, InspectorPadding, frame.size.width - 2.0 * InspectorPadding, frame.size.height - 678.0)] autorelease];
     [notesScroll setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
     [notesScroll setHasVerticalScroller:YES];
     [notesScroll setBorderType:NSBezelBorder];
@@ -608,7 +628,9 @@ static CGFloat const InspectorPadding = 18.0;
     [_notePitchField setEnabled:hasDocument];
     [_noteStartField setEnabled:hasDocument];
     [_noteDurationField setEnabled:hasDocument];
-    [_noteTrackField setEnabled:hasDocument];
+    [_partPopUp setEnabled:hasDocument];
+    [_instrumentPopUp setEnabled:hasDocument];
+    [_addPartButton setEnabled:hasDocument];
     [_noteTypePopUp setEnabled:hasDocument];
     [_noteValuePopUp setEnabled:hasDocument];
     [_addNoteButton setEnabled:hasDocument];
@@ -634,6 +656,35 @@ static CGFloat const InspectorPadding = 18.0;
     [_noteDurationField setDoubleValue:[self beatsForNoteValueDenominator:[self denominatorForSelectedNoteValue]]];
 
     ScoreNote *selectedNote = [[self scoreView] selectedNote];
+    NSInteger selectedPart = selectedNote ? [selectedNote track] :
+        ([[_partPopUp selectedItem] representedObject] ? [[[_partPopUp selectedItem] representedObject] integerValue] : 0);
+    NSMutableSet *partSet = [NSMutableSet setWithObject:[NSNumber numberWithInteger:0]];
+    [partSet addObjectsFromArray:[[document partNames] allKeys]];
+    [partSet addObjectsFromArray:[[document trackPrograms] allKeys]];
+    NSEnumerator *partNoteEnumerator = [[document notes] objectEnumerator];
+    ScoreNote *partNote = nil;
+    while ((partNote = [partNoteEnumerator nextObject]) != nil) {
+        [partSet addObject:[NSNumber numberWithInteger:[partNote track]]];
+    }
+    NSArray *parts = [[partSet allObjects] sortedArrayUsingSelector:@selector(compare:)];
+    [_partPopUp removeAllItems];
+    NSEnumerator *partEnumerator = [parts objectEnumerator];
+    NSNumber *partNumber = nil;
+    while ((partNumber = [partEnumerator nextObject]) != nil) {
+        NSInteger track = [partNumber integerValue];
+        NSString *partName = [document nameForTrack:track];
+        if ([partName length] == 0) {
+            partName = [NSString stringWithFormat:@"Part %ld", (long)(track + 1)];
+        }
+        [_partPopUp addItemWithTitle:partName];
+        [[_partPopUp lastItem] setRepresentedObject:partNumber];
+        if (track == selectedPart) {
+            [_partPopUp selectItem:[_partPopUp lastItem]];
+        }
+    }
+    NSNumber *program = [document programForTrack:selectedPart];
+    [_instrumentPopUp selectItemAtIndex:program ? [program integerValue] : 0];
+
     if (selectedNote) {
         NSUInteger ticksPerQuarter = MAX((NSUInteger)1, [document ticksPerQuarter]);
         double durationBeats = (double)[selectedNote durationTicks] / (double)ticksPerQuarter;
@@ -659,7 +710,6 @@ static CGFloat const InspectorPadding = 18.0;
         }
         [_noteStartField setDoubleValue:(double)[selectedNote startTick] / (double)ticksPerQuarter];
         [_noteDurationField setDoubleValue:durationBeats];
-        [_noteTrackField setIntegerValue:[selectedNote track] + 1];
 
         NSArray *valueTitles = [NSArray arrayWithObjects:@"Whole", @"Half", @"1/4", @"1/8", @"1/16", @"1/32", nil];
         double valueBeats[] = { 4.0, 2.0, 1.0, 0.5, 0.25, 0.125 };
@@ -678,6 +728,73 @@ static CGFloat const InspectorPadding = 18.0;
     _updatingInspector = YES;
     [_annotationTextView setString:[document annotationText] ? [document annotationText] : @""];
     _updatingInspector = NO;
+}
+
+- (NSInteger)selectedPartNumber
+{
+    NSNumber *part = [[_partPopUp selectedItem] representedObject];
+    return part ? [part integerValue] : 0;
+}
+
+- (void)addPart:(id)sender
+{
+    (void)sender;
+    ScoreDocument *document = [self scoreDocument];
+    if (!document) return;
+
+    NSInteger highestPart = -1;
+    NSEnumerator *noteEnumerator = [[document notes] objectEnumerator];
+    ScoreNote *note = nil;
+    while ((note = [noteEnumerator nextObject]) != nil) {
+        highestPart = MAX(highestPart, [note track]);
+    }
+    NSEnumerator *keyEnumerator = [[[document partNames] allKeys] objectEnumerator];
+    NSNumber *key = nil;
+    while ((key = [keyEnumerator nextObject]) != nil) highestPart = MAX(highestPart, [key integerValue]);
+    keyEnumerator = [[[document trackPrograms] allKeys] objectEnumerator];
+    while ((key = [keyEnumerator nextObject]) != nil) highestPart = MAX(highestPart, [key integerValue]);
+
+    NSInteger newPart = highestPart + 1;
+    [document setName:[NSString stringWithFormat:@"Part %ld", (long)(newPart + 1)] forTrack:newPart];
+    [document setProgram:[NSNumber numberWithInteger:0] forTrack:newPart];
+    [self updateChangeCount:NSChangeDone];
+    [self refreshInspector];
+    NSEnumerator *itemEnumerator = [[_partPopUp itemArray] objectEnumerator];
+    NSMenuItem *item = nil;
+    while ((item = [itemEnumerator nextObject]) != nil) {
+        if ([[item representedObject] integerValue] == newPart) {
+            [_partPopUp selectItem:item];
+            break;
+        }
+    }
+    [_instrumentPopUp selectItemAtIndex:0];
+}
+
+- (void)partDidChange:(id)sender
+{
+    (void)sender;
+    ScoreNote *note = [[self scoreView] selectedNote];
+    if (!note) {
+        NSNumber *program = [[self scoreDocument] programForTrack:[self selectedPartNumber]];
+        [_instrumentPopUp selectItemAtIndex:program ? [program integerValue] : 0];
+        return;
+    }
+    NSInteger part = [self selectedPartNumber];
+    [note setTrack:part];
+    [note setChannel:part % 16];
+    [[self scoreView] setNeedsDisplay:YES];
+    [self updateChangeCount:NSChangeDone];
+    [self refreshInspector];
+}
+
+- (void)instrumentDidChange:(id)sender
+{
+    (void)sender;
+    ScoreDocument *document = [self scoreDocument];
+    if (!document) return;
+    [document setProgram:[NSNumber numberWithInteger:[_instrumentPopUp indexOfSelectedItem]]
+                forTrack:[self selectedPartNumber]];
+    [self updateChangeCount:NSChangeDone];
 }
 
 - (BOOL)isSupportedTimeSignatureDenominator:(NSUInteger)denominator
@@ -815,8 +932,7 @@ static CGFloat const InspectorPadding = 18.0;
         return nil;
     }
 
-    NSInteger trackNumber = [_noteTrackField integerValue];
-    if (trackNumber < 1) trackNumber = 1;
+    NSInteger trackNumber = [self selectedPartNumber];
 
     NSUInteger durationTicks = [self durationTicksForNoteValueDenominator:denominator];
     NSInteger pitch = -1;
@@ -824,7 +940,7 @@ static CGFloat const InspectorPadding = 18.0;
             item,
             (long)pitch,
             (unsigned long)durationTicks,
-            (long)(trackNumber - 1)];
+            (long)trackNumber];
 }
 
 - (void)stopCurrentPlayback
@@ -1166,7 +1282,7 @@ static CGFloat const InspectorPadding = 18.0;
     double startBeats = [_noteStartField doubleValue];
     NSUInteger denominator = [self denominatorForSelectedNoteValue];
     double durationBeats = [self beatsForNoteValueDenominator:denominator];
-    NSInteger trackNumber = [_noteTrackField integerValue];
+    NSInteger trackNumber = [self selectedPartNumber] + 1;
     if (startBeats < 0.0) startBeats = 0.0;
     if (trackNumber < 1) trackNumber = 1;
 
@@ -1178,7 +1294,7 @@ static CGFloat const InspectorPadding = 18.0;
     if (!rest) {
         [note setAccidental:[self accidentalForPitchString:[_notePitchField stringValue]]];
     }
-    [note setChannel:0];
+    [note setChannel:(trackNumber - 1) % 16];
     [note setTrack:trackNumber - 1];
     [note setStartTick:startTick];
     [note setDurationTicks:durationTicks];
@@ -1195,7 +1311,6 @@ static CGFloat const InspectorPadding = 18.0;
 
     [_noteStartField setDoubleValue:startBeats + durationBeats];
     [_noteDurationField setDoubleValue:durationBeats];
-    [_noteTrackField setIntegerValue:trackNumber];
     [[self scoreView] reloadDocument];
     [self updateChangeCount:NSChangeDone];
     [self refreshInspector];

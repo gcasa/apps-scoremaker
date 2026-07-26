@@ -825,6 +825,15 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
             [tracks addObject:track];
         }
     }
+    NSEnumerator *definedTrackEnumerator = [[[document partNames] allKeys] objectEnumerator];
+    NSNumber *definedTrack = nil;
+    while ((definedTrack = [definedTrackEnumerator nextObject]) != nil) {
+        if (![tracks containsObject:definedTrack]) [tracks addObject:definedTrack];
+    }
+    definedTrackEnumerator = [[[document trackPrograms] allKeys] objectEnumerator];
+    while ((definedTrack = [definedTrackEnumerator nextObject]) != nil) {
+        if (![tracks containsObject:definedTrack]) [tracks addObject:definedTrack];
+    }
     [tracks sortUsingSelector:@selector(compare:)];
     NSEnumerator *trackEnumerator = [tracks objectEnumerator];
     NSNumber *track = nil;
