@@ -8,10 +8,15 @@ extern NSString * const ScorePalettePasteboardType;
 {
     ScoreDocument *_document;
     ScoreNote *_selectedNote;
+    NSUInteger _playbackTick;
+    BOOL _showPlayback;
 }
 - (ScoreDocument *)document;
 - (void)setDocument:(ScoreDocument *)document;
 - (void)reloadDocument;
 - (ScoreNote *)selectedNote;
+- (void)setPlaybackTick:(NSUInteger)tick;
+- (void)clearPlayback;
+- (void)scrollPlaybackTickToVisible:(NSUInteger)tick;
 - (BOOL)insertPaletteItem:(NSString *)item atPoint:(NSPoint)point pitch:(NSInteger)pitch durationTicks:(NSUInteger)durationTicks track:(NSInteger)track;
 @end

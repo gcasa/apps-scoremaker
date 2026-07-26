@@ -26,6 +26,8 @@
     id _midiPlayer;
     NSTask *_playbackTask;
     NSString *_playbackFilePath;
+    NSTimer *_playbackTimer;
+    NSTimeInterval _playbackStartTime;
     BOOL _updatingInspector;
 }
 - (NSWindow *)window;

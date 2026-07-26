@@ -50,6 +50,35 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     return _selectedNote;
 }
 
+- (void)setPlaybackTick:(NSUInteger)tick
+{
+    _playbackTick = tick;
+    _showPlayback = YES;
+    [self setNeedsDisplay:YES];
+}
+
+- (void)clearPlayback
+{
+    if (_showPlayback) {
+        _showPlayback = NO;
+        [self setNeedsDisplay:YES];
+    }
+}
+
+- (void)scrollPlaybackTickToVisible:(NSUInteger)tick
+{
+    NSUInteger ticksPerSystem = [self ticksPerSystem];
+    if (ticksPerSystem == 0) return;
+
+    NSUInteger system = tick / ticksPerSystem;
+    CGFloat systemY = Margin + FirstSystemOffset + (CGFloat)system * SystemHeight;
+    NSRect visible = [self visibleRect];
+    NSRect target = NSMakeRect(NSMinX(visible), systemY - 28.0, 1.0, SystemHeight + 56.0);
+    if (NSMinY(target) < NSMinY(visible) || NSMaxY(target) > NSMaxY(visible)) {
+        [self scrollRectToVisible:target];
+    }
+}
+
 - (void)dealloc
 {
     [_document release];
@@ -386,6 +415,12 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
         CGFloat staffTop = treble ? trebleY : bassY;
         CGFloat x = [self xForTick:[note startTick] start:systemStart end:systemEnd left:left right:right];
         CGFloat y = [note isRest] ? staffTop + 2.0 * LineSpacing : [self yForNote:note treble:treble staffTop:staffTop];
+        BOOL playing = _showPlayback && ![note isRest] &&
+                       [note startTick] <= _playbackTick &&
+                       _playbackTick < [note startTick] + [note durationTicks];
+        if (playing && [[NSGraphicsContext currentContext] isDrawingToScreen]) {
+            [self drawPlaybackHighlightAtX:x y:y];
+        }
         if (note == _selectedNote && [[NSGraphicsContext currentContext] isDrawingToScreen]) {
             [self drawSelectionAtX:x y:y];
         }
@@ -495,6 +530,14 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
                       beamEnds:beamEnds
                 stemDirections:stemDirections];
     }
+}
+
+- (void)drawPlaybackHighlightAtX:(CGFloat)x y:(CGFloat)y
+{
+    NSRect glowRect = NSMakeRect(x - 12.0, y - 10.0, 24.0, 20.0);
+    NSColor *glow = [NSColor colorWithCalibratedRed:1.0 green:0.72 blue:0.12 alpha:0.55];
+    [glow setFill];
+    [[NSBezierPath bezierPathWithOvalInRect:glowRect] fill];
 }
 
 - (void)drawSelectionAtX:(CGFloat)x y:(CGFloat)y

@@ -776,6 +776,10 @@ static CGFloat const InspectorPadding = 18.0;
 
 - (void)stopCurrentPlayback
 {
+    [_playbackTimer invalidate];
+    [_playbackTimer release];
+    _playbackTimer = nil;
+    [[self scoreView] clearPlayback];
     [_playbackSound stop];
     [_playbackSound release];
     _playbackSound = nil;
@@ -797,6 +801,44 @@ static CGFloat const InspectorPadding = 18.0;
         [_playbackFilePath release];
         _playbackFilePath = nil;
     }
+}
+
+- (void)updatePlaybackHighlight:(NSTimer *)timer
+{
+    (void)timer;
+    ScoreDocument *document = [self scoreDocument];
+    if (!document) {
+        [self stopCurrentPlayback];
+        return;
+    }
+
+    NSTimeInterval elapsed = [NSDate timeIntervalSinceReferenceDate] - _playbackStartTime;
+    double secondsPerQuarter = (double)[document tempoMicrosecondsPerQuarter] / 1000000.0;
+    if (secondsPerQuarter <= 0.0) secondsPerQuarter = 0.5;
+    NSUInteger tick = (NSUInteger)floor((elapsed / secondsPerQuarter) * (double)[document ticksPerQuarter]);
+
+    if (tick >= [document totalTicks]) {
+        [_playbackTimer invalidate];
+        [_playbackTimer release];
+        _playbackTimer = nil;
+        [[self scoreView] clearPlayback];
+        return;
+    }
+
+    [[self scoreView] setPlaybackTick:tick];
+    [[self scoreView] scrollPlaybackTickToVisible:tick];
+}
+
+- (void)startPlaybackHighlight
+{
+    _playbackStartTime = [NSDate timeIntervalSinceReferenceDate];
+    [[self scoreView] setPlaybackTick:0];
+    [[self scoreView] scrollPlaybackTickToVisible:0];
+    _playbackTimer = [[NSTimer scheduledTimerWithTimeInterval:1.0 / 30.0
+                                                      target:self
+                                                    selector:@selector(updatePlaybackHighlight:)
+                                                    userInfo:nil
+                                                     repeats:YES] retain];
 }
 
 - (void)stopPlayback:(id)sender
@@ -973,7 +1015,9 @@ static CGFloat const InspectorPadding = 18.0;
 
     if (![self playMIDIDataDirectly:midiData error:&error]) {
         [[NSDocumentController sharedDocumentController] presentError:error];
+        return;
     }
+    [self startPlaybackHighlight];
 }
 
 - (BOOL)pitchString:(NSString *)string toMidiPitch:(NSInteger *)pitch
