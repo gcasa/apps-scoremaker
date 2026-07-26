@@ -2,6 +2,7 @@
 #import "ScoreModel.h"
 
 extern NSString * const ScoreViewDidEditScoreNotification;
+extern NSString * const ScoreViewSelectionDidChangeNotification;
 extern NSString * const ScorePalettePasteboardType;
 
 @interface ScoreView : NSView

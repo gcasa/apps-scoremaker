@@ -349,6 +349,10 @@ static CGFloat const InspectorPadding = 18.0;
                                              selector:@selector(scoreViewDidEditScore:)
                                                  name:ScoreViewDidEditScoreNotification
                                                object:[self scoreView]];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(scoreViewSelectionDidChange:)
+                                                 name:ScoreViewSelectionDidChangeNotification
+                                               object:[self scoreView]];
     NSRect contentBounds = [[[self window] contentView] bounds];
     NSRect scoreFrame = contentBounds;
     scoreFrame.size.width = MAX((CGFloat)300.0, scoreFrame.size.width - InspectorWidth);
@@ -628,6 +632,49 @@ static CGFloat const InspectorPadding = 18.0;
     [_timeNumeratorField setIntegerValue:(NSInteger)[document timeSignatureNumerator]];
     [_timeDenominatorField setIntegerValue:(NSInteger)[document timeSignatureDenominator]];
     [_noteDurationField setDoubleValue:[self beatsForNoteValueDenominator:[self denominatorForSelectedNoteValue]]];
+
+    ScoreNote *selectedNote = [[self scoreView] selectedNote];
+    if (selectedNote) {
+        NSUInteger ticksPerQuarter = MAX((NSUInteger)1, [document ticksPerQuarter]);
+        double durationBeats = (double)[selectedNote durationTicks] / (double)ticksPerQuarter;
+        [_noteTypePopUp selectItemWithTitle:[selectedNote isRest] ? @"Rest" : @"Note"];
+        if (![selectedNote isRest]) {
+            static NSString *pitchNames[] = {
+                @"C", @"C#", @"D", @"D#", @"E", @"F",
+                @"F#", @"G", @"G#", @"A", @"A#", @"B"
+            };
+            NSInteger pitch = [selectedNote pitch];
+            NSInteger accidental = [selectedNote accidental];
+            NSInteger naturalPitch = pitch - accidental;
+            NSInteger pitchClass = naturalPitch % 12;
+            if (pitchClass < 0) pitchClass += 12;
+            NSString *name = pitchNames[pitchClass];
+            if (accidental > 0) {
+                name = [name stringByAppendingString:@"#"];
+            } else if (accidental < 0) {
+                name = [name stringByAppendingString:@"b"];
+            }
+            NSInteger octave = naturalPitch / 12 - 1;
+            [_notePitchField setStringValue:[NSString stringWithFormat:@"%@%ld", name, (long)octave]];
+        }
+        [_noteStartField setDoubleValue:(double)[selectedNote startTick] / (double)ticksPerQuarter];
+        [_noteDurationField setDoubleValue:durationBeats];
+        [_noteTrackField setIntegerValue:[selectedNote track] + 1];
+
+        NSArray *valueTitles = [NSArray arrayWithObjects:@"Whole", @"Half", @"1/4", @"1/8", @"1/16", @"1/32", nil];
+        double valueBeats[] = { 4.0, 2.0, 1.0, 0.5, 0.25, 0.125 };
+        NSUInteger closestIndex = 0;
+        double closestDifference = DBL_MAX;
+        for (NSUInteger i = 0; i < [valueTitles count]; i++) {
+            double difference = fabs(durationBeats - valueBeats[i]);
+            if (difference < closestDifference) {
+                closestDifference = difference;
+                closestIndex = i;
+            }
+        }
+        [_noteValuePopUp selectItemWithTitle:[valueTitles objectAtIndex:closestIndex]];
+    }
+
     _updatingInspector = YES;
     [_annotationTextView setString:[document annotationText] ? [document annotationText] : @""];
     _updatingInspector = NO;
@@ -710,6 +757,12 @@ static CGFloat const InspectorPadding = 18.0;
     (void)notification;
     [[self scoreView] reloadDocument];
     [self updateChangeCount:NSChangeDone];
+    [self refreshInspector];
+}
+
+- (void)scoreViewSelectionDidChange:(NSNotification *)notification
+{
+    (void)notification;
     [self refreshInspector];
 }
 

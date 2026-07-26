@@ -13,6 +13,7 @@ static CGFloat const ClefImageHeight = 60.0;
 static CGFloat const FirstSystemOffset = 54.0;
 static CGFloat const PaletteDragNoteHeadYOffset = 25.0;
 NSString * const ScoreViewDidEditScoreNotification = @"ScoreViewDidEditScoreNotification";
+NSString * const ScoreViewSelectionDidChangeNotification = @"ScoreViewSelectionDidChangeNotification";
 NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
 
 @implementation ScoreView
@@ -833,6 +834,7 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     _selectedNote = [self noteAtPoint:point];
     [[self window] makeFirstResponder:self];
     [self setNeedsDisplay:YES];
+    [[NSNotificationCenter defaultCenter] postNotificationName:ScoreViewSelectionDidChangeNotification object:self];
 }
 
 - (void)keyDown:(NSEvent *)event
