@@ -762,6 +762,8 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
             [note setTrack:[trackNumber integerValue]];
             [note setStartTick:currentTick];
             [note setDurationTicks:MAX((NSUInteger)1, (NSUInteger)llround(durationSeconds * ticksPerBeat))];
+            [note setSlurStart:([params rangeOfString:@"slurStart:1" options:NSCaseInsensitiveSearch].location != NSNotFound)];
+            [note setSlurEnd:([params rangeOfString:@"slurStop:1" options:NSCaseInsensitiveSearch].location != NSNotFound)];
             [[document notes] addObject:note];
             if ([note startTick] + [note durationTicks] > [document totalTicks]) {
                 [document setTotalTicks:[note startTick] + [note durationTicks]];
@@ -874,7 +876,12 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
         if ([note isRest]) {
             [output appendFormat:@"%@ (%.6g);\n", identifier, duration];
         } else {
-            [output appendFormat:@"%@ (%.6g) keyNum:%@;\n", identifier, duration, NoteNameForPitch([note pitch], [note accidental])];
+            [output appendFormat:@"%@ (%.6g) keyNum:%@%@%@;\n",
+                                 identifier,
+                                 duration,
+                                 NoteNameForPitch([note pitch], [note accidental]),
+                                 [note slurStart] ? @" slurStart:1" : @"",
+                                 [note slurEnd] ? @" slurStop:1" : @""];
         }
     }
 

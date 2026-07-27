@@ -64,6 +64,16 @@ static CGFloat const InspectorPadding = 18.0;
     [[NSColor colorWithCalibratedWhite:0.7 alpha:1.0] setStroke];
     NSFrameRect(bounds);
 
+    if ([_item isEqualToString:@"sharp"] || [_item isEqualToString:@"flat"] ||
+        [_item isEqualToString:@"natural"] || [_item isEqualToString:@"slur"]) {
+        NSDictionary *toolAttrs = [NSDictionary dictionaryWithObjectsAndKeys:
+                                   [NSFont systemFontOfSize:10.0], NSFontAttributeName,
+                                   [NSColor blackColor], NSForegroundColorAttributeName,
+                                   nil];
+        [_label drawAtPoint:NSMakePoint(5.0, 7.0) withAttributes:toolAttrs];
+        return;
+    }
+
     [[NSColor blackColor] setStroke];
     [[NSColor blackColor] setFill];
     CGFloat x = 22.0;
@@ -116,7 +126,29 @@ static CGFloat const InspectorPadding = 18.0;
     [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithBitmapImageRep:rep]];
     [[NSColor blackColor] setStroke];
     [[NSColor blackColor] setFill];
-    if ([_item isEqualToString:@"rest"]) {
+    if ([_item isEqualToString:@"sharp"] || [_item isEqualToString:@"flat"] ||
+        [_item isEqualToString:@"natural"]) {
+        NSString *symbol = [_item isEqualToString:@"sharp"] ? @"♯" :
+                           ([_item isEqualToString:@"flat"] ? @"♭" : @"♮");
+        NSFont *font = [NSFont fontWithName:@"Times New Roman" size:30.0];
+        if (!font) font = [NSFont systemFontOfSize:27.0];
+        NSDictionary *attrs = [NSDictionary dictionaryWithObjectsAndKeys:
+                               font, NSFontAttributeName,
+                               [NSColor blackColor], NSForegroundColorAttributeName,
+                               nil];
+        NSSize symbolSize = [symbol sizeWithAttributes:attrs];
+        [symbol drawAtPoint:NSMakePoint((54.0 - symbolSize.width) / 2.0,
+                                        (42.0 - symbolSize.height) / 2.0)
+             withAttributes:attrs];
+    } else if ([_item isEqualToString:@"slur"]) {
+        NSBezierPath *slur = [NSBezierPath bezierPath];
+        [slur moveToPoint:NSMakePoint(7.0, 13.0)];
+        [slur curveToPoint:NSMakePoint(47.0, 13.0)
+             controlPoint1:NSMakePoint(17.0, 31.0)
+             controlPoint2:NSMakePoint(37.0, 31.0)];
+        [slur setLineWidth:2.5];
+        [slur stroke];
+    } else if ([_item isEqualToString:@"rest"]) {
         if (_denominator == 2) {
             NSRectFill(NSMakeRect(18.0, 14.0, 18.0, 6.0));
         } else {
@@ -562,6 +594,22 @@ static CGFloat const InspectorPadding = 18.0;
     [paletteLabel setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:paletteLabel];
 
+    NSArray *toolItems = [NSArray arrayWithObjects:@"sharp", @"flat", @"natural", @"slur", nil];
+    NSArray *toolLabels = [NSArray arrayWithObjects:@"♯ Sharp", @"♭ Flat", @"♮ Natural", @"Slur", nil];
+    for (NSUInteger i = 0; i < [toolItems count]; i++) {
+        ScorePaletteItemView *toolPalette = [[[ScorePaletteItemView alloc]
+            initWithFrame:NSMakeRect(InspectorPadding + (CGFloat)i * 61.0,
+                                     frame.size.height - 452.0,
+                                     58.0,
+                                     27.0)
+                 document:self
+                     item:[toolItems objectAtIndex:i]
+                    label:[toolLabels objectAtIndex:i]
+              denominator:4] autorelease];
+        [toolPalette setAutoresizingMask:NSViewMinYMargin];
+        [[self inspectorView] addSubview:toolPalette];
+    }
+
     NSArray *denominators = [NSArray arrayWithObjects:
                              [NSNumber numberWithUnsignedInteger:1],
                              [NSNumber numberWithUnsignedInteger:2],
@@ -574,7 +622,7 @@ static CGFloat const InspectorPadding = 18.0;
         NSUInteger denominator = [[denominators objectAtIndex:i] unsignedIntegerValue];
         NSString *valueLabel = denominator == 1 ? @"Whole" : (denominator == 2 ? @"Half" : [NSString stringWithFormat:@"1/%lu", (unsigned long)denominator]);
         NSString *noteLabel = [NSString stringWithFormat:@"%@ Note", valueLabel];
-        ScorePaletteItemView *notePalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 450.0 - (CGFloat)i * 30.0, 110.0, 27.0)
+        ScorePaletteItemView *notePalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 482.0 - (CGFloat)i * 27.0, 110.0, 24.0)
                                                                                 document:self
                                                                                     item:@"note"
                                                                                    label:noteLabel
@@ -583,7 +631,7 @@ static CGFloat const InspectorPadding = 18.0;
         [[self inspectorView] addSubview:notePalette];
 
         NSString *restLabel = [NSString stringWithFormat:@"%@ Rest", valueLabel];
-        ScorePaletteItemView *restPalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding + 122.0, frame.size.height - 450.0 - (CGFloat)i * 30.0, 110.0, 27.0)
+        ScorePaletteItemView *restPalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding + 122.0, frame.size.height - 482.0 - (CGFloat)i * 27.0, 110.0, 24.0)
                                                                                 document:self
                                                                                     item:@"rest"
                                                                                    label:restLabel
@@ -592,11 +640,11 @@ static CGFloat const InspectorPadding = 18.0;
         [[self inspectorView] addSubview:restPalette];
     }
 
-    NSTextField *notesLabel = [self labelWithString:@"Score Notes" frame:NSMakeRect(InspectorPadding, frame.size.height - 644.0, 120.0, 18.0)];
+    NSTextField *notesLabel = [self labelWithString:@"Score Notes" frame:NSMakeRect(InspectorPadding, frame.size.height - 660.0, 120.0, 18.0)];
     [notesLabel setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:notesLabel];
 
-    NSScrollView *notesScroll = [[[NSScrollView alloc] initWithFrame:NSMakeRect(InspectorPadding, InspectorPadding, frame.size.width - 2.0 * InspectorPadding, frame.size.height - 678.0)] autorelease];
+    NSScrollView *notesScroll = [[[NSScrollView alloc] initWithFrame:NSMakeRect(InspectorPadding, InspectorPadding, frame.size.width - 2.0 * InspectorPadding, frame.size.height - 694.0)] autorelease];
     [notesScroll setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
     [notesScroll setHasVerticalScroller:YES];
     [notesScroll setBorderType:NSBezelBorder];

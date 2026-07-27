@@ -9,6 +9,8 @@
     NSUInteger _durationTicks;
     BOOL _rest;
     NSInteger _accidental;
+    BOOL _slurStart;
+    BOOL _slurEnd;
 }
 - (NSInteger)pitch;
 - (void)setPitch:(NSInteger)pitch;
@@ -24,6 +26,10 @@
 - (void)setRest:(BOOL)rest;
 - (NSInteger)accidental;
 - (void)setAccidental:(NSInteger)accidental;
+- (BOOL)slurStart;
+- (void)setSlurStart:(BOOL)slurStart;
+- (BOOL)slurEnd;
+- (void)setSlurEnd:(BOOL)slurEnd;
 - (NSComparisonResult)compareScoreNote:(ScoreNote *)other;
 @end
 

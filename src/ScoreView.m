@@ -14,6 +14,7 @@ static CGFloat const FirstSystemOffset = 54.0;
 static CGFloat const PaletteDragNoteHeadXOffset = 26.0;
 static CGFloat const PaletteDragNoteHeadYOffset = 25.0;
 static CGFloat const ChordSnapDistance = 9.0;
+static CGFloat const NoteHorizontalInset = 6.0;
 NSString * const ScoreViewDidEditScoreNotification = @"ScoreViewDidEditScoreNotification";
 NSString * const ScoreViewSelectionDidChangeNotification = @"ScoreViewSelectionDidChangeNotification";
 NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
@@ -417,7 +418,7 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
 
         BOOL treble = [note pitch] >= 60;
         CGFloat staffTop = treble ? trebleY : bassY;
-        CGFloat x = [self xForTick:[note startTick] start:systemStart end:systemEnd left:left right:right];
+        CGFloat x = [self noteXForTick:[note startTick] start:systemStart end:systemEnd left:left right:right];
         CGFloat y = [note isRest] ? staffTop + 2.0 * LineSpacing : [self yForNote:note treble:treble staffTop:staffTop];
         BOOL playing = _showPlayback && ![note isRest] &&
                        [note startTick] <= _playbackTick &&
@@ -488,12 +489,12 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
         CGFloat delta = lastBeamY - firstBeamY;
         if (delta > 8.0) lastBeamY = firstBeamY + 8.0;
         if (delta < -8.0) lastBeamY = firstBeamY - 8.0;
-        CGFloat firstX = [self xForTick:[first startTick] start:systemStart end:systemEnd left:left right:right];
-        CGFloat lastX = [self xForTick:[last startTick] start:systemStart end:systemEnd left:left right:right];
+        CGFloat firstX = [self noteXForTick:[first startTick] start:systemStart end:systemEnd left:left right:right];
+        CGFloat lastX = [self noteXForTick:[last startTick] start:systemStart end:systemEnd left:left right:right];
 
         beamNoteEnumerator = [group objectEnumerator];
         while ((note = [beamNoteEnumerator nextObject]) != nil) {
-            CGFloat x = [self xForTick:[note startTick] start:systemStart end:systemEnd left:left right:right];
+            CGFloat x = [self noteXForTick:[note startTick] start:systemStart end:systemEnd left:left right:right];
             CGFloat fraction = lastX > firstX ? (x - firstX) / (lastX - firstX) : 0.0;
             CGFloat beamY = firstBeamY + fraction * (lastBeamY - firstBeamY);
             NSValue *noteKey = [NSValue valueWithPointer:note];
@@ -508,7 +509,7 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     while ((note = [noteEnumerator nextObject]) != nil) {
         BOOL treble = [note pitch] >= 60;
         CGFloat staffTop = treble ? trebleY : bassY;
-        CGFloat x = [self xForTick:[note startTick] start:systemStart end:systemEnd left:left right:right];
+        CGFloat x = [self noteXForTick:[note startTick] start:systemStart end:systemEnd left:left right:right];
         CGFloat y = [self yForNote:note treble:treble staffTop:staffTop];
         NSValue *noteKey = [NSValue valueWithPointer:note];
         NSNumber *beamEnd = [beamEnds objectForKey:noteKey];
@@ -534,6 +535,14 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
                       beamEnds:beamEnds
                 stemDirections:stemDirections];
     }
+
+    [self drawSlursForNotes:visibleNotes
+                       left:left
+                      right:right
+                systemStart:systemStart
+                  systemEnd:systemEnd
+                   trebleY:trebleY
+                     bassY:bassY];
 }
 
 - (void)drawPlaybackHighlightAtX:(CGFloat)x y:(CGFloat)y
@@ -560,6 +569,53 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     if (tick >= end) return right;
     CGFloat t = (CGFloat)(tick - start) / (CGFloat)(end - start);
     return left + t * (right - left);
+}
+
+- (CGFloat)noteXForTick:(NSUInteger)tick start:(NSUInteger)start end:(NSUInteger)end left:(CGFloat)left right:(CGFloat)right
+{
+    return MIN(right - 2.0, [self xForTick:tick start:start end:end left:left right:right] + NoteHorizontalInset);
+}
+
+- (void)drawSlursForNotes:(NSArray *)notes
+                     left:(CGFloat)left
+                    right:(CGFloat)right
+              systemStart:(NSUInteger)systemStart
+                systemEnd:(NSUInteger)systemEnd
+                 trebleY:(CGFloat)trebleY
+                   bassY:(CGFloat)bassY
+{
+    for (NSUInteger i = 0; i < [notes count]; i++) {
+        ScoreNote *startNote = [notes objectAtIndex:i];
+        if (![startNote slurStart] || [startNote isRest]) continue;
+
+        ScoreNote *endNote = nil;
+        for (NSUInteger j = i + 1; j < [notes count]; j++) {
+            ScoreNote *candidate = [notes objectAtIndex:j];
+            if ([candidate slurEnd] && [candidate track] == [startNote track] &&
+                [candidate startTick] > [startNote startTick]) {
+                endNote = candidate;
+                break;
+            }
+        }
+        if (!endNote || [endNote startTick] >= systemEnd) continue;
+
+        BOOL treble = [startNote pitch] >= 60;
+        CGFloat startStaff = treble ? trebleY : bassY;
+        CGFloat endStaff = [endNote pitch] >= 60 ? trebleY : bassY;
+        CGFloat startX = [self noteXForTick:[startNote startTick] start:systemStart end:systemEnd left:left right:right];
+        CGFloat endX = [self noteXForTick:[endNote startTick] start:systemStart end:systemEnd left:left right:right];
+        CGFloat startY = [self yForNote:startNote treble:treble staffTop:startStaff] + 11.0;
+        CGFloat endY = [self yForNote:endNote treble:([endNote pitch] >= 60) staffTop:endStaff] + 11.0;
+        CGFloat bow = MAX(12.0, MIN(28.0, (endX - startX) * 0.18));
+        NSBezierPath *slur = [NSBezierPath bezierPath];
+        [slur moveToPoint:NSMakePoint(startX, startY)];
+        [slur curveToPoint:NSMakePoint(endX, endY)
+             controlPoint1:NSMakePoint(startX + (endX - startX) * 0.3, startY + bow)
+             controlPoint2:NSMakePoint(startX + (endX - startX) * 0.7, endY + bow)];
+        [[NSColor blackColor] setStroke];
+        [slur setLineWidth:1.5];
+        [slur stroke];
+    }
 }
 
 - (CGFloat)yForNote:(ScoreNote *)note treble:(BOOL)treble staffTop:(CGFloat)staffTop
@@ -745,7 +801,7 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
         if ([note startTick] < systemStart || [note startTick] >= systemEnd) {
             continue;
         }
-        CGFloat noteX = [self xForTick:[note startTick]
+        CGFloat noteX = [self noteXForTick:[note startTick]
                                  start:systemStart
                                    end:systemEnd
                                   left:left
@@ -836,7 +892,7 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
         CGFloat y = Margin + FirstSystemOffset + (CGFloat)system * SystemHeight;
         BOOL treble = [note pitch] >= 60;
         CGFloat staffTop = treble ? y : y + StaffGap;
-        CGFloat x = [self xForTick:[note startTick] start:systemStart end:systemEnd left:left right:right];
+        CGFloat x = [self noteXForTick:[note startTick] start:systemStart end:systemEnd left:left right:right];
         CGFloat noteY = [note isRest] ? staffTop + 2.0 * LineSpacing : [self yForNote:note treble:treble staffTop:staffTop];
         NSRect hitRect = NSMakeRect(x - 14.0, noteY - 16.0, 28.0, 32.0);
         if (NSPointInRect(point, hitRect)) {
@@ -915,6 +971,32 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
          */
         point.x += PaletteDragNoteHeadXOffset;
         point.y -= PaletteDragNoteHeadYOffset;
+    }
+
+    if ([item isEqualToString:@"sharp"] || [item isEqualToString:@"flat"] ||
+        [item isEqualToString:@"natural"] || [item isEqualToString:@"slur"]) {
+        ScoreNote *target = [self noteAtPoint:point];
+        if (!target || [target isRest]) return NO;
+
+        if ([item isEqualToString:@"slur"]) {
+            if (!_selectedNote || _selectedNote == target || [_selectedNote isRest] ||
+                [_selectedNote startTick] >= [target startTick]) {
+                return NO;
+            }
+            [_selectedNote setSlurStart:YES];
+            [target setSlurEnd:YES];
+        } else {
+            NSInteger basePitch = [target pitch] - [target accidental];
+            NSInteger accidental = [item isEqualToString:@"sharp"] ? 1 :
+                                   ([item isEqualToString:@"flat"] ? -1 : 0);
+            [target setPitch:MIN(MAX(basePitch + accidental, (NSInteger)0), (NSInteger)127)];
+            [target setAccidental:accidental];
+        }
+        _selectedNote = target;
+        [[_document notes] sortUsingSelector:@selector(compareScoreNote:)];
+        [[NSNotificationCenter defaultCenter] postNotificationName:ScoreViewDidEditScoreNotification object:self];
+        [self setNeedsDisplay:YES];
+        return YES;
     }
     return [self insertPaletteItem:item atPoint:point pitch:pitch durationTicks:durationTicks track:track];
 }
@@ -995,8 +1077,8 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     ScoreNote *first = [notes objectAtIndex:0];
     ScoreNote *last = [notes lastObject];
     BOOL stemsUp = [[stemDirections objectForKey:[NSValue valueWithPointer:first]] boolValue];
-    CGFloat firstX = [self xForTick:[first startTick] start:systemStart end:systemEnd left:left right:right] + (stemsUp ? 5.5 : -5.5);
-    CGFloat lastX = [self xForTick:[last startTick] start:systemStart end:systemEnd left:left right:right] + (stemsUp ? 5.5 : -5.5);
+    CGFloat firstX = [self noteXForTick:[first startTick] start:systemStart end:systemEnd left:left right:right] + (stemsUp ? 5.5 : -5.5);
+    CGFloat lastX = [self noteXForTick:[last startTick] start:systemStart end:systemEnd left:left right:right] + (stemsUp ? 5.5 : -5.5);
     CGFloat firstY = [[beamEnds objectForKey:[NSValue valueWithPointer:first]] doubleValue];
     CGFloat lastY = [[beamEnds objectForKey:[NSValue valueWithPointer:last]] doubleValue];
     CGFloat thickness = stemsUp ? 4.0 : -4.0;
@@ -1018,8 +1100,8 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
                 [self flagCountForDuration:[b durationTicks]] < beamIndex) {
                 continue;
             }
-            CGFloat ax = [self xForTick:[a startTick] start:systemStart end:systemEnd left:left right:right] + (stemsUp ? 5.5 : -5.5);
-            CGFloat bx = [self xForTick:[b startTick] start:systemStart end:systemEnd left:left right:right] + (stemsUp ? 5.5 : -5.5);
+            CGFloat ax = [self noteXForTick:[a startTick] start:systemStart end:systemEnd left:left right:right] + (stemsUp ? 5.5 : -5.5);
+            CGFloat bx = [self noteXForTick:[b startTick] start:systemStart end:systemEnd left:left right:right] + (stemsUp ? 5.5 : -5.5);
             CGFloat ay = [[beamEnds objectForKey:[NSValue valueWithPointer:a]] doubleValue] + thickness * (0.8 + (CGFloat)beamIndex);
             CGFloat by = [[beamEnds objectForKey:[NSValue valueWithPointer:b]] doubleValue] + thickness * (0.8 + (CGFloat)beamIndex);
             NSBezierPath *extraBeam = [NSBezierPath bezierPath];

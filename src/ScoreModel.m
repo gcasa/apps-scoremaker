@@ -90,6 +90,26 @@ static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
     _accidental = MIN(MAX(accidental, (NSInteger)-1), (NSInteger)1);
 }
 
+- (BOOL)slurStart
+{
+    return _slurStart;
+}
+
+- (void)setSlurStart:(BOOL)slurStart
+{
+    _slurStart = slurStart;
+}
+
+- (BOOL)slurEnd
+{
+    return _slurEnd;
+}
+
+- (void)setSlurEnd:(BOOL)slurEnd
+{
+    _slurEnd = slurEnd;
+}
+
 - (NSComparisonResult)compareScoreNote:(ScoreNote *)other
 {
     if (_startTick < [other startTick]) return NSOrderedAscending;
