@@ -920,9 +920,12 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
 - (void)keyDown:(NSEvent *)event
 {
     NSString *characters = [event charactersIgnoringModifiers];
-    if ([characters length] > 0 &&
-        ([characters characterAtIndex:0] == NSDeleteCharacter ||
-         [characters characterAtIndex:0] == NSBackspaceCharacter)) {
+    unichar character = [characters length] > 0 ? [characters characterAtIndex:0] : 0;
+    BOOL deleteKey = ([event keyCode] == 51 || [event keyCode] == 117 ||
+                      character == NSDeleteCharacter ||
+                      character == NSBackspaceCharacter ||
+                      character == NSDeleteFunctionKey);
+    if (deleteKey) {
         if (_selectedNote && [[_document notes] containsObject:_selectedNote]) {
             [[_document notes] removeObject:_selectedNote];
             _selectedNote = nil;

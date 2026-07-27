@@ -41,20 +41,25 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
     NSMutableDictionary *_partIndexes;
     NSString *_currentPartID;
     NSInteger _currentTrack;
-    NSUInteger _currentTick;
-    NSUInteger _lastNoteStart;
+    double _currentQuarter;
+    double _lastNoteStartQuarter;
+    double _measureStartQuarter;
+    double _measureMaxQuarter;
     NSUInteger _divisions;
+    BOOL _measureImplicit;
+    BOOL _foundTempo;
     BOOL _inNote;
     BOOL _inBackup;
     BOOL _inForward;
     BOOL _noteRest;
     BOOL _noteChord;
+    BOOL _noteGrace;
     BOOL _noteSlurStart;
     BOOL _noteSlurEnd;
     NSString *_noteStep;
     NSInteger _noteAlter;
     NSInteger _noteOctave;
-    NSUInteger _noteDuration;
+    double _noteDurationQuarters;
     NSString *_scoreTitle;
 }
 - (ScoreDocument *)document;
@@ -95,9 +100,9 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
     return _document;
 }
 
-- (NSUInteger)ticksForDuration:(NSUInteger)duration
+- (NSUInteger)tickForQuarterPosition:(double)position
 {
-    return MAX((NSUInteger)1, (NSUInteger)llround((double)duration * 480.0 / (double)MAX((NSUInteger)1, _divisions)));
+    return (NSUInteger)MAX((long long)0, llround(position * 480.0));
 }
 
 - (void)parser:(NSXMLParser *)parser
@@ -120,27 +125,37 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
             [_partIndexes setObject:track forKey:_currentPartID];
         }
         _currentTrack = [track integerValue];
-        _currentTick = 0;
+        _currentQuarter = 0.0;
+        _measureStartQuarter = 0.0;
+        _measureMaxQuarter = 0.0;
         NSString *name = [_partNames objectForKey:_currentPartID];
         [_document setName:([name length] ? name : [NSString stringWithFormat:@"Part %ld", (long)(_currentTrack + 1)])
                   forTrack:_currentTrack];
         NSNumber *program = [_partPrograms objectForKey:_currentPartID];
         if (program) [_document setProgram:program forTrack:_currentTrack];
+    } else if ([element isEqualToString:@"measure"]) {
+        _currentQuarter = _measureStartQuarter;
+        _measureMaxQuarter = _measureStartQuarter;
+        _measureImplicit = [[attributes objectForKey:@"implicit"] isEqualToString:@"yes"];
     } else if ([element isEqualToString:@"note"]) {
         _inNote = YES;
         _noteRest = NO;
         _noteChord = NO;
+        _noteGrace = NO;
         _noteSlurStart = NO;
         _noteSlurEnd = NO;
         _noteAlter = 0;
         _noteOctave = 4;
-        _noteDuration = 1;
+        _noteDurationQuarters = 1.0 / (double)MAX((NSUInteger)1, _divisions);
         [_noteStep release];
         _noteStep = nil;
     } else if (_inNote && [element isEqualToString:@"rest"]) {
         _noteRest = YES;
     } else if (_inNote && [element isEqualToString:@"chord"]) {
         _noteChord = YES;
+    } else if (_inNote && [element isEqualToString:@"grace"]) {
+        _noteGrace = YES;
+        _noteDurationQuarters = 0.0;
     } else if ([element isEqualToString:@"backup"]) {
         _inBackup = YES;
     } else if ([element isEqualToString:@"forward"]) {
@@ -151,8 +166,9 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
         if ([type isEqualToString:@"stop"]) _noteSlurEnd = YES;
     } else if ([element isEqualToString:@"sound"]) {
         NSString *tempo = [attributes objectForKey:@"tempo"];
-        if ([tempo doubleValue] > 0.0) {
+        if (!_foundTempo && [tempo doubleValue] > 0.0) {
             [_document setTempoMicrosecondsPerQuarter:(NSUInteger)llround(60000000.0 / [tempo doubleValue])];
+            _foundTempo = YES;
         }
     }
 }
@@ -180,6 +196,9 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
     } else if ([element isEqualToString:@"midi-program"] && _currentPartID) {
         NSInteger program = MAX((NSInteger)1, MIN((NSInteger)128, [value integerValue])) - 1;
         [_partPrograms setObject:[NSNumber numberWithInteger:program] forKey:_currentPartID];
+    } else if ([element isEqualToString:@"per-minute"] && !_foundTempo && [value doubleValue] > 0.0) {
+        [_document setTempoMicrosecondsPerQuarter:(NSUInteger)llround(60000000.0 / [value doubleValue])];
+        _foundTempo = YES;
     } else if ([element isEqualToString:@"divisions"]) {
         _divisions = MAX((NSUInteger)1, (NSUInteger)[value integerValue]);
     } else if ([element isEqualToString:@"beats"]) {
@@ -194,16 +213,21 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
     } else if (_inNote && [element isEqualToString:@"octave"]) {
         _noteOctave = [value integerValue];
     } else if ([element isEqualToString:@"duration"]) {
-        NSUInteger duration = [self ticksForDuration:(NSUInteger)MAX((NSInteger)1, [value integerValue])];
+        double duration = (double)MAX((NSInteger)1, [value integerValue]) /
+                          (double)MAX((NSUInteger)1, _divisions);
         if (_inNote) {
-            _noteDuration = duration;
+            _noteDurationQuarters = duration;
         } else if (_inBackup) {
-            _currentTick = duration > _currentTick ? 0 : _currentTick - duration;
+            _currentQuarter = MAX(_measureStartQuarter, _currentQuarter - duration);
         } else if (_inForward) {
-            _currentTick += duration;
+            _currentQuarter += duration;
+            _measureMaxQuarter = MAX(_measureMaxQuarter, _currentQuarter);
         }
     } else if ([element isEqualToString:@"note"]) {
-        NSUInteger start = _noteChord ? _lastNoteStart : _currentTick;
+        double startQuarter = _noteChord ? _lastNoteStartQuarter : _currentQuarter;
+        double endQuarter = startQuarter + _noteDurationQuarters;
+        NSUInteger start = [self tickForQuarterPosition:startQuarter];
+        NSUInteger end = [self tickForQuarterPosition:endQuarter];
         ScoreNote *note = [[[ScoreNote alloc] init] autorelease];
         [note setRest:_noteRest];
         NSInteger pitch = _noteRest ? 60 : ((_noteOctave + 1) * 12 + PitchClassForStep(_noteStep) + _noteAlter);
@@ -212,18 +236,27 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
         [note setTrack:_currentTrack];
         [note setChannel:_currentTrack % 16];
         [note setStartTick:start];
-        [note setDurationTicks:_noteDuration];
+        [note setDurationTicks:MAX((NSUInteger)1, end - start)];
         [note setSlurStart:_noteSlurStart];
         [note setSlurEnd:_noteSlurEnd];
         [[_document notes] addObject:note];
-        _lastNoteStart = start;
-        if (!_noteChord) _currentTick += _noteDuration;
-        [_document setTotalTicks:MAX([_document totalTicks], start + _noteDuration)];
+        _lastNoteStartQuarter = startQuarter;
+        if (!_noteChord && !_noteGrace) _currentQuarter += _noteDurationQuarters;
+        _measureMaxQuarter = MAX(_measureMaxQuarter, endQuarter);
+        [_document setTotalTicks:MAX([_document totalTicks], end)];
         _inNote = NO;
     } else if ([element isEqualToString:@"backup"]) {
         _inBackup = NO;
     } else if ([element isEqualToString:@"forward"]) {
         _inForward = NO;
+    } else if ([element isEqualToString:@"measure"]) {
+        double measureQuarters = 4.0 * (double)[_document timeSignatureNumerator] /
+                                 (double)MAX((NSUInteger)1, [_document timeSignatureDenominator]);
+        double nominalEnd = _measureStartQuarter + measureQuarters;
+        // Notes may legitimately sound across a barline. Their end positions must
+        // not lengthen a regular measure or every following measure will drift.
+        _measureStartQuarter = _measureImplicit ? _measureMaxQuarter : nominalEnd;
+        _currentQuarter = _measureStartQuarter;
     }
 }
 
