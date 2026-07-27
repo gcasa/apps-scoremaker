@@ -1629,6 +1629,39 @@ static CGFloat const InspectorPadding = 18.0;
     return [ScorefileParser dataForDocument:document error:error];
 }
 
+- (BOOL)writeToURL:(NSURL *)url ofType:(NSString *)typeName error:(NSError **)error
+{
+    ScoreDocument *document = [self scoreDocument];
+    if (!document) {
+        if (error) {
+            NSDictionary *info = [NSDictionary dictionaryWithObject:@"There is no score to save."
+                                                             forKey:NSLocalizedDescriptionKey];
+            *error = [NSError errorWithDomain:@"ScoreMakerDocument" code:1 userInfo:info];
+        }
+        return NO;
+    }
+
+    [self syncInspectorMetadataMarkingChange:NO];
+    if (_annotationTextView) {
+        [document setAnnotationText:[_annotationTextView string]];
+    }
+
+    NSString *lowerType = [typeName lowercaseString];
+    NSString *extension = [[[url path] pathExtension] lowercaseString];
+    NSData *data = nil;
+    if ([extension isEqualToString:@"musicxml"] || [extension isEqualToString:@"xml"] ||
+        [lowerType rangeOfString:@"musicxml"].location != NSNotFound) {
+        data = [MusicXMLParser dataForDocument:document error:error];
+    } else if ([extension isEqualToString:@"mid"] || [extension isEqualToString:@"midi"] ||
+               [lowerType rangeOfString:@"midi"].location != NSNotFound) {
+        data = [MidiParser dataForDocument:document error:error];
+    } else {
+        data = [ScorefileParser dataForDocument:document error:error];
+    }
+    if (!data) return NO;
+    return [data writeToURL:url options:NSDataWritingAtomic error:error];
+}
+
 - (NSArray *)writableTypesForSaveOperation:(NSSaveOperationType)saveOperation
 {
     (void)saveOperation;
