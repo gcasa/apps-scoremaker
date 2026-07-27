@@ -10,6 +10,7 @@
     ScoreView *_scoreView;
     NSView *_inspectorView;
     NSTextField *_tempoField;
+    NSSlider *_tempoSlider;
     NSTextField *_timeNumeratorField;
     NSTextField *_timeDenominatorField;
     NSTextField *_notePitchField;
@@ -22,6 +23,7 @@
     NSButton *_addPartButton;
     NSButton *_addNoteButton;
     NSButton *_playButton;
+    NSButton *_pauseButton;
     NSButton *_stopButton;
     NSTextView *_annotationTextView;
     NSSound *_playbackSound;
@@ -30,6 +32,8 @@
     NSString *_playbackFilePath;
     NSTimer *_playbackTimer;
     NSTimeInterval _playbackStartTime;
+    NSTimeInterval _playbackPausedElapsed;
+    BOOL _playbackPaused;
     BOOL _updatingInspector;
 }
 - (NSWindow *)window;
@@ -46,9 +50,11 @@
 - (void)setInspectorView:(NSView *)inspectorView;
 - (void)syncInspectorMetadataMarkingChange:(BOOL)markChange;
 - (void)scoreMetadataDidChange:(id)sender;
+- (void)tempoSliderDidChange:(id)sender;
 - (void)addNote:(id)sender;
 - (void)stopCurrentPlayback;
 - (void)stopPlayback:(id)sender;
+- (void)pausePlayback:(id)sender;
 - (void)playScore:(id)sender;
 - (void)printDocument:(id)sender;
 @end

@@ -3,6 +3,7 @@
 
 static NSString * const ScoreMakerScorefileType = @"MusicKit Scorefile";
 static NSString * const ScoreMakerMidiType = @"MIDI File";
+static NSString * const ScoreMakerMusicXMLType = @"MusicXML File";
 
 @implementation ScoreMakerDocumentController
 
@@ -18,7 +19,8 @@ static NSString * const ScoreMakerMidiType = @"MIDI File";
 
 - (Class)documentClassForType:(NSString *)type
 {
-    if ([type isEqualToString:ScoreMakerScorefileType] || [type isEqualToString:ScoreMakerMidiType]) {
+    if ([type isEqualToString:ScoreMakerScorefileType] || [type isEqualToString:ScoreMakerMidiType] ||
+        [type isEqualToString:ScoreMakerMusicXMLType]) {
         return [ScoreMakerDocument class];
     }
     return Nil;
@@ -33,6 +35,9 @@ static NSString * const ScoreMakerMidiType = @"MIDI File";
     if ([extension isEqualToString:@"mid"] || [extension isEqualToString:@"midi"]) {
         return ScoreMakerMidiType;
     }
+    if ([extension isEqualToString:@"musicxml"] || [extension isEqualToString:@"xml"]) {
+        return ScoreMakerMusicXMLType;
+    }
     return nil;
 }
 
@@ -44,12 +49,16 @@ static NSString * const ScoreMakerMidiType = @"MIDI File";
     if ([type isEqualToString:ScoreMakerMidiType]) {
         return [NSArray arrayWithObjects:@"mid", @"midi", nil];
     }
+    if ([type isEqualToString:ScoreMakerMusicXMLType]) {
+        return [NSArray arrayWithObjects:@"musicxml", @"xml", nil];
+    }
     return [NSArray array];
 }
 
 - (NSString *)displayNameForType:(NSString *)type
 {
-    if ([type isEqualToString:ScoreMakerScorefileType] || [type isEqualToString:ScoreMakerMidiType]) {
+    if ([type isEqualToString:ScoreMakerScorefileType] || [type isEqualToString:ScoreMakerMidiType] ||
+        [type isEqualToString:ScoreMakerMusicXMLType]) {
         return type;
     }
     return [super displayNameForType:type];
