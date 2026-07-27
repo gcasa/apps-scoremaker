@@ -1582,6 +1582,54 @@ static CGFloat const InspectorPadding = 18.0;
     [operation runOperation];
 }
 
+- (void)editScoreTitle:(id)sender
+{
+    (void)sender;
+    ScoreDocument *document = [self scoreDocument];
+    if (!document) return;
+
+    NSTextField *titleField = [[[NSTextField alloc] initWithFrame:NSMakeRect(0.0, 0.0, 360.0, 24.0)] autorelease];
+    [titleField setStringValue:[document title] ?: @""];
+    NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+    [alert setMessageText:@"Edit Score Title"];
+    [alert setInformativeText:@"This title is shown on the score and is independent of the filename."];
+    [alert setAccessoryView:titleField];
+    [alert addButtonWithTitle:@"Save"];
+    [alert addButtonWithTitle:@"Cancel"];
+    [[alert window] setInitialFirstResponder:titleField];
+    if ([alert runModal] != NSAlertFirstButtonReturn) return;
+
+    [document setTitle:[titleField stringValue]];
+    [self updateChangeCount:NSChangeDone];
+    [[self scoreView] setNeedsDisplay:YES];
+}
+
+- (void)chooseTitleFont:(id)sender
+{
+    (void)sender;
+    ScoreDocument *document = [self scoreDocument];
+    if (!document) return;
+
+    NSFont *font = [NSFont fontWithName:[document titleFontName] size:24.0];
+    if (!font) font = [NSFont boldSystemFontOfSize:24.0];
+    NSFontManager *manager = [NSFontManager sharedFontManager];
+    [manager setTarget:self];
+    [manager setSelectedFont:font isMultiple:NO];
+    [manager orderFrontFontPanel:self];
+}
+
+- (void)changeFont:(id)sender
+{
+    NSFont *currentFont = [NSFont fontWithName:[[self scoreDocument] titleFontName] size:24.0];
+    if (!currentFont) currentFont = [NSFont boldSystemFontOfSize:24.0];
+    NSFont *convertedFont = [sender convertFont:currentFont];
+    if (!convertedFont) return;
+
+    [[self scoreDocument] setTitleFontName:[convertedFont fontName]];
+    [self updateChangeCount:NSChangeDone];
+    [[self scoreView] setNeedsDisplay:YES];
+}
+
 - (BOOL)readFromURL:(NSURL *)url ofType:(NSString *)typeName error:(NSError **)error
 {
     (void)typeName;
@@ -1598,7 +1646,6 @@ static CGFloat const InspectorPadding = 18.0;
     if (!document) {
         return NO;
     }
-    [document setTitle:[[path lastPathComponent] stringByDeletingPathExtension]];
     [self setScoreDocument:document];
     [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:url];
     return YES;
@@ -1690,21 +1737,14 @@ static CGFloat const InspectorPadding = 18.0;
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
-    [savePanel setNameFieldStringValue:[[self displayName] stringByAppendingPathExtension:@"score"]];
+    NSString *suggestedName = [self fileURL] ? [[[self fileURL] path] lastPathComponent] : @"Untitled.score";
+    [savePanel setNameFieldStringValue:suggestedName];
     return [super prepareSavePanel:savePanel];
 }
 
 - (NSString *)displayName
 {
-    NSString *title = [[self scoreDocument] title];
-    if ([title length] > 0) {
-        return title;
-    }
-    NSString *name = [super displayName];
-    if ([name length] > 0) {
-        return [name stringByDeletingPathExtension];
-    }
-    return @"Untitled";
+    return [super displayName];
 }
 
 - (void)setFileURL:(NSURL *)absoluteURL
@@ -1712,11 +1752,6 @@ static CGFloat const InspectorPadding = 18.0;
     [super setFileURL:absoluteURL];
     if (absoluteURL) {
         [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:absoluteURL];
-    }
-    NSString *name = [[[absoluteURL path] lastPathComponent] stringByDeletingPathExtension];
-    if ([name length] > 0) {
-        [[self scoreDocument] setTitle:name];
-        [[self scoreView] setNeedsDisplay:YES];
     }
 }
 

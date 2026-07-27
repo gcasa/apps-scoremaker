@@ -138,6 +138,19 @@ static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
     }
 }
 
+- (NSString *)titleFontName
+{
+    return _titleFontName;
+}
+
+- (void)setTitleFontName:(NSString *)fontName
+{
+    if (_titleFontName != fontName) {
+        [_titleFontName release];
+        _titleFontName = [fontName copy];
+    }
+}
+
 - (NSMutableArray *)notes
 {
     return _notes;
@@ -248,6 +261,7 @@ static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
         _partNames = [[NSMutableDictionary alloc] init];
         _trackPrograms = [[NSMutableDictionary alloc] init];
         _annotationText = [@"" retain];
+        _titleFontName = [@"Helvetica-Bold" copy];
         _ticksPerQuarter = 480;
         _tempoMicrosecondsPerQuarter = 500000;
         _timeSignatureNumerator = 4;
@@ -260,6 +274,7 @@ static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
 - (void)dealloc
 {
     [_title release];
+    [_titleFontName release];
     [_notes release];
     [_partNames release];
     [_trackPrograms release];

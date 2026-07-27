@@ -61,6 +61,7 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
     NSInteger _noteOctave;
     double _noteDurationQuarters;
     NSString *_scoreTitle;
+    NSString *_scoreTitleFontName;
 }
 - (ScoreDocument *)document;
 @end
@@ -92,6 +93,7 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
     [_currentPartID release];
     [_noteStep release];
     [_scoreTitle release];
+    [_scoreTitleFontName release];
     [super dealloc];
 }
 
@@ -169,6 +171,12 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
         if (!_foundTempo && [tempo doubleValue] > 0.0) {
             [_document setTempoMicrosecondsPerQuarter:(NSUInteger)llround(60000000.0 / [tempo doubleValue])];
             _foundTempo = YES;
+        }
+    } else if ([element isEqualToString:@"credit-words"]) {
+        NSString *fontFamily = [attributes objectForKey:@"font-family"];
+        if ([fontFamily length]) {
+            [_scoreTitleFontName release];
+            _scoreTitleFontName = [fontFamily copy];
         }
     }
 }
@@ -264,6 +272,7 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
 {
     (void)parser;
     if ([_scoreTitle length]) [_document setTitle:_scoreTitle];
+    if ([_scoreTitleFontName length]) [_document setTitleFontName:_scoreTitleFontName];
     [[_document notes] sortUsingSelector:@selector(compareScoreNote:)];
 }
 
@@ -308,6 +317,10 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
     [xml appendString:@"<!DOCTYPE score-partwise PUBLIC \"-//Recordare//DTD MusicXML 4.0 Partwise//EN\" \"http://www.musicxml.org/dtds/partwise.dtd\">\n"];
     [xml appendString:@"<score-partwise version=\"4.0\">\n"];
     [xml appendFormat:@"  <work><work-title>%@</work-title></work>\n", EscapeXML([document title] ?: @"Untitled")];
+    if ([[document titleFontName] length] > 0) {
+        [xml appendFormat:@"  <credit page=\"1\"><credit-words font-family=\"%@\">%@</credit-words></credit>\n",
+                          EscapeXML([document titleFontName]), EscapeXML([document title] ?: @"Untitled")];
+    }
     [xml appendString:@"  <part-list>\n"];
     for (NSUInteger i = 0; i < [tracks count]; i++) {
         NSInteger track = [[tracks objectAtIndex:i] integerValue];

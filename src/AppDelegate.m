@@ -199,6 +199,13 @@
     [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Stop"
                                                    action:@selector(stopPlayback:)
                                             keyEquivalent:@""] autorelease]];
+    [scoreMenu addItem:[NSMenuItem separatorItem]];
+    [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Edit Title..."
+                                                   action:@selector(editScoreTitle:)
+                                            keyEquivalent:@""] autorelease]];
+    [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Choose Title Font..."
+                                                   action:@selector(chooseTitleFont:)
+                                            keyEquivalent:@""] autorelease]];
     [scoreItem setSubmenu:scoreMenu];
 
     [NSApp setMainMenu:mainMenu];

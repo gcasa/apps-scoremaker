@@ -158,8 +158,10 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
 
 - (void)drawTitle
 {
+    NSFont *titleFont = [NSFont fontWithName:[_document titleFontName] size:24.0];
+    if (!titleFont) titleFont = [NSFont boldSystemFontOfSize:24.0];
     NSDictionary *titleAttrs = [NSDictionary dictionaryWithObjectsAndKeys:
-                                [NSFont boldSystemFontOfSize:24.0], NSFontAttributeName,
+                                titleFont, NSFontAttributeName,
                                 [NSColor blackColor], NSForegroundColorAttributeName,
                                 nil];
     NSString *title = [_document title] ? [_document title] : @"Untitled";

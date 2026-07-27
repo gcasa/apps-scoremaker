@@ -57,4 +57,7 @@
 - (void)pausePlayback:(id)sender;
 - (void)playScore:(id)sender;
 - (void)printDocument:(id)sender;
+- (void)editScoreTitle:(id)sender;
+- (void)chooseTitleFont:(id)sender;
+- (void)changeFont:(id)sender;
 @end

@@ -553,6 +553,16 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
             [document setAnnotationText:annotation];
             continue;
         }
+        NSString *titleFont = QuotedStringValue(statement, @"titleFont ");
+        if (titleFont) {
+            [document setTitleFontName:titleFont];
+            continue;
+        }
+        NSString *title = QuotedStringValue(statement, @"title ");
+        if (title) {
+            [document setTitle:title];
+            continue;
+        }
         if ([statement rangeOfString:@"BEGIN" options:NSCaseInsensitiveSearch].location != NSNotFound) {
             inBody = YES;
             continue;
@@ -814,6 +824,12 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
                          tempoBPM,
                          (unsigned long)[document timeSignatureNumerator],
                          (unsigned long)[document timeSignatureDenominator]];
+    if ([[document title] length] > 0) {
+        [output appendFormat:@"title \"%@\";\n", EscapeScorefileString([document title])];
+    }
+    if ([[document titleFontName] length] > 0) {
+        [output appendFormat:@"titleFont \"%@\";\n", EscapeScorefileString([document titleFontName])];
+    }
     if ([[document annotationText] length] > 0) {
         [output appendFormat:@"annotation \"%@\";\n", EscapeScorefileString([document annotationText])];
     }

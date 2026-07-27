@@ -36,6 +36,7 @@
 @interface ScoreDocument : NSObject
 {
     NSString *_title;
+    NSString *_titleFontName;
     NSMutableArray *_notes;
     NSMutableDictionary *_partNames;
     NSMutableDictionary *_trackPrograms;
@@ -48,6 +49,8 @@
 }
 - (NSString *)title;
 - (void)setTitle:(NSString *)title;
+- (NSString *)titleFontName;
+- (void)setTitleFontName:(NSString *)fontName;
 - (NSMutableArray *)notes;
 - (void)setNotes:(NSMutableArray *)notes;
 - (NSMutableDictionary *)partNames;
