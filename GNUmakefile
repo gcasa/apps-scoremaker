@@ -11,6 +11,7 @@ ScoreMaker_OBJC_FILES = \
 	src/AppDelegate.m \
 	src/ScoreMakerDocumentController.m \
 	src/MidiParser.m \
+	src/MusicXMLParser.m \
 	src/ScorefileParser.m \
 	src/ScoreModel.m \
 	src/ScoreMakerDocument.m \
@@ -20,6 +21,7 @@ ScoreMaker_HEADER_FILES = \
 	src/AppDelegate.h \
 	src/ScoreMakerDocumentController.h \
 	src/MidiParser.h \
+	src/MusicXMLParser.h \
 	src/ScorefileParser.h \
 	src/ScoreModel.h \
 	src/ScoreMakerDocument.h \

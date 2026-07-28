@@ -36,6 +36,19 @@
       <key>NSDocumentClass</key>
       <string>ScoreMakerDocument</string>
     </dict>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>MusicXML File</string>
+      <key>CFBundleTypeExtensions</key>
+      <array>
+        <string>musicxml</string>
+        <string>xml</string>
+      </array>
+      <key>CFBundleTypeRole</key>
+      <string>Editor</string>
+      <key>NSDocumentClass</key>
+      <string>ScoreMakerDocument</string>
+    </dict>
   </array>
   <key>NSTypes</key>
   <array>
@@ -66,6 +79,21 @@
       <array>
         <string>mid</string>
         <string>midi</string>
+      </array>
+      <key>NSRole</key>
+      <string>Editor</string>
+      <key>NSDocumentClass</key>
+      <string>ScoreMakerDocument</string>
+    </dict>
+    <dict>
+      <key>NSName</key>
+      <string>MusicXML File</string>
+      <key>NSHumanReadableName</key>
+      <string>MusicXML File</string>
+      <key>NSUnixExtensions</key>
+      <array>
+        <string>musicxml</string>
+        <string>xml</string>
       </array>
       <key>NSRole</key>
       <string>Editor</string>

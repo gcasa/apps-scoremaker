@@ -7,8 +7,10 @@ The renderer is intentionally lightweight. It focuses on extracting timing, pitc
 ## Features
 
 - Open `.mid` and `.midi` Standard MIDI files.
+- Import uncompressed MusicXML `.musicxml` and `.xml` files.
 - Open MusicKit text scorefiles with the `.score` extension.
 - Save the currently loaded score as a MusicKit-style `.score` file.
+- Export scores as uncompressed MusicXML.
 - Render notes across treble and bass staves with measure lines.
 - Read MIDI tempo and time-signature metadata when available.
 - Add pitched notes and edit score notes, tempo, and time signature from the inspector next to the sheet.

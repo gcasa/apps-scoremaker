@@ -553,6 +553,16 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
             [document setAnnotationText:annotation];
             continue;
         }
+        NSString *titleFont = QuotedStringValue(statement, @"titleFont ");
+        if (titleFont) {
+            [document setTitleFontName:titleFont];
+            continue;
+        }
+        NSString *title = QuotedStringValue(statement, @"title ");
+        if (title) {
+            [document setTitle:title];
+            continue;
+        }
         if ([statement rangeOfString:@"BEGIN" options:NSCaseInsensitiveSearch].location != NSNotFound) {
             inBody = YES;
             continue;
@@ -762,6 +772,8 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
             [note setTrack:[trackNumber integerValue]];
             [note setStartTick:currentTick];
             [note setDurationTicks:MAX((NSUInteger)1, (NSUInteger)llround(durationSeconds * ticksPerBeat))];
+            [note setSlurStart:([params rangeOfString:@"slurStart:1" options:NSCaseInsensitiveSearch].location != NSNotFound)];
+            [note setSlurEnd:([params rangeOfString:@"slurStop:1" options:NSCaseInsensitiveSearch].location != NSNotFound)];
             [[document notes] addObject:note];
             if ([note startTick] + [note durationTicks] > [document totalTicks]) {
                 [document setTotalTicks:[note startTick] + [note durationTicks]];
@@ -812,6 +824,12 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
                          tempoBPM,
                          (unsigned long)[document timeSignatureNumerator],
                          (unsigned long)[document timeSignatureDenominator]];
+    if ([[document title] length] > 0) {
+        [output appendFormat:@"title \"%@\";\n", EscapeScorefileString([document title])];
+    }
+    if ([[document titleFontName] length] > 0) {
+        [output appendFormat:@"titleFont \"%@\";\n", EscapeScorefileString([document titleFontName])];
+    }
     if ([[document annotationText] length] > 0) {
         [output appendFormat:@"annotation \"%@\";\n", EscapeScorefileString([document annotationText])];
     }
@@ -874,7 +892,12 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
         if ([note isRest]) {
             [output appendFormat:@"%@ (%.6g);\n", identifier, duration];
         } else {
-            [output appendFormat:@"%@ (%.6g) keyNum:%@;\n", identifier, duration, NoteNameForPitch([note pitch], [note accidental])];
+            [output appendFormat:@"%@ (%.6g) keyNum:%@%@%@;\n",
+                                 identifier,
+                                 duration,
+                                 NoteNameForPitch([note pitch], [note accidental]),
+                                 [note slurStart] ? @" slurStart:1" : @"",
+                                 [note slurEnd] ? @" slurStop:1" : @""];
         }
     }
 
