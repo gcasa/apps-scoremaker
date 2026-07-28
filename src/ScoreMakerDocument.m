@@ -1053,19 +1053,6 @@ static CGFloat const InspectorPadding = 18.0;
     [_midiPlayer release];
     _midiPlayer = nil;
 
-    if (_playbackTask) {
-        [[NSNotificationCenter defaultCenter] removeObserver:self
-                                                        name:NSTaskDidTerminateNotification
-                                                      object:_playbackTask];
-        if ([_playbackTask isRunning]) [_playbackTask terminate];
-        [_playbackTask release];
-        _playbackTask = nil;
-    }
-    if (_playbackFilePath) {
-        [[NSFileManager defaultManager] removeFileAtPath:_playbackFilePath handler:nil];
-        [_playbackFilePath release];
-        _playbackFilePath = nil;
-    }
 }
 
 - (void)restartPlaybackAtTick:(NSUInteger)tick
@@ -1123,15 +1110,11 @@ static CGFloat const InspectorPadding = 18.0;
     _playbackPausedElapsed = adjustedElapsed;
 
     if (wasPaused) {
-#if defined(__APPLE__)
         if (_midiPlayer) {
             [(AVMIDIPlayer *)_midiPlayer stop];
             [(AVMIDIPlayer *)_midiPlayer setCurrentPosition:0.0];
         }
         [_playbackSound pause];
-#else
-        if (_playbackTask && [_playbackTask isRunning]) [_playbackTask suspend];
-#endif
         _playbackPaused = YES;
         [_pauseButton setTitle:@"Resume"];
     }
@@ -1211,25 +1194,17 @@ static CGFloat const InspectorPadding = 18.0;
         [_playbackTimer invalidate];
         [_playbackTimer release];
         _playbackTimer = nil;
-#if defined(__APPLE__)
         if (_midiPlayer) {
             NSTimeInterval position = [(AVMIDIPlayer *)_midiPlayer currentPosition];
             [(AVMIDIPlayer *)_midiPlayer stop];
             [(AVMIDIPlayer *)_midiPlayer setCurrentPosition:position];
         }
         [_playbackSound pause];
-#else
-        if (_playbackTask && [_playbackTask isRunning]) [_playbackTask suspend];
-#endif
         _playbackPaused = YES;
         [_pauseButton setTitle:@"Resume"];
     } else {
-#if defined(__APPLE__)
         if (_midiPlayer) [(AVMIDIPlayer *)_midiPlayer play:nil];
         [_playbackSound resume];
-#else
-        if (_playbackTask && [_playbackTask isRunning]) [_playbackTask resume];
-#endif
         _playbackStartTime = [NSDate timeIntervalSinceReferenceDate] - _playbackPausedElapsed;
         _playbackPaused = NO;
         [_pauseButton setTitle:@"Pause"];
@@ -1243,109 +1218,6 @@ static CGFloat const InspectorPadding = 18.0;
     [self stopCurrentPlayback];
 }
 
-<<<<<<< HEAD
-=======
-#if !defined(__APPLE__)
-- (NSString *)availableMIDIPlaybackTool
-{
-    NSArray *candidates = [NSArray arrayWithObjects:@"/usr/bin/timidity",
-                           @"/usr/local/bin/timidity",
-                           @"/bin/timidity",
-                           nil];
-    NSFileManager *fileManager = [NSFileManager defaultManager];
-    NSEnumerator *enumerator = [candidates objectEnumerator];
-    NSString *path = nil;
-    while ((path = [enumerator nextObject]) != nil) {
-        if ([fileManager isExecutableFileAtPath:path]) {
-            return path;
-        }
-    }
-    return nil;
-}
-
-- (void)externalPlaybackTaskDidTerminate:(NSNotification *)notification
-{
-    if ([notification object] != _playbackTask) {
-        return;
-    }
-    [[NSNotificationCenter defaultCenter] removeObserver:self
-                                                    name:NSTaskDidTerminateNotification
-                                                  object:_playbackTask];
-    [_playbackTask release];
-    _playbackTask = nil;
-    [_playbackTimer invalidate];
-    [_playbackTimer release];
-    _playbackTimer = nil;
-    _playbackPaused = NO;
-    [[self scoreView] clearPlayback];
-    [_pauseButton setTitle:@"Pause"];
-    [_pauseButton setEnabled:NO];
-    if (_playbackFilePath) {
-        [[NSFileManager defaultManager] removeFileAtPath:_playbackFilePath handler:nil];
-        [_playbackFilePath release];
-        _playbackFilePath = nil;
-    }
-}
-
-- (BOOL)playMIDIDataWithExternalPlayer:(NSData *)midiData error:(NSError **)error
-{
-    NSString *toolPath = [self availableMIDIPlaybackTool];
-    if (!toolPath) {
-        if (error) {
-            NSDictionary *userInfo = [NSDictionary dictionaryWithObject:@"No MIDI playback tool was found. Install TiMidity++ or use the macOS build for direct system MIDI playback."
-                                                                 forKey:NSLocalizedDescriptionKey];
-            *error = [NSError errorWithDomain:@"ScoreMakerPlayback"
-                                         code:3
-                                     userInfo:userInfo];
-        }
-        return NO;
-    }
-
-    NSString *fileName = [NSString stringWithFormat:@"ScoreMaker-%d-%f.mid", getpid(), [NSDate timeIntervalSinceReferenceDate]];
-    NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:fileName];
-    if (![midiData writeToFile:path atomically:YES]) {
-        if (error) {
-            NSDictionary *userInfo = [NSDictionary dictionaryWithObject:@"The generated MIDI could not be written to a temporary playback file."
-                                                                 forKey:NSLocalizedDescriptionKey];
-            *error = [NSError errorWithDomain:@"ScoreMakerPlayback"
-                                         code:4
-                                     userInfo:userInfo];
-        }
-        return NO;
-    }
-
-    NSTask *task = [[[NSTask alloc] init] autorelease];
-    [task setLaunchPath:toolPath];
-
-    NSMutableArray *arguments = [NSMutableArray arrayWithObject:@"-idq"];
-    [arguments addObject:path];
-    [task setArguments:arguments];
-
-    NS_DURING
-        [task launch];
-    NS_HANDLER
-        [[NSFileManager defaultManager] removeFileAtPath:path handler:nil];
-        if (error) {
-            NSDictionary *userInfo = [NSDictionary dictionaryWithObject:[NSString stringWithFormat:@"The MIDI playback tool could not be launched: %@", [localException reason]]
-                                                                 forKey:NSLocalizedDescriptionKey];
-            *error = [NSError errorWithDomain:@"ScoreMakerPlayback"
-                                         code:5
-                                     userInfo:userInfo];
-        }
-        return NO;
-    NS_ENDHANDLER
-
-    _playbackTask = [task retain];
-    _playbackFilePath = [path retain];
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(externalPlaybackTaskDidTerminate:)
-                                                 name:NSTaskDidTerminateNotification
-                                               object:_playbackTask];
-    return YES;
-}
-#endif
-
->>>>>>> 632ad76c324db7261f6746ef5adc0b1053a9d6e7
 - (BOOL)playMIDIDataDirectly:(NSData *)midiData error:(NSError **)error
 {
     NSError *playerError = nil;
