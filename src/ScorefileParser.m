@@ -190,67 +190,120 @@ static NSString *StringVariableValue(NSString *statement, NSString *name)
     return UnescapeScorefileString([value substringWithRange:NSMakeRange(1, [value length] - 2)]);
 }
 
-static double ValueForToken(NSString *token, NSDictionary *variables, BOOL *ok);
+typedef struct {
+    NSString *text;
+    NSUInteger index;
+    NSDictionary *variables;
+    BOOL valid;
+} ScorefileExpressionParser;
 
-static double EvaluateExpression(NSString *expression, NSDictionary *variables, BOOL *ok)
+static void SkipExpressionWhitespace(ScorefileExpressionParser *parser)
 {
-    NSString *s = Trim(expression);
-    if ([s length] == 0) {
-        if (ok) *ok = NO;
+    NSCharacterSet *whitespace = [NSCharacterSet whitespaceAndNewlineCharacterSet];
+    while (parser->index < [parser->text length] &&
+           [whitespace characterIsMember:[parser->text characterAtIndex:parser->index]]) {
+        parser->index++;
+    }
+}
+
+static double ParseScorefileExpression(ScorefileExpressionParser *parser);
+
+static double ParseScorefileFactor(ScorefileExpressionParser *parser)
+{
+    SkipExpressionWhitespace(parser);
+    if (parser->index >= [parser->text length]) {
+        parser->valid = NO;
         return 0.0;
     }
 
-    double result = 0.0;
-    NSInteger sign = 1;
-    NSMutableString *token = [NSMutableString string];
-    BOOL sawToken = NO;
-    for (NSUInteger i = 0; i <= [s length]; i++) {
-        unichar c = (i < [s length]) ? [s characterAtIndex:i] : '+';
-        BOOL delimiter = (c == '+' || c == '-') && [token length] > 0;
-        if (i == [s length] || delimiter) {
-            BOOL tokenOK = YES;
-            result += (double)sign * ValueForToken(token, variables, &tokenOK);
-            if (!tokenOK) {
-                if (ok) *ok = NO;
-                return 0.0;
-            }
-            [token setString:@""];
-            sawToken = YES;
-        }
-        if (i == [s length]) {
-            break;
-        }
-        if ((c == '+' || c == '-') && [token length] == 0) {
-            sign = (c == '-') ? -1 : 1;
-        } else if (c == '+' || c == '-') {
-            sign = (c == '-') ? -1 : 1;
-        } else if (![[NSCharacterSet whitespaceAndNewlineCharacterSet] characterIsMember:c]) {
-            [token appendFormat:@"%C", c];
-        }
+    unichar c = [parser->text characterAtIndex:parser->index];
+    if (c == '+' || c == '-') {
+        parser->index++;
+        double value = ParseScorefileFactor(parser);
+        return c == '-' ? -value : value;
     }
-
-    if (ok) *ok = sawToken;
-    return result;
-}
-
-static double ValueForToken(NSString *token, NSDictionary *variables, BOOL *ok)
-{
-    NSString *s = Trim(token);
-    NSNumber *variable = [variables objectForKey:s];
-    if (variable) {
-        if (ok) *ok = YES;
-        return [variable doubleValue];
-    }
-
-    NSScanner *scanner = [NSScanner scannerWithString:s];
-    double value = 0.0;
-    if ([scanner scanDouble:&value]) {
-        if (ok) *ok = YES;
+    if (c == '(') {
+        parser->index++;
+        double value = ParseScorefileExpression(parser);
+        SkipExpressionWhitespace(parser);
+        if (parser->index >= [parser->text length] ||
+            [parser->text characterAtIndex:parser->index] != ')') {
+            parser->valid = NO;
+            return 0.0;
+        }
+        parser->index++;
         return value;
     }
 
-    if (ok) *ok = NO;
-    return 0.0;
+    NSUInteger start = parser->index;
+    NSCharacterSet *identifierCharacters = [NSCharacterSet characterSetWithCharactersInString:
+                                            @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789."];
+    while (parser->index < [parser->text length] &&
+           [identifierCharacters characterIsMember:[parser->text characterAtIndex:parser->index]]) {
+        parser->index++;
+    }
+    if (parser->index == start) {
+        parser->valid = NO;
+        return 0.0;
+    }
+
+    NSString *token = [parser->text substringWithRange:NSMakeRange(start, parser->index - start)];
+    NSNumber *variable = [parser->variables objectForKey:token];
+    if (variable) return [variable doubleValue];
+
+    NSScanner *scanner = [NSScanner scannerWithString:token];
+    double value = 0.0;
+    if (![scanner scanDouble:&value] || ![scanner isAtEnd]) {
+        parser->valid = NO;
+        return 0.0;
+    }
+    return value;
+}
+
+static double ParseScorefileTerm(ScorefileExpressionParser *parser)
+{
+    double value = ParseScorefileFactor(parser);
+    while (parser->valid) {
+        SkipExpressionWhitespace(parser);
+        if (parser->index >= [parser->text length]) break;
+        unichar operation = [parser->text characterAtIndex:parser->index];
+        if (operation != '*' && operation != '/') break;
+        parser->index++;
+        double operand = ParseScorefileFactor(parser);
+        if (operation == '*') {
+            value *= operand;
+        } else if (operand != 0.0) {
+            value /= operand;
+        } else {
+            parser->valid = NO;
+        }
+    }
+    return value;
+}
+
+static double ParseScorefileExpression(ScorefileExpressionParser *parser)
+{
+    double value = ParseScorefileTerm(parser);
+    while (parser->valid) {
+        SkipExpressionWhitespace(parser);
+        if (parser->index >= [parser->text length]) break;
+        unichar operation = [parser->text characterAtIndex:parser->index];
+        if (operation != '+' && operation != '-') break;
+        parser->index++;
+        double operand = ParseScorefileTerm(parser);
+        value = operation == '+' ? value + operand : value - operand;
+    }
+    return value;
+}
+
+static double EvaluateExpression(NSString *expression, NSDictionary *variables, BOOL *ok)
+{
+    ScorefileExpressionParser parser = { Trim(expression), 0, variables, YES };
+    double value = ParseScorefileExpression(&parser);
+    SkipExpressionWhitespace(&parser);
+    if (parser.index != [parser.text length]) parser.valid = NO;
+    if (ok) *ok = parser.valid;
+    return parser.valid ? value : 0.0;
 }
 
 static NSInteger PitchForName(NSString *value, BOOL *ok)
@@ -687,17 +740,19 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
 
         if (!inBody && StringHasPrefix(statement, @"part ")) {
             NSString *partDeclaration = Trim([statement substringFromIndex:5]);
-            NSArray *partTokens = [partDeclaration componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-            NSString *partName = [partTokens count] > 0 ? [partTokens objectAtIndex:0] : @"part";
-            if ([partName length] > 0 && ![partTracks objectForKey:partName]) {
+            NSArray *partNames = [partDeclaration componentsSeparatedByString:@","];
+            NSEnumerator *partNameEnumerator = [partNames objectEnumerator];
+            NSString *rawPartName = nil;
+            while ((rawPartName = [partNameEnumerator nextObject]) != nil) {
+                NSString *partName = Trim(rawPartName);
+                NSArray *partTokens = [partName componentsSeparatedByCharactersInSet:
+                                       [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+                partName = [partTokens count] > 0 ? [partTokens objectAtIndex:0] : @"part";
+                if ([partName length] == 0 || [partTracks objectForKey:partName]) continue;
                 NSNumber *trackNumber = [NSNumber numberWithUnsignedInteger:trackForPart++];
                 [partTracks setObject:trackNumber forKey:partName];
                 [document setName:partName forTrack:[trackNumber integerValue]];
-                NSString *descriptor = InstrumentDescriptorInParameters(partDeclaration);
-                NSNumber *program = descriptor ? GeneralMidiProgramForDescriptor(descriptor) : nil;
-                if (!program) {
-                    program = GeneralMidiProgramForDescriptor(partName);
-                }
+                NSNumber *program = GeneralMidiProgramForDescriptor(partName);
                 if (program) {
                     [document setProgram:program forTrack:[trackNumber integerValue]];
                 }
