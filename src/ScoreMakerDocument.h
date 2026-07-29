@@ -32,8 +32,6 @@
     NSTextView *_annotationTextView;
     NSSound *_playbackSound;
     id _midiPlayer;
-    NSTask *_playbackTask;
-    NSString *_playbackFilePath;
     NSTimer *_playbackTimer;
     NSTimeInterval _playbackStartTime;
     NSTimeInterval _playbackPausedElapsed;

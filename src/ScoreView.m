@@ -2,6 +2,9 @@
 #import <math.h>
 
 static CGFloat const PageWidth = 980.0;
+static CGFloat const PaperInset = 18.0;
+static CGFloat const PaperHeight = 1222.0;
+static CGFloat const PageGap = 24.0;
 static CGFloat const Margin = 48.0;
 static CGFloat const PartLabelWidth = 82.0;
 static CGFloat const SystemHeight = 210.0;
@@ -15,6 +18,7 @@ static CGFloat const PaletteDragNoteHeadXOffset = 26.0;
 static CGFloat const PaletteDragNoteHeadYOffset = 25.0;
 static CGFloat const ChordSnapDistance = 9.0;
 static CGFloat const NoteHorizontalInset = 6.0;
+static NSUInteger const SystemsPerPage = 5;
 NSString * const ScoreViewDidEditScoreNotification = @"ScoreViewDidEditScoreNotification";
 NSString * const ScoreViewSelectionDidChangeNotification = @"ScoreViewSelectionDidChangeNotification";
 NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
@@ -76,7 +80,7 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     if (ticksPerSystem == 0) return;
 
     NSUInteger system = tick / ticksPerSystem;
-    CGFloat systemY = Margin + FirstSystemOffset + (CGFloat)system * SystemHeight;
+    CGFloat systemY = [self yForSystem:system];
     NSRect visible = [self visibleRect];
     NSRect target = NSMakeRect(NSMinX(visible), systemY - 28.0, 1.0, SystemHeight + 56.0);
     if (NSMinY(target) < NSMinY(visible) || NSMaxY(target) > NSMaxY(visible)) {
@@ -92,12 +96,9 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
 
 - (void)updateFrameForDocument
 {
-    NSUInteger ticksPerSystem = [self ticksPerSystem];
-    NSUInteger systems = 1;
-    if (_document && ticksPerSystem > 0) {
-        systems = MAX((NSUInteger)1, ([_document totalTicks] / ticksPerSystem) + 1);
-    }
-    CGFloat height = Margin + (CGFloat)systems * SystemHeight + Margin;
+    NSUInteger pages = [self pageCount];
+    CGFloat height = 2.0 * PaperInset + (CGFloat)pages * PaperHeight +
+                     (CGFloat)(pages - 1) * PageGap;
     [self setFrameSize:NSMakeSize(PageWidth, height)];
 }
 
@@ -113,6 +114,44 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     return (NSUInteger)(TicksPerSystemQuarters * (CGFloat)tpq);
 }
 
+- (NSUInteger)systemCount
+{
+    NSUInteger ticksPerSystem = [self ticksPerSystem];
+    if (!_document || ticksPerSystem == 0) return 1;
+    return MAX((NSUInteger)1, ([_document totalTicks] / ticksPerSystem) + 1);
+}
+
+- (NSUInteger)pageCount
+{
+    return MAX((NSUInteger)1, ([self systemCount] + SystemsPerPage - 1) / SystemsPerPage);
+}
+
+- (CGFloat)pageOriginY:(NSUInteger)page
+{
+    return PaperInset + (CGFloat)page * (PaperHeight + PageGap);
+}
+
+- (CGFloat)yForSystem:(NSUInteger)system
+{
+    NSUInteger page = system / SystemsPerPage;
+    NSUInteger systemOnPage = system % SystemsPerPage;
+    return [self pageOriginY:page] + Margin + FirstSystemOffset +
+           (CGFloat)systemOnPage * SystemHeight;
+}
+
+- (BOOL)knowsPageRange:(NSRangePointer)range
+{
+    if (range) *range = NSMakeRange(1, [self pageCount]);
+    return YES;
+}
+
+- (NSRect)rectForPage:(NSInteger)page
+{
+    NSUInteger pageIndex = page > 0 ? (NSUInteger)page - 1 : 0;
+    return NSMakeRect(PaperInset, [self pageOriginY:pageIndex],
+                      PageWidth - 2.0 * PaperInset, PaperHeight);
+}
+
 - (void)drawRect:(NSRect)dirtyRect
 {
     (void)dirtyRect;
@@ -122,11 +161,17 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     NSRectFill([self bounds]);
 
     if (drawingToScreen) {
-        NSRect page = NSMakeRect(18.0, 18.0, PageWidth - 36.0, [self bounds].size.height - 36.0);
-        [[NSColor whiteColor] setFill];
-        NSRectFill(page);
-        [[NSColor colorWithCalibratedWhite:0.82 alpha:1.0] setStroke];
-        NSFrameRect(page);
+        for (NSUInteger page = 0; page < [self pageCount]; page++) {
+            NSRect paper = NSMakeRect(PaperInset, [self pageOriginY:page],
+                                      PageWidth - 2.0 * PaperInset, PaperHeight);
+            if (!NSIntersectsRect(NSInsetRect(dirtyRect, -8.0, -8.0), paper)) continue;
+            [[NSColor colorWithCalibratedWhite:0.75 alpha:0.35] setFill];
+            NSRectFill(NSOffsetRect(paper, 3.0, 4.0));
+            [[NSColor whiteColor] setFill];
+            NSRectFill(paper);
+            [[NSColor colorWithCalibratedWhite:0.82 alpha:1.0] setStroke];
+            NSFrameRect(paper);
+        }
     }
 
     if (!_document) {
@@ -134,11 +179,13 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
         return;
     }
 
-    [self drawTitle];
+    for (NSUInteger page = 0; page < [self pageCount]; page++) {
+        [self drawHeaderForPage:page atOriginY:[self pageOriginY:page]];
+    }
     NSUInteger ticksPerSystem = [self ticksPerSystem];
-    NSUInteger systemCount = MAX((NSUInteger)1, ([_document totalTicks] / ticksPerSystem) + 1);
+    NSUInteger systemCount = [self systemCount];
     for (NSUInteger system = 0; system < systemCount; system++) {
-        CGFloat y = Margin + FirstSystemOffset + (CGFloat)system * SystemHeight;
+        CGFloat y = [self yForSystem:system];
         [self drawSystemAtY:y systemIndex:system ticksPerSystem:ticksPerSystem];
     }
 }
@@ -156,16 +203,51 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
           withAttributes:attrs];
 }
 
-- (void)drawTitle
+- (void)drawHeaderForPage:(NSUInteger)page atOriginY:(CGFloat)pageOriginY
 {
-    NSFont *titleFont = [NSFont fontWithName:[_document titleFontName] size:24.0];
-    if (!titleFont) titleFont = [NSFont boldSystemFontOfSize:24.0];
+    CGFloat titleSize = page == 0 ? 30.0 : 18.0;
+    NSFont *titleFont = [NSFont fontWithName:[_document titleFontName] size:titleSize];
+    if (!titleFont) titleFont = [NSFont fontWithName:@"Times New Roman" size:titleSize];
+    if (!titleFont) titleFont = [NSFont systemFontOfSize:titleSize];
+    NSMutableParagraphStyle *centered = [[[NSMutableParagraphStyle alloc] init] autorelease];
+    [centered setAlignment:NSTextAlignmentCenter];
     NSDictionary *titleAttrs = [NSDictionary dictionaryWithObjectsAndKeys:
                                 titleFont, NSFontAttributeName,
                                 [NSColor blackColor], NSForegroundColorAttributeName,
+                                centered, NSParagraphStyleAttributeName,
                                 nil];
     NSString *title = [_document title] ? [_document title] : @"Untitled";
-    [title drawAtPoint:NSMakePoint(Margin, Margin - 18.0) withAttributes:titleAttrs];
+    NSRect titleRect = NSMakeRect(Margin + 90.0, pageOriginY + Margin - 28.0,
+                                  PageWidth - 2.0 * (Margin + 90.0), 40.0);
+    [title drawInRect:titleRect withAttributes:titleAttrs];
+
+    NSFont *pageNumberFont = [NSFont fontWithName:@"Times New Roman" size:12.0];
+    if (!pageNumberFont) pageNumberFont = [NSFont systemFontOfSize:12.0];
+    NSMutableParagraphStyle *rightAligned = [[[NSMutableParagraphStyle alloc] init] autorelease];
+    [rightAligned setAlignment:NSTextAlignmentRight];
+    NSDictionary *pageNumberAttrs = [NSDictionary dictionaryWithObjectsAndKeys:
+                                     pageNumberFont, NSFontAttributeName,
+                                     [NSColor blackColor], NSForegroundColorAttributeName,
+                                     rightAligned, NSParagraphStyleAttributeName,
+                                     nil];
+    NSString *pageNumber = [NSString stringWithFormat:@"%lu", (unsigned long)(page + 1)];
+    NSRect pageNumberRect = NSMakeRect(PageWidth - Margin - 54.0,
+                                       pageOriginY + Margin - 24.0, 54.0, 20.0);
+    [pageNumber drawInRect:pageNumberRect withAttributes:pageNumberAttrs];
+
+    NSString *composer = [_document composer];
+    if (page == 0 && [composer length] > 0) {
+        NSFont *composerFont = [NSFont fontWithName:@"Times New Roman" size:15.0];
+        if (!composerFont) composerFont = [NSFont systemFontOfSize:15.0];
+        NSDictionary *composerAttrs = [NSDictionary dictionaryWithObjectsAndKeys:
+                                       composerFont, NSFontAttributeName,
+                                       [NSColor blackColor], NSForegroundColorAttributeName,
+                                       rightAligned, NSParagraphStyleAttributeName,
+                                       nil];
+        NSRect composerRect = NSMakeRect(PageWidth / 2.0, pageOriginY + Margin + 10.0,
+                                         PageWidth / 2.0 - Margin, 24.0);
+        [composer drawInRect:composerRect withAttributes:composerAttrs];
+    }
 }
 
 - (void)drawSystemAtY:(CGFloat)y systemIndex:(NSUInteger)systemIndex ticksPerSystem:(NSUInteger)ticksPerSystem
@@ -199,6 +281,8 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     CGFloat musicRight = right - 18.0;
     if (systemIndex == 0) {
         [self drawTempoMarkAtX:musicLeft y:trebleTop - 30.0];
+    }
+    if (systemIndex % SystemsPerPage == 0) {
         [self drawTimeSignatureAtX:left + 58.0 trebleY:trebleTop bassY:bassTop];
     }
 
@@ -756,11 +840,11 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
         return NO;
     }
     NSUInteger ticksPerSystem = [self ticksPerSystem];
-    NSUInteger systemCount = MAX((NSUInteger)1, ([_document totalTicks] / ticksPerSystem) + 1);
+    NSUInteger systemCount = [self systemCount];
     CGFloat staffLeft = Margin + PartLabelWidth + 100.0;
     CGFloat staffRight = PageWidth - Margin - 18.0;
     for (NSUInteger system = 0; system < systemCount; system++) {
-        CGFloat y = Margin + FirstSystemOffset + (CGFloat)system * SystemHeight;
+        CGFloat y = [self yForSystem:system];
         CGFloat trebleTop = y;
         CGFloat bassTop = y + StaffGap;
         BOOL isTreble = NO;
@@ -881,7 +965,7 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
         return nil;
     }
     NSUInteger ticksPerSystem = [self ticksPerSystem];
-    NSUInteger systemCount = MAX((NSUInteger)1, ([_document totalTicks] / ticksPerSystem) + 1);
+    NSUInteger systemCount = [self systemCount];
     CGFloat left = Margin + PartLabelWidth + 100.0;
     CGFloat right = PageWidth - Margin - 18.0;
     ScoreNote *found = nil;
@@ -891,7 +975,7 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
         NSUInteger system = MIN(systemCount - 1, [note startTick] / ticksPerSystem);
         NSUInteger systemStart = system * ticksPerSystem;
         NSUInteger systemEnd = systemStart + ticksPerSystem;
-        CGFloat y = Margin + FirstSystemOffset + (CGFloat)system * SystemHeight;
+        CGFloat y = [self yForSystem:system];
         BOOL treble = [note pitch] >= 60;
         CGFloat staffTop = treble ? y : y + StaffGap;
         CGFloat x = [self noteXForTick:[note startTick] start:systemStart end:systemEnd left:left right:right];

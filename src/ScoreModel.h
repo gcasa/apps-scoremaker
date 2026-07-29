@@ -37,6 +37,7 @@
 {
     NSString *_title;
     NSString *_titleFontName;
+    NSString *_composer;
     NSMutableArray *_notes;
     NSMutableDictionary *_partNames;
     NSMutableDictionary *_trackPrograms;
@@ -51,6 +52,8 @@
 - (void)setTitle:(NSString *)title;
 - (NSString *)titleFontName;
 - (void)setTitleFontName:(NSString *)fontName;
+- (NSString *)composer;
+- (void)setComposer:(NSString *)composer;
 - (NSMutableArray *)notes;
 - (void)setNotes:(NSMutableArray *)notes;
 - (NSMutableDictionary *)partNames;

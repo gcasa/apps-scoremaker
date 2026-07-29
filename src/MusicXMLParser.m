@@ -62,6 +62,8 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
     double _noteDurationQuarters;
     NSString *_scoreTitle;
     NSString *_scoreTitleFontName;
+    NSString *_scoreComposer;
+    BOOL _inComposerCreator;
 }
 - (ScoreDocument *)document;
 @end
@@ -94,6 +96,7 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
     [_noteStep release];
     [_scoreTitle release];
     [_scoreTitleFontName release];
+    [_scoreComposer release];
     [super dealloc];
 }
 
@@ -178,6 +181,9 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
             [_scoreTitleFontName release];
             _scoreTitleFontName = [fontFamily copy];
         }
+    } else if ([element isEqualToString:@"creator"]) {
+        NSString *type = [attributes objectForKey:@"type"];
+        _inComposerCreator = ![type length] || [type caseInsensitiveCompare:@"composer"] == NSOrderedSame;
     }
 }
 
@@ -199,6 +205,12 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
             [_scoreTitle release];
             _scoreTitle = [value copy];
         }
+    } else if ([element isEqualToString:@"creator"]) {
+        if (_inComposerCreator && [value length]) {
+            [_scoreComposer release];
+            _scoreComposer = [value copy];
+        }
+        _inComposerCreator = NO;
     } else if ([element isEqualToString:@"part-name"] && _currentPartID) {
         [_partNames setObject:value forKey:_currentPartID];
     } else if ([element isEqualToString:@"midi-program"] && _currentPartID) {
@@ -273,6 +285,7 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
     (void)parser;
     if ([_scoreTitle length]) [_document setTitle:_scoreTitle];
     if ([_scoreTitleFontName length]) [_document setTitleFontName:_scoreTitleFontName];
+    if ([_scoreComposer length]) [_document setComposer:_scoreComposer];
     [[_document notes] sortUsingSelector:@selector(compareScoreNote:)];
 }
 
@@ -317,6 +330,10 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
     [xml appendString:@"<!DOCTYPE score-partwise PUBLIC \"-//Recordare//DTD MusicXML 4.0 Partwise//EN\" \"http://www.musicxml.org/dtds/partwise.dtd\">\n"];
     [xml appendString:@"<score-partwise version=\"4.0\">\n"];
     [xml appendFormat:@"  <work><work-title>%@</work-title></work>\n", EscapeXML([document title] ?: @"Untitled")];
+    if ([[document composer] length] > 0) {
+        [xml appendFormat:@"  <identification><creator type=\"composer\">%@</creator></identification>\n",
+                          EscapeXML([document composer])];
+    }
     if ([[document titleFontName] length] > 0) {
         [xml appendFormat:@"  <credit page=\"1\"><credit-words font-family=\"%@\">%@</credit-words></credit>\n",
                           EscapeXML([document titleFontName]), EscapeXML([document title] ?: @"Untitled")];

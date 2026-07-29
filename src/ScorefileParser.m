@@ -35,6 +35,7 @@ static NSString *ScoreMakerMetadataComment(ScoreDocument *document, NSError **er
     NSMutableDictionary *metadata = [NSMutableDictionary dictionary];
     if ([[document title] length] > 0) [metadata setObject:[document title] forKey:@"title"];
     if ([[document titleFontName] length] > 0) [metadata setObject:[document titleFontName] forKey:@"titleFont"];
+    if ([[document composer] length] > 0) [metadata setObject:[document composer] forKey:@"composer"];
     if ([[document annotationText] length] > 0) [metadata setObject:[document annotationText] forKey:@"annotation"];
     [metadata setObject:[NSNumber numberWithInteger:1] forKey:@"version"];
 
@@ -157,6 +158,14 @@ static NSString *UnescapeScorefileString(NSString *input)
     return output;
 }
 
+static NSString *EscapeScorefileString(NSString *input)
+{
+    NSString *escaped = [input stringByReplacingOccurrencesOfString:@"\\" withString:@"\\\\"];
+    escaped = [escaped stringByReplacingOccurrencesOfString:@"\"" withString:@"\\\""];
+    escaped = [escaped stringByReplacingOccurrencesOfString:@"\n" withString:@"\\n"];
+    return [escaped stringByReplacingOccurrencesOfString:@"\r" withString:@"\\r"];
+}
+
 static NSString *QuotedStringValue(NSString *statement, NSString *prefix)
 {
     if (![statement hasPrefix:prefix]) {
@@ -167,6 +176,17 @@ static NSString *QuotedStringValue(NSString *statement, NSString *prefix)
         value = [value substringWithRange:NSMakeRange(1, [value length] - 2)];
     }
     return UnescapeScorefileString(value);
+}
+
+static NSString *StringVariableValue(NSString *statement, NSString *name)
+{
+    NSString *prefix = [NSString stringWithFormat:@"string %@", name];
+    if ([statement rangeOfString:prefix options:(NSCaseInsensitiveSearch | NSAnchoredSearch)].location == NSNotFound) return nil;
+    NSRange equals = [statement rangeOfString:@"="];
+    if (equals.location == NSNotFound) return nil;
+    NSString *value = Trim([statement substringFromIndex:NSMaxRange(equals)]);
+    if (![value hasPrefix:@"\""] || ![value hasSuffix:@"\""] || [value length] < 2) return nil;
+    return UnescapeScorefileString([value substringWithRange:NSMakeRange(1, [value length] - 2)]);
 }
 
 static double ValueForToken(NSString *token, NSDictionary *variables, BOOL *ok);
@@ -555,9 +575,11 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
     NSDictionary *metadata = ScoreMakerMetadataFromScorefile(raw);
     NSString *metadataTitle = [metadata objectForKey:@"title"];
     NSString *metadataTitleFont = [metadata objectForKey:@"titleFont"];
+    NSString *metadataComposer = [metadata objectForKey:@"composer"];
     NSString *metadataAnnotation = [metadata objectForKey:@"annotation"];
     if ([metadataTitle isKindOfClass:[NSString class]]) [document setTitle:metadataTitle];
     if ([metadataTitleFont isKindOfClass:[NSString class]]) [document setTitleFontName:metadataTitleFont];
+    if ([metadataComposer isKindOfClass:[NSString class]]) [document setComposer:metadataComposer];
     if ([metadataAnnotation isKindOfClass:[NSString class]]) [document setAnnotationText:metadataAnnotation];
 
     double tempoBPM = 120.0;
@@ -573,9 +595,30 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
         if ([statement length] == 0) {
             continue;
         }
+        NSString *scoreTitle = StringVariableValue(statement, @"scoreTitle");
+        if (scoreTitle) {
+            [document setTitle:scoreTitle];
+            continue;
+        }
+        NSString *scoreComposer = StringVariableValue(statement, @"scoreComposer");
+        if (scoreComposer) {
+            [document setComposer:scoreComposer];
+            continue;
+        }
+        NSString *scoreAnnotation = StringVariableValue(statement, @"scoreAnnotation");
+        if (scoreAnnotation) {
+            [document setAnnotationText:scoreAnnotation];
+            continue;
+        }
         NSString *annotation = QuotedStringValue(statement, @"annotation ");
         if (annotation) {
             [document setAnnotationText:annotation];
+            continue;
+        }
+        NSString *composer = QuotedStringValue(statement, @"composer ");
+        if (!composer) composer = QuotedStringValue(statement, @"author ");
+        if (composer) {
+            [document setComposer:composer];
             continue;
         }
         NSString *titleFont = QuotedStringValue(statement, @"titleFont ");
@@ -848,6 +891,15 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
     NSString *metadataComment = ScoreMakerMetadataComment(document, error);
     if (!metadataComment) return nil;
     [output appendString:metadataComment];
+    if ([[document title] length] > 0) {
+        [output appendFormat:@"string scoreTitle = \"%@\";\n", EscapeScorefileString([document title])];
+    }
+    if ([[document composer] length] > 0) {
+        [output appendFormat:@"string scoreComposer = \"%@\";\n", EscapeScorefileString([document composer])];
+    }
+    if ([[document annotationText] length] > 0) {
+        [output appendFormat:@"string scoreAnnotation = \"%@\";\n", EscapeScorefileString([document annotationText])];
+    }
     [output appendFormat:@"info tempo:%.6g timeSignature:%lu/%lu;\n",
                          tempoBPM,
                          (unsigned long)[document timeSignatureNumerator],
@@ -887,11 +939,8 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
         }
         [partIdentifiers setObject:identifier forKey:track];
         NSNumber *program = [document programForTrack:[track integerValue]];
-        if (program) {
-            [output appendFormat:@"part %@ program:%ld;\n", identifier, (long)[program integerValue]];
-        } else {
-            [output appendFormat:@"part %@;\n", identifier];
-        }
+        [output appendFormat:@"part %@;\n", identifier];
+        if (program) [output appendFormat:@"%@ program:%ld;\n", identifier, (long)[program integerValue]];
     }
     [output appendString:@"\nBEGIN;\n\n"];
 
@@ -911,7 +960,7 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
         if ([note isRest]) {
             [output appendFormat:@"%@ (%.6g);\n", identifier, duration];
         } else {
-            [output appendFormat:@"%@ (%.6g) keyNum:%@%@%@;\n",
+            [output appendFormat:@"%@ (%.6g) keyNum:%@k%@%@;\n",
                                  identifier,
                                  duration,
                                  NoteNameForPitch([note pitch], [note accidental]),

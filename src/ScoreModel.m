@@ -151,6 +151,19 @@ static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
     }
 }
 
+- (NSString *)composer
+{
+    return _composer;
+}
+
+- (void)setComposer:(NSString *)composer
+{
+    if (_composer != composer) {
+        [_composer release];
+        _composer = [composer copy];
+    }
+}
+
 - (NSMutableArray *)notes
 {
     return _notes;
@@ -261,7 +274,7 @@ static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
         _partNames = [[NSMutableDictionary alloc] init];
         _trackPrograms = [[NSMutableDictionary alloc] init];
         _annotationText = [@"" retain];
-        _titleFontName = [@"Helvetica-Bold" copy];
+        _titleFontName = [@"Times New Roman" copy];
         _ticksPerQuarter = 480;
         _tempoMicrosecondsPerQuarter = 500000;
         _timeSignatureNumerator = 4;
@@ -275,6 +288,7 @@ static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
 {
     [_title release];
     [_titleFontName release];
+    [_composer release];
     [_notes release];
     [_partNames release];
     [_trackPrograms release];
