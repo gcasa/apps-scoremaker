@@ -156,7 +156,7 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
 {
     (void)dirtyRect;
     BOOL drawingToScreen = [[NSGraphicsContext currentContext] isDrawingToScreen];
-    NSColor *backgroundColor = drawingToScreen ? [NSColor colorWithCalibratedWhite:0.96 alpha:1.0] : [NSColor whiteColor];
+    NSColor *backgroundColor = drawingToScreen ? [NSColor colorWithCalibratedWhite:0.78 alpha:1.0] : [NSColor whiteColor];
     [backgroundColor setFill];
     NSRectFill([self bounds]);
 
