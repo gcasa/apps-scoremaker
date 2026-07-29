@@ -199,6 +199,9 @@
     [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Stop"
                                                    action:@selector(stopPlayback:)
                                             keyEquivalent:@""] autorelease]];
+    [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"MIDI Output..."
+                                                   action:@selector(chooseMIDIOutput:)
+                                            keyEquivalent:@""] autorelease]];
     [scoreMenu addItem:[NSMenuItem separatorItem]];
     [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Edit Title..."
                                                    action:@selector(editScoreTitle:)

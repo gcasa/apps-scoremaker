@@ -9,7 +9,7 @@ UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
 CC := clang
 CFLAGS := -Wall -Wextra -fobjc-exceptions -fconstant-string-class=NSConstantString
-LDFLAGS := -framework Cocoa -framework AVFoundation
+LDFLAGS := -framework Cocoa -framework AVFoundation -framework AudioToolbox -framework CoreMIDI
 APP_DIR := $(BUILD_DIR)/macos/$(APP_NAME).app
 APP_BIN := $(APP_DIR)/Contents/MacOS/$(APP_NAME)
 

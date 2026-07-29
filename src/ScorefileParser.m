@@ -2,11 +2,46 @@
 #import <math.h>
 
 static NSString * const ScorefileParserErrorDomain = @"ScoreMakerScorefileParser";
+static NSString * const ScoreMakerMetadataMarker = @"ScoreMaker Metadata V1";
 
 static NSError *ScorefileError(NSString *message)
 {
     NSDictionary *info = [NSDictionary dictionaryWithObject:message forKey:NSLocalizedDescriptionKey];
     return [NSError errorWithDomain:ScorefileParserErrorDomain code:1 userInfo:info];
+}
+
+static NSDictionary *ScoreMakerMetadataFromScorefile(NSString *input)
+{
+    NSRange markerRange = [input rangeOfString:ScoreMakerMetadataMarker];
+    if (markerRange.location == NSNotFound) return nil;
+
+    NSUInteger payloadStart = NSMaxRange(markerRange);
+    NSRange searchRange = NSMakeRange(payloadStart, [input length] - payloadStart);
+    NSRange commentEnd = [input rangeOfString:@"*/" options:0 range:searchRange];
+    if (commentEnd.location == NSNotFound) return nil;
+
+    NSString *encoded = [[input substringWithRange:NSMakeRange(payloadStart, commentEnd.location - payloadStart)]
+        stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    NSData *metadataData = [[[NSData alloc] initWithBase64EncodedString:encoded
+                                                               options:NSDataBase64DecodingIgnoreUnknownCharacters] autorelease];
+    if (!metadataData) return nil;
+
+    id metadata = [NSJSONSerialization JSONObjectWithData:metadataData options:0 error:NULL];
+    return [metadata isKindOfClass:[NSDictionary class]] ? metadata : nil;
+}
+
+static NSString *ScoreMakerMetadataComment(ScoreDocument *document, NSError **error)
+{
+    NSMutableDictionary *metadata = [NSMutableDictionary dictionary];
+    if ([[document title] length] > 0) [metadata setObject:[document title] forKey:@"title"];
+    if ([[document titleFontName] length] > 0) [metadata setObject:[document titleFontName] forKey:@"titleFont"];
+    if ([[document annotationText] length] > 0) [metadata setObject:[document annotationText] forKey:@"annotation"];
+    [metadata setObject:[NSNumber numberWithInteger:1] forKey:@"version"];
+
+    NSData *metadataData = [NSJSONSerialization dataWithJSONObject:metadata options:0 error:error];
+    if (!metadataData) return nil;
+    NSString *encoded = [metadataData base64EncodedStringWithOptions:NSDataBase64Encoding76CharacterLineLength];
+    return [NSString stringWithFormat:@"/* %@\n%@\n*/\n\n", ScoreMakerMetadataMarker, encoded];
 }
 
 static NSString *StripComments(NSString *input)
@@ -92,23 +127,6 @@ static NSArray *ScorefileStatements(NSString *input)
 static NSString *Trim(NSString *input)
 {
     return [input stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-}
-
-static NSString *EscapeScorefileString(NSString *input)
-{
-    NSMutableString *output = [NSMutableString string];
-    for (NSUInteger i = 0; i < [input length]; i++) {
-        unichar c = [input characterAtIndex:i];
-        switch (c) {
-            case '\\': [output appendString:@"\\\\"]; break;
-            case '"': [output appendString:@"\\\""]; break;
-            case '\n': [output appendString:@"\\n"]; break;
-            case '\r': [output appendString:@"\\r"]; break;
-            case ';': [output appendString:@"\\;"]; break;
-            default: [output appendFormat:@"%C", c]; break;
-        }
-    }
-    return output;
 }
 
 static NSString *UnescapeScorefileString(NSString *input)
@@ -534,6 +552,13 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
     ScoreDocument *document = [[[ScoreDocument alloc] init] autorelease];
     [document setTitle:[[path lastPathComponent] stringByDeletingPathExtension]];
     [document setTicksPerQuarter:480];
+    NSDictionary *metadata = ScoreMakerMetadataFromScorefile(raw);
+    NSString *metadataTitle = [metadata objectForKey:@"title"];
+    NSString *metadataTitleFont = [metadata objectForKey:@"titleFont"];
+    NSString *metadataAnnotation = [metadata objectForKey:@"annotation"];
+    if ([metadataTitle isKindOfClass:[NSString class]]) [document setTitle:metadataTitle];
+    if ([metadataTitleFont isKindOfClass:[NSString class]]) [document setTitleFontName:metadataTitleFont];
+    if ([metadataAnnotation isKindOfClass:[NSString class]]) [document setAnnotationText:metadataAnnotation];
 
     double tempoBPM = 120.0;
     double currentTime = 0.0;
@@ -820,19 +845,13 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
     double tempoBPM = [document tempoMicrosecondsPerQuarter] > 0 ? 60000000.0 / (double)[document tempoMicrosecondsPerQuarter] : 120.0;
     NSMutableString *output = [NSMutableString string];
     [output appendString:@"/* Written by ScoreMaker. */\n\n"];
+    NSString *metadataComment = ScoreMakerMetadataComment(document, error);
+    if (!metadataComment) return nil;
+    [output appendString:metadataComment];
     [output appendFormat:@"info tempo:%.6g timeSignature:%lu/%lu;\n",
                          tempoBPM,
                          (unsigned long)[document timeSignatureNumerator],
                          (unsigned long)[document timeSignatureDenominator]];
-    if ([[document title] length] > 0) {
-        [output appendFormat:@"title \"%@\";\n", EscapeScorefileString([document title])];
-    }
-    if ([[document titleFontName] length] > 0) {
-        [output appendFormat:@"titleFont \"%@\";\n", EscapeScorefileString([document titleFontName])];
-    }
-    if ([[document annotationText] length] > 0) {
-        [output appendFormat:@"annotation \"%@\";\n", EscapeScorefileString([document annotationText])];
-    }
     NSMutableDictionary *partIdentifiers = [NSMutableDictionary dictionary];
     NSMutableArray *tracks = [NSMutableArray array];
     NSEnumerator *noteEnumerator = [[document notes] objectEnumerator];

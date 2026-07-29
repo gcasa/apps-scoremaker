@@ -16,6 +16,39 @@
 static CGFloat const InspectorWidth = 280.0;
 static CGFloat const InspectorPadding = 18.0;
 
+#if defined(__APPLE__)
+static NSString *ScoreMakerMIDIEndpointName(MIDIEndpointRef endpoint)
+{
+    CFStringRef value = NULL;
+    if (MIDIObjectGetStringProperty(endpoint, kMIDIPropertyDisplayName, &value) != noErr || !value) {
+        MIDIObjectGetStringProperty(endpoint, kMIDIPropertyName, &value);
+    }
+    if (!value) return @"MIDI Instrument";
+    return [(NSString *)value autorelease];
+}
+
+static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
+{
+    if (!endpoint) return;
+    MIDIClientRef client = 0;
+    MIDIPortRef port = 0;
+    if (MIDIClientCreate(CFSTR("ScoreMaker"), NULL, NULL, &client) != noErr) return;
+    if (MIDIOutputPortCreate(client, CFSTR("Playback Safety"), &port) == noErr) {
+        Byte packetStorage[1024];
+        MIDIPacketList *packetList = (MIDIPacketList *)packetStorage;
+        MIDIPacket *packet = MIDIPacketListInit(packetList);
+        for (UInt8 channel = 0; channel < 16; channel++) {
+            Byte message[] = { (Byte)(0xb0 | channel), 123, 0 };
+            packet = MIDIPacketListAdd(packetList, sizeof(packetStorage), packet, 0, sizeof(message), message);
+            if (!packet) break;
+        }
+        MIDISend(port, endpoint, packetList);
+        MIDIPortDispose(port);
+    }
+    MIDIClientDispose(client);
+}
+#endif
+
 @class ScoreMakerDocument;
 
 @interface ScorePaletteItemView : NSView
@@ -246,6 +279,9 @@ static CGFloat const InspectorPadding = 18.0;
         ScoreDocument *document = [[[ScoreDocument alloc] init] autorelease];
         [document setTitle:@"Untitled"];
         [self setScoreDocument:document];
+#if defined(__APPLE__)
+        _useBuiltInMIDIOutput = NO;
+#endif
     }
     return self;
 }
@@ -354,6 +390,9 @@ static CGFloat const InspectorPadding = 18.0;
     [_annotationTextView release];
     [_playbackTask release];
     [_playbackFilePath release];
+#if defined(__APPLE__)
+    [_midiOutputName release];
+#endif
     [super dealloc];
 }
 
@@ -1046,8 +1085,142 @@ static CGFloat const InspectorPadding = 18.0;
             (long)trackNumber];
 }
 
+#if defined(__APPLE__)
+- (NSArray *)availableMIDIOutputs
+{
+    NSMutableArray *outputs = [NSMutableArray array];
+    ItemCount count = MIDIGetNumberOfDestinations();
+    for (ItemCount index = 0; index < count; index++) {
+        MIDIEndpointRef endpoint = MIDIGetDestination(index);
+        if (!endpoint) continue;
+        [outputs addObject:[NSDictionary dictionaryWithObjectsAndKeys:
+                            ScoreMakerMIDIEndpointName(endpoint), @"name",
+                            [NSNumber numberWithUnsignedInt:endpoint], @"endpoint",
+                            nil]];
+    }
+    return outputs;
+}
+
+- (MIDIEndpointRef)resolvedMIDIOutputEndpoint
+{
+    if (_useBuiltInMIDIOutput) return 0;
+
+    NSArray *outputs = [self availableMIDIOutputs];
+    for (NSDictionary *output in outputs) {
+        MIDIEndpointRef endpoint = [[output objectForKey:@"endpoint"] unsignedIntValue];
+        if (_midiOutputEndpoint == endpoint ||
+            (_midiOutputName && [[output objectForKey:@"name"] isEqualToString:_midiOutputName])) {
+            _midiOutputEndpoint = endpoint;
+            return endpoint;
+        }
+    }
+
+    NSDictionary *firstOutput = [outputs count] ? [outputs objectAtIndex:0] : nil;
+    _midiOutputEndpoint = [[firstOutput objectForKey:@"endpoint"] unsignedIntValue];
+    [_midiOutputName release];
+    _midiOutputName = [[firstOutput objectForKey:@"name"] copy];
+    return _midiOutputEndpoint;
+}
+
+- (void)chooseMIDIOutput:(id)sender
+{
+    (void)sender;
+    NSArray *outputs = [self availableMIDIOutputs];
+    NSPopUpButton *outputPopUp = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect(0.0, 0.0, 360.0, 26.0)
+                                                              pullsDown:NO] autorelease];
+    [outputPopUp addItemWithTitle:@"Built-in Synthesizer"];
+    [[outputPopUp lastItem] setRepresentedObject:[NSNumber numberWithUnsignedInt:0]];
+    for (NSDictionary *output in outputs) {
+        [outputPopUp addItemWithTitle:[output objectForKey:@"name"]];
+        [[outputPopUp lastItem] setRepresentedObject:[output objectForKey:@"endpoint"]];
+        if (!_useBuiltInMIDIOutput &&
+            [[output objectForKey:@"endpoint"] unsignedIntValue] == [self resolvedMIDIOutputEndpoint]) {
+            [outputPopUp selectItem:[outputPopUp lastItem]];
+        }
+    }
+    if (_useBuiltInMIDIOutput) [outputPopUp selectItemAtIndex:0];
+
+    NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+    [alert setMessageText:@"MIDI Output"];
+    [alert setInformativeText:[outputs count] ?
+        @"Choose a connected MIDI instrument or the built-in synthesizer." :
+        @"No external MIDI instruments were detected. Connect one and reopen this chooser."];
+    [alert setAccessoryView:outputPopUp];
+    [alert addButtonWithTitle:@"Use Output"];
+    [alert addButtonWithTitle:@"Cancel"];
+    if ([alert runModal] != NSAlertFirstButtonReturn) return;
+
+    MIDIEndpointRef endpoint = [[[outputPopUp selectedItem] representedObject] unsignedIntValue];
+    _useBuiltInMIDIOutput = (endpoint == 0);
+    _midiOutputEndpoint = endpoint;
+    [_midiOutputName release];
+    _midiOutputName = _useBuiltInMIDIOutput ? nil : [[[outputPopUp selectedItem] title] copy];
+    if (_playbackTimer || _playbackPaused) {
+        NSTimeInterval elapsed = _playbackPaused ? _playbackPausedElapsed :
+            ([NSDate timeIntervalSinceReferenceDate] - _playbackStartTime);
+        double secondsPerQuarter = (double)[[self scoreDocument] tempoMicrosecondsPerQuarter] / 1000000.0;
+        NSUInteger tick = (NSUInteger)floor((elapsed / MAX(secondsPerQuarter, 0.001)) *
+                                             (double)[[self scoreDocument] ticksPerQuarter]);
+        [self restartPlaybackAtTick:tick];
+    }
+}
+
+- (BOOL)playMIDIData:(NSData *)midiData
+            toOutput:(MIDIEndpointRef)endpoint
+               error:(NSError **)error
+{
+    OSStatus status = NewMusicSequence(&_externalMusicSequence);
+    if (status == noErr) {
+        status = MusicSequenceFileLoadData(_externalMusicSequence,
+                                           (CFDataRef)midiData,
+                                           kMusicSequenceFile_MIDIType,
+                                           kMusicSequenceLoadSMF_ChannelsToTracks);
+    }
+    if (status == noErr) status = MusicSequenceSetMIDIEndpoint(_externalMusicSequence, endpoint);
+    if (status == noErr) status = NewMusicPlayer(&_externalMusicPlayer);
+    if (status == noErr) status = MusicPlayerSetSequence(_externalMusicPlayer, _externalMusicSequence);
+    if (status == noErr) status = MusicPlayerPreroll(_externalMusicPlayer);
+    if (status == noErr) status = MusicPlayerStart(_externalMusicPlayer);
+    if (status == noErr) {
+        _externalPlaybackTime = 0;
+        return YES;
+    }
+
+    if (_externalMusicPlayer) {
+        DisposeMusicPlayer(_externalMusicPlayer);
+        _externalMusicPlayer = NULL;
+    }
+    if (_externalMusicSequence) {
+        DisposeMusicSequence(_externalMusicSequence);
+        _externalMusicSequence = NULL;
+    }
+    if (error) {
+        NSString *message = [NSString stringWithFormat:@"The connected MIDI instrument could not start playback (error %d).",
+                             (int)status];
+        *error = [NSError errorWithDomain:@"ScoreMakerPlayback"
+                                     code:5
+                                 userInfo:[NSDictionary dictionaryWithObject:message
+                                                                      forKey:NSLocalizedDescriptionKey]];
+    }
+    return NO;
+}
+#endif
+
 - (void)stopPlaybackAudioOnly
 {
+#if defined(__APPLE__)
+    if (_externalMusicPlayer) {
+        MusicPlayerStop(_externalMusicPlayer);
+        ScoreMakerSendAllNotesOff(_midiOutputEndpoint);
+        DisposeMusicPlayer(_externalMusicPlayer);
+        _externalMusicPlayer = NULL;
+    }
+    if (_externalMusicSequence) {
+        DisposeMusicSequence(_externalMusicSequence);
+        _externalMusicSequence = NULL;
+    }
+    _externalPlaybackTime = 0;
+#endif
     [_playbackSound stop];
     [_playbackSound release];
     _playbackSound = nil;
@@ -1125,7 +1298,11 @@ static CGFloat const InspectorPadding = 18.0;
 
     if (wasPaused) {
 #if defined(__APPLE__)
-        if (_midiPlayer) {
+        if (_externalMusicPlayer) {
+            MusicPlayerGetTime(_externalMusicPlayer, &_externalPlaybackTime);
+            MusicPlayerStop(_externalMusicPlayer);
+            ScoreMakerSendAllNotesOff(_midiOutputEndpoint);
+        } else if (_midiPlayer) {
             [(AVMIDIPlayer *)_midiPlayer stop];
             [(AVMIDIPlayer *)_midiPlayer setCurrentPosition:0.0];
         }
@@ -1213,7 +1390,11 @@ static CGFloat const InspectorPadding = 18.0;
         [_playbackTimer release];
         _playbackTimer = nil;
 #if defined(__APPLE__)
-        if (_midiPlayer) {
+        if (_externalMusicPlayer) {
+            MusicPlayerGetTime(_externalMusicPlayer, &_externalPlaybackTime);
+            MusicPlayerStop(_externalMusicPlayer);
+            ScoreMakerSendAllNotesOff(_midiOutputEndpoint);
+        } else if (_midiPlayer) {
             NSTimeInterval position = [(AVMIDIPlayer *)_midiPlayer currentPosition];
             [(AVMIDIPlayer *)_midiPlayer stop];
             [(AVMIDIPlayer *)_midiPlayer setCurrentPosition:position];
@@ -1226,7 +1407,12 @@ static CGFloat const InspectorPadding = 18.0;
         [_pauseButton setTitle:@"Resume"];
     } else {
 #if defined(__APPLE__)
-        if (_midiPlayer) [(AVMIDIPlayer *)_midiPlayer play:nil];
+        if (_externalMusicPlayer) {
+            MusicPlayerSetTime(_externalMusicPlayer, _externalPlaybackTime);
+            MusicPlayerStart(_externalMusicPlayer);
+        } else if (_midiPlayer) {
+            [(AVMIDIPlayer *)_midiPlayer play:nil];
+        }
         [_playbackSound resume];
 #else
         if (_playbackTask && [_playbackTask isRunning]) [_playbackTask resume];
@@ -1349,6 +1535,11 @@ static CGFloat const InspectorPadding = 18.0;
 #if !defined(__APPLE__)
     return [self playMIDIDataWithExternalPlayer:midiData error:error];
 #else
+    MIDIEndpointRef endpoint = [self resolvedMIDIOutputEndpoint];
+    if (endpoint) {
+        return [self playMIDIData:midiData toOutput:endpoint error:error];
+    }
+
     NSError *playerError = nil;
     AVMIDIPlayer *player = [[[AVMIDIPlayer alloc] initWithData:midiData soundBankURL:nil error:&playerError] autorelease];
     if (player) {

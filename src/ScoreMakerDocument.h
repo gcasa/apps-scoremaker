@@ -1,5 +1,9 @@
 #import <AppKit/AppKit.h>
 #import "ScoreView.h"
+#if defined(__APPLE__)
+#import <AudioToolbox/AudioToolbox.h>
+#import <CoreMIDI/CoreMIDI.h>
+#endif
 
 @interface ScoreMakerDocument : NSDocument <NSTextFieldDelegate>
 {
@@ -35,6 +39,14 @@
     NSTimeInterval _playbackPausedElapsed;
     BOOL _playbackPaused;
     BOOL _updatingInspector;
+#if defined(__APPLE__)
+    MIDIEndpointRef _midiOutputEndpoint;
+    NSString *_midiOutputName;
+    BOOL _useBuiltInMIDIOutput;
+    MusicSequence _externalMusicSequence;
+    MusicPlayer _externalMusicPlayer;
+    MusicTimeStamp _externalPlaybackTime;
+#endif
 }
 - (NSWindow *)window;
 - (void)setWindow:(NSWindow *)window;
@@ -60,4 +72,5 @@
 - (void)editScoreTitle:(id)sender;
 - (void)chooseTitleFont:(id)sender;
 - (void)changeFont:(id)sender;
+- (void)chooseMIDIOutput:(id)sender;
 @end
