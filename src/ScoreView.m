@@ -152,9 +152,13 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
                       PageWidth - 2.0 * PaperInset, PaperHeight);
 }
 
+- (NSSize)printedPageContentSize
+{
+    return NSMakeSize(PageWidth - 2.0 * PaperInset, PaperHeight);
+}
+
 - (void)drawRect:(NSRect)dirtyRect
 {
-    (void)dirtyRect;
     BOOL drawingToScreen = [[NSGraphicsContext currentContext] isDrawingToScreen];
     NSColor *backgroundColor = drawingToScreen ? [NSColor colorWithCalibratedWhite:0.78 alpha:1.0] : [NSColor whiteColor];
     [backgroundColor setFill];
@@ -176,6 +180,44 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
 
     if (!_document) {
         [self drawCenteredMessage:@"Open a MIDI or score file to display sheet music."];
+        return;
+    }
+
+    if (!drawingToScreen) {
+        NSPrintInfo *printInfo = [[NSPrintOperation currentOperation] printInfo];
+        NSRect imageableBounds = printInfo ? [printInfo imageablePageBounds] : NSMakeRect(0.0, 0.0, 540.0, 720.0);
+        NSSize pageSize = [self printedPageContentSize];
+        CGFloat widthScale = (NSWidth(imageableBounds) - 24.0) / MAX(pageSize.width, 1.0);
+        CGFloat heightScale = (NSHeight(imageableBounds) - 24.0) / MAX(pageSize.height, 1.0);
+        CGFloat printScale = MIN((CGFloat)1.0, MIN(widthScale, heightScale));
+        NSUInteger systemCount = [self systemCount];
+        NSUInteger ticksPerSystem = [self ticksPerSystem];
+
+        for (NSUInteger page = 0; page < [self pageCount]; page++) {
+            NSRect paper = NSMakeRect(PaperInset, [self pageOriginY:page],
+                                      PageWidth - 2.0 * PaperInset, PaperHeight);
+            if (!NSIntersectsRect(dirtyRect, paper)) continue;
+
+            [NSGraphicsContext saveGraphicsState];
+            NSRectClip(paper);
+            CGFloat centerX = NSMidX(paper);
+            CGFloat pageTop = NSMinY(paper);
+            NSAffineTransform *fit = [NSAffineTransform transform];
+            [fit translateXBy:centerX yBy:pageTop];
+            [fit scaleBy:printScale];
+            [fit translateXBy:-centerX yBy:-pageTop];
+            [fit concat];
+
+            [self drawHeaderForPage:page atOriginY:[self pageOriginY:page]];
+            NSUInteger firstSystem = page * SystemsPerPage;
+            NSUInteger lastSystem = MIN(systemCount, firstSystem + SystemsPerPage);
+            for (NSUInteger system = firstSystem; system < lastSystem; system++) {
+                [self drawSystemAtY:[self yForSystem:system]
+                        systemIndex:system
+                    ticksPerSystem:ticksPerSystem];
+            }
+            [NSGraphicsContext restoreGraphicsState];
+        }
         return;
     }
 

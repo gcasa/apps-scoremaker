@@ -19,5 +19,6 @@ extern NSString * const ScorePalettePasteboardType;
 - (void)setPlaybackTick:(NSUInteger)tick;
 - (void)clearPlayback;
 - (void)scrollPlaybackTickToVisible:(NSUInteger)tick;
+- (NSSize)printedPageContentSize;
 - (BOOL)insertPaletteItem:(NSString *)item atPoint:(NSPoint)point pitch:(NSInteger)pitch durationTicks:(NSUInteger)durationTicks track:(NSInteger)track;
 @end

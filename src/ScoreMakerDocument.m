@@ -1606,11 +1606,13 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
 
     NSPrintInfo *printInfo = [[[self printInfo] copy] autorelease];
 #if defined(__APPLE__)
-    [printInfo setHorizontalPagination:NSPrintingPaginationModeFit];
-    [printInfo setVerticalPagination:NSPrintingPaginationModeAutomatic];
+    [printInfo setOrientation:NSPaperOrientationPortrait];
+    [printInfo setHorizontalPagination:NSPrintingPaginationModeClip];
+    [printInfo setVerticalPagination:NSPrintingPaginationModeClip];
 #else
-    [printInfo setHorizontalPagination:NSFitPagination];
-    [printInfo setVerticalPagination:NSAutoPagination];
+    [printInfo setOrientation:NSPortraitOrientation];
+    [printInfo setHorizontalPagination:NSClipPagination];
+    [printInfo setVerticalPagination:NSClipPagination];
 #endif
     [printInfo setHorizontallyCentered:YES];
     [printInfo setVerticallyCentered:NO];
@@ -1618,6 +1620,10 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [printInfo setRightMargin:24.0];
     [printInfo setTopMargin:24.0];
     [printInfo setBottomMargin:24.0];
+
+    // ScoreView performs the final fit in its print drawing transform. AppKit
+    // can replace NSPrintInfo's scaling factor when the print panel closes.
+    [printInfo setScalingFactor:1.0];
 
     NSPrintOperation *operation = [NSPrintOperation printOperationWithView:[self scoreView] printInfo:printInfo];
     [operation setShowsPrintPanel:YES];
