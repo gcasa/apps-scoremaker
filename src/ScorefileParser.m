@@ -42,6 +42,7 @@ static NSString *ScoreMakerMetadataComment(ScoreDocument *document, NSError **er
     NSData *metadataData = [NSJSONSerialization dataWithJSONObject:metadata options:0 error:error];
     if (!metadataData) return nil;
     NSString *encoded = [metadataData base64EncodedStringWithOptions:NSDataBase64Encoding76CharacterLineLength];
+    encoded = [encoded stringByReplacingOccurrencesOfString:@"\r\n" withString:@"\n"];
     return [NSString stringWithFormat:@"/* %@\n%@\n*/\n\n", ScoreMakerMetadataMarker, encoded];
 }
 
