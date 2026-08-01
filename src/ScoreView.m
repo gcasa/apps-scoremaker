@@ -527,6 +527,28 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
                                   toPoint:NSMakePoint(x, top + StaffGap + 4.0 * LineSpacing)];
         if (tick + ticksPerMeasure <= tick) break;
     }
+
+    NSUInteger compositionEnd = [_document totalTicks];
+    if (compositionEnd > systemStart && compositionEnd <= systemEnd) {
+        CGFloat x = [self xForTick:compositionEnd
+                             start:systemStart
+                               end:systemEnd
+                              left:left
+                             right:right];
+        CGFloat bottom = top + StaffGap + 4.0 * LineSpacing;
+
+        NSBezierPath *thinLine = [NSBezierPath bezierPath];
+        [thinLine moveToPoint:NSMakePoint(x - 5.0, top)];
+        [thinLine lineToPoint:NSMakePoint(x - 5.0, bottom)];
+        [thinLine setLineWidth:1.0];
+        [thinLine stroke];
+
+        NSBezierPath *thickLine = [NSBezierPath bezierPath];
+        [thickLine moveToPoint:NSMakePoint(x, top)];
+        [thickLine lineToPoint:NSMakePoint(x, bottom)];
+        [thickLine setLineWidth:3.0];
+        [thickLine stroke];
+    }
 }
 
 - (void)drawNotesFromX:(CGFloat)left
