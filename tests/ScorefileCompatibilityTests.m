@@ -62,8 +62,16 @@ int main(void)
         [note setPitch:voice == 1 ? 72 : 48]; [note setTrack:0]; [note setChannel:0];
         [note setStartTick:480]; [note setDurationTicks:480]; [note setVoice:voice]; [note setMeasureIndex:1];
         [note setVelocity:voice == 1 ? 96 : 48];
+        if (voice == 1) {
+            [note setTieStart:YES]; [note setTupletActual:3]; [note setTupletNormal:2];
+            [note setDynamic:@"mf"]; [note setArticulation:@"staccato"];
+        } else {
+            [note setTieEnd:YES];
+        }
         [[voices notes] addObject:note];
     }
+    [pickup setKeySignatureFifths:2]; [pickup setRepeatStart:YES];
+    [measure setKeySignatureFifths:-3]; [measure setRepeatEnd:YES];
     NSError *error = nil;
     NSData *voiceData = [ScorefileParser dataForDocument:voices error:&error];
     NSString *voicePath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"scoremaker-voices.score"];
@@ -74,6 +82,14 @@ int main(void)
             [[[voiceRoundTrip notes] objectAtIndex:1] voice] == 2, @"voices did not round trip");
     Require([[[voiceRoundTrip notes] objectAtIndex:0] velocity] == 96 &&
             [[[voiceRoundTrip notes] objectAtIndex:1] velocity] == 48, @"velocities did not round trip");
+    Require([[voiceRoundTrip measures][0] keySignatureFifths] == 2 &&
+            [[voiceRoundTrip measures][0] repeatStart] && [[voiceRoundTrip measures][1] repeatEnd],
+            @"scorefile signatures or repeats did not round trip");
+    ScoreNote *scoreFeatureNote = [[voiceRoundTrip notes] objectAtIndex:0];
+    Require([scoreFeatureNote tieStart] && [scoreFeatureNote tupletActual] == 3 &&
+            [[scoreFeatureNote dynamic] isEqualToString:@"mf"] &&
+            [[scoreFeatureNote articulation] isEqualToString:@"staccato"],
+            @"scorefile note notation did not round trip");
 
     NSData *musicXML = [MusicXMLParser dataForDocument:voices error:&error];
     NSString *xmlPath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"scoremaker-voices.musicxml"];
@@ -83,6 +99,14 @@ int main(void)
     Require([[xmlRoundTrip notes] count] == 2, @"MusicXML notes did not round trip");
     Require([[[xmlRoundTrip notes] objectAtIndex:0] voice] == 1 &&
             [[[xmlRoundTrip notes] objectAtIndex:1] voice] == 2, @"MusicXML voices did not round trip");
+    Require([[xmlRoundTrip measures][0] keySignatureFifths] == 2 &&
+            [[xmlRoundTrip measures][0] repeatStart] && [[xmlRoundTrip measures][1] repeatEnd],
+            @"MusicXML signatures or repeats did not round trip");
+    ScoreNote *xmlFeatureNote = [[xmlRoundTrip notes] objectAtIndex:0];
+    Require([xmlFeatureNote tieStart] && [xmlFeatureNote tupletActual] == 3 &&
+            [[xmlFeatureNote dynamic] isEqualToString:@"mf"] &&
+            [[xmlFeatureNote articulation] isEqualToString:@"staccato"],
+            @"MusicXML note notation did not round trip");
 
     ScoreDocument *snapshot = [voices copy];
     [[[voices notes] objectAtIndex:0] setPitch:84];

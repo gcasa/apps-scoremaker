@@ -56,6 +56,15 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
     BOOL _noteGrace;
     BOOL _noteSlurStart;
     BOOL _noteSlurEnd;
+    BOOL _noteTieStart;
+    BOOL _noteTieEnd;
+    NSUInteger _noteTupletActual;
+    NSUInteger _noteTupletNormal;
+    NSString *_noteArticulation;
+    NSString *_pendingDynamic;
+    NSInteger _currentKeyFifths;
+    BOOL _measureRepeatStart;
+    BOOL _measureRepeatEnd;
     NSInteger _noteVoice;
     NSInteger _currentMeasureNumber;
     NSInteger _currentMeasureIndex;
@@ -98,6 +107,8 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
     [_partIndexes release];
     [_currentPartID release];
     [_noteStep release];
+    [_noteArticulation release];
+    [_pendingDynamic release];
     [_scoreTitle release];
     [_scoreTitleFontName release];
     [_scoreComposer release];
@@ -150,6 +161,8 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
         _currentMeasureNumberSpecified = [attributes objectForKey:@"number"] != nil;
         _currentMeasureNumber = [[attributes objectForKey:@"number"] integerValue];
         _currentMeasureIndex++;
+        _measureRepeatStart = NO;
+        _measureRepeatEnd = NO;
     } else if ([element isEqualToString:@"note"]) {
         _inNote = YES;
         _noteRest = NO;
@@ -157,6 +170,12 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
         _noteGrace = NO;
         _noteSlurStart = NO;
         _noteSlurEnd = NO;
+        _noteTieStart = NO;
+        _noteTieEnd = NO;
+        _noteTupletActual = 0;
+        _noteTupletNormal = 0;
+        [_noteArticulation release];
+        _noteArticulation = nil;
         _noteVoice = 1;
         _noteAlter = 0;
         _noteOctave = 4;
@@ -178,6 +197,29 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
         NSString *type = [attributes objectForKey:@"type"];
         if ([type isEqualToString:@"start"]) _noteSlurStart = YES;
         if ([type isEqualToString:@"stop"]) _noteSlurEnd = YES;
+    } else if (_inNote && [element isEqualToString:@"tie"]) {
+        NSString *type = [attributes objectForKey:@"type"];
+        if ([type isEqualToString:@"start"]) _noteTieStart = YES;
+        if ([type isEqualToString:@"stop"]) _noteTieEnd = YES;
+    } else if (_inNote && ([element isEqualToString:@"staccato"] ||
+                           [element isEqualToString:@"accent"] ||
+                           [element isEqualToString:@"tenuto"] ||
+                           [element isEqualToString:@"strong-accent"])) {
+        [_noteArticulation release];
+        _noteArticulation = [element copy];
+    } else if ([element isEqualToString:@"repeat"]) {
+        NSString *direction = [attributes objectForKey:@"direction"];
+        if ([direction isEqualToString:@"forward"]) _measureRepeatStart = YES;
+        if ([direction isEqualToString:@"backward"]) _measureRepeatEnd = YES;
+    } else if ([element isEqualToString:@"dynamics"]) {
+        /* The child element name (p, mf, ff, …) is captured below. */
+    } else if ([element isEqualToString:@"p"] || [element isEqualToString:@"pp"] ||
+               [element isEqualToString:@"ppp"] || [element isEqualToString:@"mp"] ||
+               [element isEqualToString:@"mf"] || [element isEqualToString:@"f"] ||
+               [element isEqualToString:@"ff"] || [element isEqualToString:@"fff"] ||
+               [element isEqualToString:@"sfz"]) {
+        [_pendingDynamic release];
+        _pendingDynamic = [element copy];
     } else if ([element isEqualToString:@"sound"]) {
         NSString *tempo = [attributes objectForKey:@"tempo"];
         if (!_foundTempo && [tempo doubleValue] > 0.0) {
@@ -234,6 +276,8 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
         [_document setTimeSignatureNumerator:MAX((NSUInteger)1, (NSUInteger)[value integerValue])];
     } else if ([element isEqualToString:@"beat-type"]) {
         [_document setTimeSignatureDenominator:MAX((NSUInteger)1, (NSUInteger)[value integerValue])];
+    } else if ([element isEqualToString:@"fifths"]) {
+        _currentKeyFifths = MIN(MAX([value integerValue], (NSInteger)-7), (NSInteger)7);
     } else if (_inNote && [element isEqualToString:@"step"]) {
         [_noteStep release];
         _noteStep = [[value uppercaseString] copy];
@@ -243,6 +287,10 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
         _noteOctave = [value integerValue];
     } else if (_inNote && [element isEqualToString:@"voice"]) {
         _noteVoice = MAX((NSInteger)1, [value integerValue]);
+    } else if (_inNote && [element isEqualToString:@"actual-notes"]) {
+        _noteTupletActual = MAX((NSUInteger)1, (NSUInteger)[value integerValue]);
+    } else if (_inNote && [element isEqualToString:@"normal-notes"]) {
+        _noteTupletNormal = MAX((NSUInteger)1, (NSUInteger)[value integerValue]);
     } else if ([element isEqualToString:@"duration"]) {
         double duration = (double)MAX((NSInteger)1, [value integerValue]) /
                           (double)MAX((NSUInteger)1, _divisions);
@@ -270,6 +318,13 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
         [note setDurationTicks:MAX((NSUInteger)1, end - start)];
         [note setSlurStart:_noteSlurStart];
         [note setSlurEnd:_noteSlurEnd];
+        [note setTieStart:_noteTieStart];
+        [note setTieEnd:_noteTieEnd];
+        [note setTupletActual:_noteTupletActual];
+        [note setTupletNormal:_noteTupletNormal];
+        [note setArticulation:_noteArticulation];
+        [note setDynamic:_pendingDynamic];
+        if ([_pendingDynamic length]) { [_pendingDynamic release]; _pendingDynamic = nil; }
         [note setVoice:_noteVoice];
         [note setMeasureIndex:_currentMeasureIndex];
         [[_document notes] addObject:note];
@@ -296,6 +351,9 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
             [measure setTimeSignatureNumerator:[_document timeSignatureNumerator]];
             [measure setTimeSignatureDenominator:[_document timeSignatureDenominator]];
             [measure setImplicit:_measureImplicit];
+            [measure setKeySignatureFifths:_currentKeyFifths];
+            [measure setRepeatStart:_measureRepeatStart];
+            [measure setRepeatEnd:_measureRepeatEnd];
             [[_document measures] addObject:measure];
         }
         // Notes may legitimately sound across a barline. Their end positions must
@@ -387,17 +445,21 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
             [xml appendFormat:@"    <measure number=\"%ld\"%@>\n", (long)[measure number],
                               [measure isImplicit] ? @" implicit=\"yes\"" : @""];
             BOOL timeChanged = measureIndex == 0;
+            BOOL keyChanged = measureIndex == 0;
             if (measureIndex > 0) {
                 ScoreMeasure *previous = [measures objectAtIndex:measureIndex - 1];
                 timeChanged = [previous timeSignatureNumerator] != [measure timeSignatureNumerator] ||
                               [previous timeSignatureDenominator] != [measure timeSignatureDenominator];
+                keyChanged = [previous keySignatureFifths] != [measure keySignatureFifths];
             }
-            if (timeChanged) {
-                [xml appendFormat:@"      <attributes><divisions>%lu</divisions><time><beats>%lu</beats><beat-type>%lu</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>\n",
-                                  (unsigned long)tpq,
-                                  (unsigned long)[measure timeSignatureNumerator],
-                                  (unsigned long)[measure timeSignatureDenominator]];
+            if (timeChanged || keyChanged) {
+                [xml appendFormat:@"      <attributes><divisions>%lu</divisions>", (unsigned long)tpq];
+                if (keyChanged) [xml appendFormat:@"<key><fifths>%ld</fifths></key>", (long)[measure keySignatureFifths]];
+                if (timeChanged) [xml appendFormat:@"<time><beats>%lu</beats><beat-type>%lu</beat-type></time>",
+                                  (unsigned long)[measure timeSignatureNumerator], (unsigned long)[measure timeSignatureDenominator]];
+                [xml appendString:@"<clef><sign>G</sign><line>2</line></clef></attributes>\n"];
             }
+            if ([measure repeatStart]) [xml appendString:@"      <barline location=\"left\"><repeat direction=\"forward\"/></barline>\n"];
             if (measureIndex == 0) {
                 double bpm = [document tempoMicrosecondsPerQuarter] ? 60000000.0 / [document tempoMicrosecondsPerQuarter] : 120.0;
                 [xml appendFormat:@"      <direction placement=\"above\"><sound tempo=\"%.6g\"/></direction>\n", bpm];
@@ -421,6 +483,8 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
                     NSInteger movement = onset - cursor;
                     if (movement > 0) [xml appendFormat:@"      <forward><duration>%ld</duration></forward>\n", (long)movement];
                     if (movement < 0) [xml appendFormat:@"      <backup><duration>%ld</duration></backup>\n", (long)-movement];
+                    if ([[note dynamic] length])
+                        [xml appendFormat:@"      <direction placement=\"below\"><direction-type><dynamics><%@/></dynamics></direction-type></direction>\n", [note dynamic]];
                     [xml appendString:@"      <note>"];
                 NSInteger accidental = [note accidental];
                 if ([note isRest]) {
@@ -434,13 +498,20 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
                 }
                 [xml appendFormat:@"<duration>%lu</duration><voice>%ld</voice>",
                                   (unsigned long)MAX((NSUInteger)1, [note durationTicks]), (long)[note voice]];
+                if ([note tieEnd]) [xml appendString:@"<tie type=\"stop\"/>"];
+                if ([note tieStart]) [xml appendString:@"<tie type=\"start\"/>"];
+                if ([note tupletActual] && [note tupletNormal])
+                    [xml appendFormat:@"<time-modification><actual-notes>%lu</actual-notes><normal-notes>%lu</normal-notes></time-modification>",
+                     (unsigned long)[note tupletActual], (unsigned long)[note tupletNormal]];
                 if (![note isRest] && accidental) {
                     [xml appendFormat:@"<accidental>%@</accidental>", accidental > 0 ? @"sharp" : @"flat"];
                 }
-                if ([note slurStart] || [note slurEnd]) {
+                if ([note slurStart] || [note slurEnd] || [[note articulation] length]) {
                     [xml appendString:@"<notations>"];
                     if ([note slurStart]) [xml appendString:@"<slur type=\"start\"/>"];
                     if ([note slurEnd]) [xml appendString:@"<slur type=\"stop\"/>"];
+                    if ([[note articulation] length])
+                        [xml appendFormat:@"<articulations><%@/></articulations>", [note articulation]];
                     [xml appendString:@"</notations>"];
                 }
                 [xml appendString:@"</note>\n"];
@@ -450,6 +521,7 @@ static NSString *StepForPitch(NSInteger pitch, NSInteger accidental)
                     [xml appendFormat:@"      <backup><duration>%ld</duration></backup>\n", (long)cursor];
                 }
             }
+            if ([measure repeatEnd]) [xml appendString:@"      <barline location=\"right\"><repeat direction=\"backward\"/></barline>\n"];
             [xml appendString:@"    </measure>\n"];
         }
         [xml appendString:@"  </part>\n"];

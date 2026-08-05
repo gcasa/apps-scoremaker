@@ -16,7 +16,7 @@
 static CGFloat const InspectorWidth = 320.0;
 static CGFloat const InspectorPadding = 18.0;
 static CGFloat const PlaybackMonitorHeight = 150.0;
-static CGFloat const InspectorContentHeight = 920.0;
+static CGFloat const InspectorContentHeight = 1060.0;
 
 #if defined(__APPLE__)
 static NSString *ScoreMakerMIDIEndpointName(MIDIEndpointRef endpoint)
@@ -117,8 +117,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [[NSColor colorWithCalibratedWhite:0.7 alpha:1.0] setStroke];
     NSFrameRect(bounds);
 
-    if ([_item isEqualToString:@"sharp"] || [_item isEqualToString:@"flat"] ||
-        [_item isEqualToString:@"natural"] || [_item isEqualToString:@"slur"]) {
+    if (![_item isEqualToString:@"note"] && ![_item isEqualToString:@"rest"]) {
         NSDictionary *toolAttrs = [NSDictionary dictionaryWithObjectsAndKeys:
                                    [NSFont systemFontOfSize:10.0], NSFontAttributeName,
                                    [NSColor blackColor], NSForegroundColorAttributeName,
@@ -193,7 +192,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
         [symbol drawAtPoint:NSMakePoint((54.0 - symbolSize.width) / 2.0,
                                         (42.0 - symbolSize.height) / 2.0)
              withAttributes:attrs];
-    } else if ([_item isEqualToString:@"slur"]) {
+    } else if ([_item isEqualToString:@"slur"] || [_item isEqualToString:@"tie"]) {
         NSBezierPath *slur = [NSBezierPath bezierPath];
         [slur moveToPoint:NSMakePoint(7.0, 13.0)];
         [slur curveToPoint:NSMakePoint(47.0, 13.0)
@@ -201,6 +200,10 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
              controlPoint2:NSMakePoint(37.0, 31.0)];
         [slur setLineWidth:2.5];
         [slur stroke];
+    } else if (![_item isEqualToString:@"note"] && ![_item isEqualToString:@"rest"]) {
+        NSDictionary *attrs = [NSDictionary dictionaryWithObjectsAndKeys:[NSFont boldSystemFontOfSize:16.0], NSFontAttributeName,
+                               [NSColor blackColor], NSForegroundColorAttributeName, nil];
+        [_label drawAtPoint:NSMakePoint(8.0, 11.0) withAttributes:attrs];
     } else if ([_item isEqualToString:@"rest"]) {
         if (_denominator == 2) {
             NSRectFill(NSMakeRect(18.0, 14.0, 18.0, 6.0));
@@ -436,6 +439,14 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [_instrumentPopUp release];
     [_addPartButton release];
     [_addNoteButton release];
+    [_keySignaturePopUp release];
+    [_repeatStartButton release];
+    [_repeatEndButton release];
+    [_tieStartButton release];
+    [_tieEndButton release];
+    [_tupletPopUp release];
+    [_dynamicPopUp release];
+    [_articulationPopUp release];
     [_playButton release];
     [_pauseButton release];
     [_stopButton release];
@@ -786,17 +797,50 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [_midiRoutingPopUp setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:_midiRoutingPopUp];
 
-    NSTextField *paletteLabel = [self labelWithString:@"Palette" frame:NSMakeRect(InspectorPadding, frame.size.height - 548.0, 120.0, 18.0)];
+    NSTextField *notationLabel = [self labelWithString:@"Selected Note / Measure" frame:NSMakeRect(InspectorPadding, frame.size.height - 548.0, 190.0, 18.0)];
+    [notationLabel setAutoresizingMask:NSViewMinYMargin];
+    [[self inspectorView] addSubview:notationLabel];
+
+    _keySignaturePopUp = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 578.0, 132.0, 26.0) pullsDown:NO];
+    NSArray *keyNames = [NSArray arrayWithObjects:@"C / A minor", @"1♯ G / E minor", @"2♯ D / B minor", @"3♯ A / F♯ minor", @"4♯ E / C♯ minor", @"5♯ B / G♯ minor", @"6♯ F♯ / D♯ minor", @"7♯ C♯ / A♯ minor", @"1♭ F / D minor", @"2♭ B♭ / G minor", @"3♭ E♭ / C minor", @"4♭ A♭ / F minor", @"5♭ D♭ / B♭ minor", @"6♭ G♭ / E♭ minor", @"7♭ C♭ / A♭ minor", nil];
+    NSInteger keyValues[] = {0,1,2,3,4,5,6,7,-1,-2,-3,-4,-5,-6,-7};
+    for (NSUInteger i = 0; i < [keyNames count]; i++) { [_keySignaturePopUp addItemWithTitle:[keyNames objectAtIndex:i]]; [[_keySignaturePopUp lastItem] setRepresentedObject:[NSNumber numberWithInteger:keyValues[i]]]; }
+    [_keySignaturePopUp setTarget:self]; [_keySignaturePopUp setAction:@selector(notationDidChange:)];
+    [_keySignaturePopUp setAutoresizingMask:NSViewMinYMargin]; [[self inspectorView] addSubview:_keySignaturePopUp];
+    _repeatStartButton = [[NSButton alloc] initWithFrame:NSMakeRect(InspectorPadding + 138.0, frame.size.height - 578.0, 72.0, 24.0)];
+    [_repeatStartButton setTitle:@"Start |:"]; [_repeatStartButton setButtonType:NSSwitchButton]; [_repeatStartButton setTarget:self]; [_repeatStartButton setAction:@selector(notationDidChange:)];
+    [_repeatStartButton setAutoresizingMask:NSViewMinYMargin]; [[self inspectorView] addSubview:_repeatStartButton];
+    _repeatEndButton = [[NSButton alloc] initWithFrame:NSMakeRect(InspectorPadding + 210.0, frame.size.height - 578.0, 72.0, 24.0)];
+    [_repeatEndButton setTitle:@"End :|"]; [_repeatEndButton setButtonType:NSSwitchButton]; [_repeatEndButton setTarget:self]; [_repeatEndButton setAction:@selector(notationDidChange:)];
+    [_repeatEndButton setAutoresizingMask:NSViewMinYMargin]; [[self inspectorView] addSubview:_repeatEndButton];
+
+    _tieStartButton = [[NSButton alloc] initWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 606.0, 72.0, 24.0)];
+    [_tieStartButton setTitle:@"Tie start"]; [_tieStartButton setButtonType:NSSwitchButton]; [_tieStartButton setTarget:self]; [_tieStartButton setAction:@selector(notationDidChange:)];
+    [_tieStartButton setAutoresizingMask:NSViewMinYMargin]; [[self inspectorView] addSubview:_tieStartButton];
+    _tieEndButton = [[NSButton alloc] initWithFrame:NSMakeRect(InspectorPadding + 76.0, frame.size.height - 606.0, 70.0, 24.0)];
+    [_tieEndButton setTitle:@"Tie end"]; [_tieEndButton setButtonType:NSSwitchButton]; [_tieEndButton setTarget:self]; [_tieEndButton setAction:@selector(notationDidChange:)];
+    [_tieEndButton setAutoresizingMask:NSViewMinYMargin]; [[self inspectorView] addSubview:_tieEndButton];
+    _tupletPopUp = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(InspectorPadding + 150.0, frame.size.height - 606.0, 68.0, 26.0) pullsDown:NO];
+    [_tupletPopUp addItemsWithTitles:[NSArray arrayWithObjects:@"No tuplet", @"3:2", @"5:4", @"6:4", @"7:4", nil]]; [_tupletPopUp setTarget:self]; [_tupletPopUp setAction:@selector(notationDidChange:)];
+    [_tupletPopUp setAutoresizingMask:NSViewMinYMargin]; [[self inspectorView] addSubview:_tupletPopUp];
+    _dynamicPopUp = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 636.0, 86.0, 26.0) pullsDown:NO];
+    [_dynamicPopUp addItemsWithTitles:[NSArray arrayWithObjects:@"No dynamic", @"ppp", @"pp", @"p", @"mp", @"mf", @"f", @"ff", @"fff", @"sfz", nil]]; [_dynamicPopUp setTarget:self]; [_dynamicPopUp setAction:@selector(notationDidChange:)];
+    [_dynamicPopUp setAutoresizingMask:NSViewMinYMargin]; [[self inspectorView] addSubview:_dynamicPopUp];
+    _articulationPopUp = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(InspectorPadding + 92.0, frame.size.height - 636.0, 126.0, 26.0) pullsDown:NO];
+    [_articulationPopUp addItemsWithTitles:[NSArray arrayWithObjects:@"No articulation", @"Staccato", @"Accent", @"Tenuto", @"Strong accent", nil]]; [_articulationPopUp setTarget:self]; [_articulationPopUp setAction:@selector(notationDidChange:)];
+    [_articulationPopUp setAutoresizingMask:NSViewMinYMargin]; [[self inspectorView] addSubview:_articulationPopUp];
+
+    NSTextField *paletteLabel = [self labelWithString:@"Palette" frame:NSMakeRect(InspectorPadding, frame.size.height - 674.0, 120.0, 18.0)];
     [paletteLabel setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:paletteLabel];
 
-    NSArray *toolItems = [NSArray arrayWithObjects:@"sharp", @"flat", @"natural", @"slur", nil];
-    NSArray *toolLabels = [NSArray arrayWithObjects:@"♯ Sharp", @"♭ Flat", @"♮ Natural", @"Slur", nil];
+    NSArray *toolItems = [NSArray arrayWithObjects:@"sharp", @"flat", @"natural", @"slur", @"tie", @"triplet", @"mf", @"staccato", @"accent", @"tenuto", nil];
+    NSArray *toolLabels = [NSArray arrayWithObjects:@"♯", @"♭", @"♮", @"Slur", @"Tie", @"3", @"mf", @"Stacc.", @">", @"Ten.", nil];
     for (NSUInteger i = 0; i < [toolItems count]; i++) {
         ScorePaletteItemView *toolPalette = [[[ScorePaletteItemView alloc]
-            initWithFrame:NSMakeRect(InspectorPadding + (CGFloat)i * 61.0,
-                                     frame.size.height - 576.0,
-                                     58.0,
+            initWithFrame:NSMakeRect(InspectorPadding + (CGFloat)(i % 5) * 53.0,
+                                     frame.size.height - 702.0 - (CGFloat)(i / 5) * 29.0,
+                                     50.0,
                                      27.0)
                  document:self
                      item:[toolItems objectAtIndex:i]
@@ -818,7 +862,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
         NSUInteger denominator = [[denominators objectAtIndex:i] unsignedIntegerValue];
         NSString *valueLabel = denominator == 1 ? @"Whole" : (denominator == 2 ? @"Half" : [NSString stringWithFormat:@"1/%lu", (unsigned long)denominator]);
         NSString *noteLabel = [NSString stringWithFormat:@"%@ Note", valueLabel];
-        ScorePaletteItemView *notePalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 606.0 - (CGFloat)i * 27.0, 110.0, 24.0)
+        ScorePaletteItemView *notePalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 766.0 - (CGFloat)i * 27.0, 110.0, 24.0)
                                                                                 document:self
                                                                                     item:@"note"
                                                                                    label:noteLabel
@@ -827,7 +871,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
         [[self inspectorView] addSubview:notePalette];
 
         NSString *restLabel = [NSString stringWithFormat:@"%@ Rest", valueLabel];
-        ScorePaletteItemView *restPalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding + 122.0, frame.size.height - 606.0 - (CGFloat)i * 27.0, 110.0, 24.0)
+        ScorePaletteItemView *restPalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding + 122.0, frame.size.height - 766.0 - (CGFloat)i * 27.0, 110.0, 24.0)
                                                                                 document:self
                                                                                     item:@"rest"
                                                                                    label:restLabel
@@ -836,11 +880,11 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
         [[self inspectorView] addSubview:restPalette];
     }
 
-    NSTextField *notesLabel = [self labelWithString:@"Score Notes" frame:NSMakeRect(InspectorPadding, frame.size.height - 784.0, 120.0, 18.0)];
+    NSTextField *notesLabel = [self labelWithString:@"Score Notes" frame:NSMakeRect(InspectorPadding, frame.size.height - 944.0, 120.0, 18.0)];
     [notesLabel setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:notesLabel];
 
-    NSScrollView *notesScroll = [[[NSScrollView alloc] initWithFrame:NSMakeRect(InspectorPadding, InspectorPadding, frame.size.width - 2.0 * InspectorPadding, frame.size.height - 818.0)] autorelease];
+    NSScrollView *notesScroll = [[[NSScrollView alloc] initWithFrame:NSMakeRect(InspectorPadding, InspectorPadding, frame.size.width - 2.0 * InspectorPadding, frame.size.height - 978.0)] autorelease];
     [notesScroll setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
     [notesScroll setHasVerticalScroller:YES];
     [notesScroll setBorderType:NSBezelBorder];
@@ -906,6 +950,29 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [_noteDurationField setDoubleValue:[self beatsForNoteValueDenominator:[self denominatorForSelectedNoteValue]]];
 
     ScoreNote *selectedNote = [[self scoreView] selectedNote];
+    ScoreMeasure *selectedMeasure = selectedNote ? [document measureContainingTick:[selectedNote startTick]] :
+        ([[document measures] count] ? [[document measures] objectAtIndex:0] : nil);
+    [_keySignaturePopUp setEnabled:selectedMeasure != nil];
+    [_repeatStartButton setEnabled:selectedMeasure != nil];
+    [_repeatEndButton setEnabled:selectedMeasure != nil];
+    [_tieStartButton setEnabled:selectedNote != nil && ![selectedNote isRest]];
+    [_tieEndButton setEnabled:selectedNote != nil && ![selectedNote isRest]];
+    [_tupletPopUp setEnabled:selectedNote != nil];
+    [_dynamicPopUp setEnabled:selectedNote != nil];
+    [_articulationPopUp setEnabled:selectedNote != nil && ![selectedNote isRest]];
+    if (selectedMeasure) {
+        for (NSMenuItem *item in [_keySignaturePopUp itemArray])
+            if ([[item representedObject] integerValue] == [selectedMeasure keySignatureFifths]) { [_keySignaturePopUp selectItem:item]; break; }
+        [_repeatStartButton setState:[selectedMeasure repeatStart] ? NSOnState : NSOffState];
+        [_repeatEndButton setState:[selectedMeasure repeatEnd] ? NSOnState : NSOffState];
+    }
+    [_tieStartButton setState:selectedNote && [selectedNote tieStart] ? NSOnState : NSOffState];
+    [_tieEndButton setState:selectedNote && [selectedNote tieEnd] ? NSOnState : NSOffState];
+    NSString *tuplet = selectedNote && [selectedNote tupletActual] ? [NSString stringWithFormat:@"%lu:%lu", (unsigned long)[selectedNote tupletActual], (unsigned long)[selectedNote tupletNormal]] : @"No tuplet";
+    [_tupletPopUp selectItemWithTitle:tuplet];
+    [_dynamicPopUp selectItemWithTitle:selectedNote && [[selectedNote dynamic] length] ? [selectedNote dynamic] : @"No dynamic"];
+    NSDictionary *articulationTitles = [NSDictionary dictionaryWithObjectsAndKeys:@"Staccato", @"staccato", @"Accent", @"accent", @"Tenuto", @"tenuto", @"Strong accent", @"strong-accent", nil];
+    [_articulationPopUp selectItemWithTitle:selectedNote && [[selectedNote articulation] length] ? [articulationTitles objectForKey:[selectedNote articulation]] : @"No articulation"];
     NSInteger selectedPart = selectedNote ? [selectedNote track] :
         ([[_partPopUp selectedItem] representedObject] ? [[[_partPopUp selectedItem] representedObject] integerValue] : 0);
     NSMutableSet *partSet = [NSMutableSet setWithObject:[NSNumber numberWithInteger:0]];
@@ -1178,6 +1245,38 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
 {
     (void)sender;
     [_noteDurationField setDoubleValue:[self beatsForNoteValueDenominator:[self denominatorForSelectedNoteValue]]];
+}
+
+- (void)notationDidChange:(id)sender
+{
+    (void)sender;
+    if (_updatingInspector) return;
+    ScoreDocument *document = [self scoreDocument];
+    ScoreNote *note = [[self scoreView] selectedNote];
+    ScoreMeasure *measure = note ? [document measureContainingTick:[note startTick]] :
+        ([[document measures] count] ? [[document measures] objectAtIndex:0] : nil);
+    if (!document || (!note && !measure)) return;
+    [self registerUndoSnapshotWithName:@"Edit Notation"];
+    if (measure) {
+        [measure setKeySignatureFifths:[[[_keySignaturePopUp selectedItem] representedObject] integerValue]];
+        [measure setRepeatStart:[_repeatStartButton state] == NSOnState];
+        [measure setRepeatEnd:[_repeatEndButton state] == NSOnState];
+    }
+    if (note) {
+        [note setTieStart:[_tieStartButton state] == NSOnState];
+        [note setTieEnd:[_tieEndButton state] == NSOnState];
+        NSString *tuplet = [_tupletPopUp titleOfSelectedItem];
+        NSArray *ratio = [tuplet componentsSeparatedByString:@":"];
+        [note setTupletActual:[ratio count] == 2 ? [[ratio objectAtIndex:0] integerValue] : 0];
+        [note setTupletNormal:[ratio count] == 2 ? [[ratio objectAtIndex:1] integerValue] : 0];
+        NSString *dynamic = [_dynamicPopUp titleOfSelectedItem];
+        [note setDynamic:[dynamic isEqualToString:@"No dynamic"] ? nil : dynamic];
+        NSDictionary *articulations = [NSDictionary dictionaryWithObjectsAndKeys:@"staccato", @"Staccato", @"accent", @"Accent", @"tenuto", @"Tenuto", @"strong-accent", @"Strong accent", nil];
+        [note setArticulation:[articulations objectForKey:[_articulationPopUp titleOfSelectedItem]]];
+    }
+    [[self scoreView] reloadDocument];
+    [self updateChangeCount:NSChangeDone];
+    [self commitUndoBaseline];
 }
 
 - (NSUInteger)denominatorForSelectedNoteValue
@@ -1761,6 +1860,17 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [note setTrack:trackNumber - 1];
     [note setStartTick:startTick];
     [note setDurationTicks:durationTicks];
+    [note setTieStart:[_tieStartButton state] == NSOnState];
+    [note setTieEnd:[_tieEndButton state] == NSOnState];
+    NSArray *tupletRatio = [[_tupletPopUp titleOfSelectedItem] componentsSeparatedByString:@":"];
+    if ([tupletRatio count] == 2) {
+        [note setTupletActual:[[tupletRatio objectAtIndex:0] integerValue]];
+        [note setTupletNormal:[[tupletRatio objectAtIndex:1] integerValue]];
+    }
+    NSString *dynamic = [_dynamicPopUp titleOfSelectedItem];
+    if (![dynamic isEqualToString:@"No dynamic"]) [note setDynamic:dynamic];
+    NSDictionary *newArticulations = [NSDictionary dictionaryWithObjectsAndKeys:@"staccato", @"Staccato", @"accent", @"Accent", @"tenuto", @"Tenuto", @"strong-accent", @"Strong accent", nil];
+    [note setArticulation:[newArticulations objectForKey:[_articulationPopUp titleOfSelectedItem]]];
     [[document notes] addObject:note];
     [[document notes] sortUsingSelector:@selector(compareScoreNote:)];
 
@@ -1769,6 +1879,9 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
         [document setTotalTicks:noteEnd];
     }
     ScoreMeasure *measure = [document ensureMeasureContainingTick:startTick];
+    [measure setKeySignatureFifths:[[[_keySignaturePopUp selectedItem] representedObject] integerValue]];
+    [measure setRepeatStart:[_repeatStartButton state] == NSOnState];
+    [measure setRepeatEnd:[_repeatEndButton state] == NSOnState];
     [note setMeasureIndex:(NSInteger)[[document measures] indexOfObjectIdenticalTo:measure]];
     if (![document nameForTrack:trackNumber - 1]) {
         [document setName:[NSString stringWithFormat:@"Part %ld", (long)trackNumber] forTrack:trackNumber - 1];

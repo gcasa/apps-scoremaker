@@ -11,6 +11,12 @@
     NSInteger _accidental;
     BOOL _slurStart;
     BOOL _slurEnd;
+    BOOL _tieStart;
+    BOOL _tieEnd;
+    NSUInteger _tupletActual;
+    NSUInteger _tupletNormal;
+    NSString *_dynamic;
+    NSString *_articulation;
     NSInteger _voice;
     NSInteger _measureIndex;
     NSUInteger _velocity;
@@ -33,6 +39,18 @@
 - (void)setSlurStart:(BOOL)slurStart;
 - (BOOL)slurEnd;
 - (void)setSlurEnd:(BOOL)slurEnd;
+- (BOOL)tieStart;
+- (void)setTieStart:(BOOL)value;
+- (BOOL)tieEnd;
+- (void)setTieEnd:(BOOL)value;
+- (NSUInteger)tupletActual;
+- (void)setTupletActual:(NSUInteger)value;
+- (NSUInteger)tupletNormal;
+- (void)setTupletNormal:(NSUInteger)value;
+- (NSString *)dynamic;
+- (void)setDynamic:(NSString *)value;
+- (NSString *)articulation;
+- (void)setArticulation:(NSString *)value;
 - (NSInteger)voice;
 - (void)setVoice:(NSInteger)voice;
 - (NSInteger)measureIndex;
@@ -50,6 +68,9 @@
     NSUInteger _timeSignatureNumerator;
     NSUInteger _timeSignatureDenominator;
     BOOL _implicit;
+    NSInteger _keySignatureFifths;
+    BOOL _repeatStart;
+    BOOL _repeatEnd;
 }
 - (NSInteger)number;
 - (void)setNumber:(NSInteger)number;
@@ -63,6 +84,12 @@
 - (void)setTimeSignatureDenominator:(NSUInteger)value;
 - (BOOL)isImplicit;
 - (void)setImplicit:(BOOL)implicit;
+- (NSInteger)keySignatureFifths;
+- (void)setKeySignatureFifths:(NSInteger)value;
+- (BOOL)repeatStart;
+- (void)setRepeatStart:(BOOL)value;
+- (BOOL)repeatEnd;
+- (void)setRepeatEnd:(BOOL)value;
 @end
 
 @interface ScoreDocument : NSObject <NSCopying>

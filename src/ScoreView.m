@@ -427,9 +427,30 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     if (systemIndex % SystemsPerPage == 0) {
         [self drawTimeSignatureAtX:left + 58.0 trebleY:trebleTop bassY:bassTop];
     }
+    ScoreMeasure *openingMeasure = [_document measureContainingTick:startTick];
+    if (openingMeasure && [openingMeasure keySignatureFifths] != 0) {
+        [self drawKeySignature:[openingMeasure keySignatureFifths]
+                            atX:left + 39.0 trebleY:trebleTop bassY:bassTop];
+    }
 
     [self drawMeasureLinesFromX:musicLeft toX:musicRight topY:trebleTop systemStart:startTick systemEnd:endTick];
     [self drawNotesFromX:musicLeft toX:musicRight trebleY:trebleTop bassY:bassTop systemStart:startTick systemEnd:endTick];
+}
+
+- (void)drawKeySignature:(NSInteger)fifths atX:(CGFloat)x trebleY:(CGFloat)trebleY bassY:(CGFloat)bassY
+{
+    NSString *symbol = fifths > 0 ? @"♯" : @"♭";
+    NSInteger count = labs(fifths);
+    NSInteger sharpSteps[] = {0, 3, -1, 2, 5, 1, 4};
+    NSInteger flatSteps[] = {4, 1, 5, 2, 6, 3, 7};
+    NSDictionary *attrs = [NSDictionary dictionaryWithObjectsAndKeys:
+        ([NSFont fontWithName:@"Times New Roman" size:18.0] ?: [NSFont systemFontOfSize:16.0]), NSFontAttributeName,
+        [NSColor blackColor], NSForegroundColorAttributeName, nil];
+    for (NSInteger i = 0; i < count; i++) {
+        NSInteger step = fifths > 0 ? sharpSteps[i] : flatSteps[i];
+        [symbol drawAtPoint:NSMakePoint(x + i * 8.0, trebleY + step * 2.5 - 9.0) withAttributes:attrs];
+        [symbol drawAtPoint:NSMakePoint(x + i * 8.0, bassY + step * 2.5 - 9.0) withAttributes:attrs];
+    }
 }
 
 - (void)drawTempoMarkAtX:(CGFloat)x y:(CGFloat)y
@@ -622,6 +643,18 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
         CGFloat x = [self xForTick:tick start:systemStart end:systemEnd left:left right:right];
         [NSBezierPath strokeLineFromPoint:NSMakePoint(x, top)
                                   toPoint:NSMakePoint(x, top + StaffGap + 4.0 * LineSpacing)];
+        CGFloat bottom = top + StaffGap + 4.0 * LineSpacing;
+        if ([measure repeatStart] || [measure repeatEnd]) {
+            CGFloat thickX = x + ([measure repeatStart] ? 4.0 : -4.0);
+            NSBezierPath *thick = [NSBezierPath bezierPath];
+            [thick moveToPoint:NSMakePoint(thickX, top)]; [thick lineToPoint:NSMakePoint(thickX, bottom)];
+            [thick setLineWidth:3.0]; [thick stroke];
+            CGFloat dotX = x + ([measure repeatStart] ? 10.0 : -10.0);
+            [[NSColor blackColor] setFill];
+            for (CGFloat staffY = top; staffY <= top + StaffGap; staffY += StaffGap)
+                for (NSInteger dot = 0; dot < 2; dot++)
+                    [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(dotX - 2.0, staffY + 14.0 + dot * 10.0, 4.0, 4.0)] fill];
+        }
     }
 
     NSUInteger compositionEnd = [_document totalTicks];
@@ -790,6 +823,49 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
                   systemEnd:systemEnd
                    trebleY:trebleY
                      bassY:bassY];
+    [self drawTiesAndNoteMarks:visibleNotes left:left right:right
+                   systemStart:systemStart systemEnd:systemEnd trebleY:trebleY bassY:bassY];
+}
+
+- (void)drawTiesAndNoteMarks:(NSArray *)notes left:(CGFloat)left right:(CGFloat)right
+                 systemStart:(NSUInteger)systemStart systemEnd:(NSUInteger)systemEnd
+                    trebleY:(CGFloat)trebleY bassY:(CGFloat)bassY
+{
+    NSDictionary *small = [NSDictionary dictionaryWithObjectsAndKeys:[NSFont systemFontOfSize:11.0], NSFontAttributeName,
+                           [NSColor blackColor], NSForegroundColorAttributeName, nil];
+    for (NSUInteger i = 0; i < [notes count]; i++) {
+        ScoreNote *note = [notes objectAtIndex:i];
+        BOOL treble = [note pitch] >= 60;
+        CGFloat staff = treble ? trebleY : bassY;
+        CGFloat x = [self engravedXForNote:note start:systemStart end:systemEnd left:left right:right];
+        CGFloat y = [self yForNote:note treble:treble staffTop:staff];
+        if ([[note dynamic] length]) [[note dynamic] drawAtPoint:NSMakePoint(x - 5.0, staff + 48.0) withAttributes:small];
+        if ([[note articulation] length]) {
+            NSString *mark = [[note articulation] isEqualToString:@"staccato"] ? @"•" :
+                             ([[note articulation] isEqualToString:@"tenuto"] ? @"—" : @">");
+            [mark drawAtPoint:NSMakePoint(x - 3.0, y - 22.0) withAttributes:small];
+        }
+        if ([note tupletActual] > 0)
+            [[NSString stringWithFormat:@"%lu", (unsigned long)[note tupletActual]]
+                drawAtPoint:NSMakePoint(x - 3.0, y - 43.0) withAttributes:small];
+        if (![note tieStart]) continue;
+        ScoreNote *endNote = nil;
+        for (NSUInteger j = i + 1; j < [notes count]; j++) {
+            ScoreNote *candidate = [notes objectAtIndex:j];
+            if ([candidate tieEnd] && [candidate pitch] == [note pitch] &&
+                [candidate track] == [note track] && [candidate voice] == [note voice]) { endNote = candidate; break; }
+        }
+        if (!endNote) continue;
+        CGFloat endX = [self engravedXForNote:endNote start:systemStart end:systemEnd left:left right:right];
+        CGFloat endStaff = [endNote pitch] >= 60 ? trebleY : bassY;
+        CGFloat endY = [self yForNote:endNote treble:([endNote pitch] >= 60) staffTop:endStaff];
+        NSBezierPath *tie = [NSBezierPath bezierPath];
+        [tie moveToPoint:NSMakePoint(x + 5.0, y + 5.0)];
+        [tie curveToPoint:NSMakePoint(endX - 5.0, endY + 5.0)
+            controlPoint1:NSMakePoint(x + (endX-x)*.3, y + 14.0)
+            controlPoint2:NSMakePoint(x + (endX-x)*.7, endY + 14.0)];
+        [tie stroke];
+    }
 }
 
 - (void)drawPlaybackHighlightAtX:(CGFloat)x y:(CGFloat)y
@@ -1320,17 +1396,30 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     }
 
     if ([item isEqualToString:@"sharp"] || [item isEqualToString:@"flat"] ||
-        [item isEqualToString:@"natural"] || [item isEqualToString:@"slur"]) {
+        [item isEqualToString:@"natural"] || [item isEqualToString:@"slur"] ||
+        [item isEqualToString:@"tie"] || [item isEqualToString:@"triplet"] ||
+        [item isEqualToString:@"mf"] || [item isEqualToString:@"staccato"] ||
+        [item isEqualToString:@"accent"] || [item isEqualToString:@"tenuto"]) {
         ScoreNote *target = [self noteAtPoint:point];
         if (!target || [target isRest]) return NO;
 
-        if ([item isEqualToString:@"slur"]) {
+        if ([item isEqualToString:@"slur"] || [item isEqualToString:@"tie"]) {
             if (!_selectedNote || _selectedNote == target || [_selectedNote isRest] ||
                 [_selectedNote startTick] >= [target startTick]) {
                 return NO;
             }
-            [_selectedNote setSlurStart:YES];
-            [target setSlurEnd:YES];
+            if ([item isEqualToString:@"slur"]) {
+                [_selectedNote setSlurStart:YES]; [target setSlurEnd:YES];
+            } else {
+                if ([_selectedNote pitch] != [target pitch]) return NO;
+                [_selectedNote setTieStart:YES]; [target setTieEnd:YES];
+            }
+        } else if ([item isEqualToString:@"triplet"]) {
+            [target setTupletActual:3]; [target setTupletNormal:2];
+        } else if ([item isEqualToString:@"mf"]) {
+            [target setDynamic:@"mf"];
+        } else if ([item isEqualToString:@"staccato"] || [item isEqualToString:@"accent"] || [item isEqualToString:@"tenuto"]) {
+            [target setArticulation:item];
         } else {
             NSInteger basePitch = [target pitch] - [target accidental];
             NSInteger accidental = [item isEqualToString:@"sharp"] ? 1 :

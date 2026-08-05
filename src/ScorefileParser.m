@@ -62,11 +62,14 @@ static NSString *ScoreMakerStructureComment(ScoreDocument *document, NSError **e
             [NSNumber numberWithUnsignedInteger:[measure durationTicks]], @"durationTicks",
             [NSNumber numberWithUnsignedInteger:[measure timeSignatureNumerator]], @"beats",
             [NSNumber numberWithUnsignedInteger:[measure timeSignatureDenominator]], @"beatType",
-            [NSNumber numberWithBool:[measure isImplicit]], @"implicit", nil]];
+            [NSNumber numberWithBool:[measure isImplicit]], @"implicit",
+            [NSNumber numberWithInteger:[measure keySignatureFifths]], @"keyFifths",
+            [NSNumber numberWithBool:[measure repeatStart]], @"repeatStart",
+            [NSNumber numberWithBool:[measure repeatEnd]], @"repeatEnd", nil]];
     }
     NSMutableArray *noteDetails = [NSMutableArray array];
     for (ScoreNote *note in [document notes]) {
-        [noteDetails addObject:[NSDictionary dictionaryWithObjectsAndKeys:
+        NSMutableDictionary *detail = [NSMutableDictionary dictionaryWithObjectsAndKeys:
             [NSNumber numberWithInteger:[note voice]], @"voice",
             [NSNumber numberWithInteger:[note measureIndex]], @"measureIndex",
             [NSNumber numberWithUnsignedInteger:[note startTick]], @"startTick",
@@ -74,7 +77,14 @@ static NSString *ScoreMakerStructureComment(ScoreDocument *document, NSError **e
             [NSNumber numberWithInteger:[note pitch]], @"pitch",
             [NSNumber numberWithInteger:[note track]], @"track",
             [NSNumber numberWithBool:[note isRest]], @"rest",
-            [NSNumber numberWithUnsignedInteger:[note velocity]], @"velocity", nil]];
+            [NSNumber numberWithUnsignedInteger:[note velocity]], @"velocity",
+            [NSNumber numberWithBool:[note tieStart]], @"tieStart",
+            [NSNumber numberWithBool:[note tieEnd]], @"tieEnd",
+            [NSNumber numberWithUnsignedInteger:[note tupletActual]], @"tupletActual",
+            [NSNumber numberWithUnsignedInteger:[note tupletNormal]], @"tupletNormal", nil];
+        if ([[note dynamic] length]) [detail setObject:[note dynamic] forKey:@"dynamic"];
+        if ([[note articulation] length]) [detail setObject:[note articulation] forKey:@"articulation"];
+        [noteDetails addObject:detail];
     }
     NSDictionary *structure = [NSDictionary dictionaryWithObjectsAndKeys:
         [NSNumber numberWithInteger:2], @"version", measures, @"measures",
@@ -100,6 +110,9 @@ static void ApplyScoreMakerStructure(ScoreDocument *document, NSDictionary *stru
             [measure setTimeSignatureNumerator:MAX((NSUInteger)1, [[item objectForKey:@"beats"] unsignedIntegerValue])];
             [measure setTimeSignatureDenominator:MAX((NSUInteger)1, [[item objectForKey:@"beatType"] unsignedIntegerValue])];
             [measure setImplicit:[[item objectForKey:@"implicit"] boolValue]];
+            [measure setKeySignatureFifths:[[item objectForKey:@"keyFifths"] integerValue]];
+            [measure setRepeatStart:[[item objectForKey:@"repeatStart"] boolValue]];
+            [measure setRepeatEnd:[[item objectForKey:@"repeatEnd"] boolValue]];
             [measures addObject:measure];
         }
         if ([measures count]) [document setMeasures:measures];
@@ -127,6 +140,12 @@ static void ApplyScoreMakerStructure(ScoreDocument *document, NSDictionary *stru
         [note setMeasureIndex:[[item objectForKey:@"measureIndex"] integerValue]];
         NSNumber *velocity = [item objectForKey:@"velocity"];
         if (velocity) [note setVelocity:[velocity unsignedIntegerValue]];
+        [note setTieStart:[[item objectForKey:@"tieStart"] boolValue]];
+        [note setTieEnd:[[item objectForKey:@"tieEnd"] boolValue]];
+        [note setTupletActual:[[item objectForKey:@"tupletActual"] unsignedIntegerValue]];
+        [note setTupletNormal:[[item objectForKey:@"tupletNormal"] unsignedIntegerValue]];
+        [note setDynamic:[item objectForKey:@"dynamic"]];
+        [note setArticulation:[item objectForKey:@"articulation"]];
     }
     [[document notes] sortUsingSelector:@selector(compareScoreNote:)];
 }

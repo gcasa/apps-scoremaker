@@ -23,6 +23,7 @@ The renderer is intentionally lightweight. It focuses on extracting timing, pitc
 - Map common scorefile instrument, patch, sound, preset, and program declarations to General MIDI sounds for playback.
 - Preserve independent note voices and explicit measure boundaries, including pickup measures and per-measure time signatures.
 - Reflow measures across systems and printed pages according to notation density, with collision-aware onset spacing, displaced seconds in chords, and staggered accidental columns.
+- Import, export, preserve, and render key signatures, ties, tuplets, dynamics, common articulations, and repeat barlines.
 
 ## Screenshots
 

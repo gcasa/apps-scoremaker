@@ -30,6 +30,14 @@
     NSPopUpButton *_instrumentPopUp;
     NSButton *_addPartButton;
     NSButton *_addNoteButton;
+    NSPopUpButton *_keySignaturePopUp;
+    NSButton *_repeatStartButton;
+    NSButton *_repeatEndButton;
+    NSButton *_tieStartButton;
+    NSButton *_tieEndButton;
+    NSPopUpButton *_tupletPopUp;
+    NSPopUpButton *_dynamicPopUp;
+    NSPopUpButton *_articulationPopUp;
     NSButton *_playButton;
     NSButton *_pauseButton;
     NSButton *_stopButton;

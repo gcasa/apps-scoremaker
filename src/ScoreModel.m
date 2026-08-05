@@ -121,6 +121,19 @@ static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
     _slurEnd = slurEnd;
 }
 
+- (BOOL)tieStart { return _tieStart; }
+- (void)setTieStart:(BOOL)value { _tieStart = value; }
+- (BOOL)tieEnd { return _tieEnd; }
+- (void)setTieEnd:(BOOL)value { _tieEnd = value; }
+- (NSUInteger)tupletActual { return _tupletActual; }
+- (void)setTupletActual:(NSUInteger)value { _tupletActual = value; }
+- (NSUInteger)tupletNormal { return _tupletNormal; }
+- (void)setTupletNormal:(NSUInteger)value { _tupletNormal = value; }
+- (NSString *)dynamic { return _dynamic; }
+- (void)setDynamic:(NSString *)value { if (_dynamic != value) { [_dynamic release]; _dynamic = [value copy]; } }
+- (NSString *)articulation { return _articulation; }
+- (void)setArticulation:(NSString *)value { if (_articulation != value) { [_articulation release]; _articulation = [value copy]; } }
+
 - (NSInteger)voice { return _voice; }
 - (void)setVoice:(NSInteger)voice { _voice = MAX((NSInteger)1, voice); }
 - (NSInteger)measureIndex { return _measureIndex; }
@@ -147,8 +160,18 @@ static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
     [copy setPitch:_pitch]; [copy setAccidental:_accidental]; [copy setChannel:_channel];
     [copy setTrack:_track]; [copy setStartTick:_startTick]; [copy setDurationTicks:_durationTicks];
     [copy setRest:_rest]; [copy setSlurStart:_slurStart]; [copy setSlurEnd:_slurEnd];
+    [copy setTieStart:_tieStart]; [copy setTieEnd:_tieEnd];
+    [copy setTupletActual:_tupletActual]; [copy setTupletNormal:_tupletNormal];
+    [copy setDynamic:_dynamic]; [copy setArticulation:_articulation];
     [copy setVoice:_voice]; [copy setMeasureIndex:_measureIndex]; [copy setVelocity:_velocity];
     return copy;
+}
+
+- (void)dealloc
+{
+    [_dynamic release];
+    [_articulation release];
+    [super dealloc];
 }
 
 @end
@@ -166,12 +189,20 @@ static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
 - (void)setTimeSignatureDenominator:(NSUInteger)value { _timeSignatureDenominator = MAX((NSUInteger)1, value); }
 - (BOOL)isImplicit { return _implicit; }
 - (void)setImplicit:(BOOL)implicit { _implicit = implicit; }
+- (NSInteger)keySignatureFifths { return _keySignatureFifths; }
+- (void)setKeySignatureFifths:(NSInteger)value { _keySignatureFifths = MIN(MAX(value, (NSInteger)-7), (NSInteger)7); }
+- (BOOL)repeatStart { return _repeatStart; }
+- (void)setRepeatStart:(BOOL)value { _repeatStart = value; }
+- (BOOL)repeatEnd { return _repeatEnd; }
+- (void)setRepeatEnd:(BOOL)value { _repeatEnd = value; }
 - (id)copyWithZone:(NSZone *)zone
 {
     ScoreMeasure *copy = [[ScoreMeasure allocWithZone:zone] init];
     [copy setNumber:_number]; [copy setStartTick:_startTick]; [copy setDurationTicks:_durationTicks];
     [copy setTimeSignatureNumerator:_timeSignatureNumerator];
     [copy setTimeSignatureDenominator:_timeSignatureDenominator]; [copy setImplicit:_implicit];
+    [copy setKeySignatureFifths:_keySignatureFifths];
+    [copy setRepeatStart:_repeatStart]; [copy setRepeatEnd:_repeatEnd];
     return copy;
 }
 @end
