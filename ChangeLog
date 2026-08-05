@@ -33,6 +33,9 @@ explicit measures without breaking MusicKit-style .score files.
 * Added a resizable bottom playback monitor with an 88-key piano that
   highlights every currently sounding pitch.
 * Added live per-voice MIDI-velocity meters and numeric velocity readings.
+* Added stronger dark separators between adjacent white piano keys.
+* Made the on-screen piano keys clickable for score entry using the current
+  inspector duration, start position, and selected part.
 * Preserved imported MIDI note velocity in the score model, playback export,
   and backward-compatible V2 .score metadata; legacy notes retain the previous
   default velocity of 64.

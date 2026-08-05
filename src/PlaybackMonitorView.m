@@ -21,6 +21,10 @@ static BOOL IsBlackKey(NSInteger pitch)
     [self setNeedsDisplay:YES];
 }
 
+- (void)setTarget:(id)target { _target = target; }
+- (void)setAction:(SEL)action { _action = action; }
+- (NSInteger)inputPitch { return _inputPitch; }
+
 - (void)setPlaybackTick:(NSUInteger)tick
 {
     _playbackTick = tick;
@@ -52,6 +56,8 @@ static BOOL IsBlackKey(NSInteger pitch)
     NSMutableSet *activePitches = [NSMutableSet set];
     for (ScoreNote *note in activeNotes)
         [activePitches addObject:[NSNumber numberWithInteger:[note pitch]]];
+    if (_inputPitch >= 21 && _inputPitch <= 108)
+        [activePitches addObject:[NSNumber numberWithInteger:_inputPitch]];
 
     NSInteger firstPitch = 21; // A0
     NSInteger lastPitch = 108; // C8
@@ -67,14 +73,19 @@ static BOOL IsBlackKey(NSInteger pitch)
         CGFloat x = NSMinX(rect) + (CGFloat)whiteIndex * whiteWidth;
         [whitePositions setObject:[NSNumber numberWithDouble:x]
                           forKey:[NSNumber numberWithInteger:pitch]];
-        NSRect key = NSMakeRect(x, NSMinY(rect), whiteWidth + 0.5, NSHeight(rect));
+        NSRect key = NSMakeRect(x, NSMinY(rect), whiteWidth, NSHeight(rect));
         BOOL active = [activePitches containsObject:[NSNumber numberWithInteger:pitch]];
         [(active ? [NSColor colorWithCalibratedRed:0.25 green:0.65 blue:1.0 alpha:1.0] : [NSColor whiteColor]) setFill];
         NSRectFill(key);
-        [[NSColor colorWithCalibratedWhite:0.25 alpha:1.0] setStroke];
-        NSFrameRect(key);
         whiteIndex++;
     }
+
+    [[NSColor colorWithCalibratedWhite:0.12 alpha:1.0] setFill];
+    for (NSInteger boundary = 0; boundary <= whiteCount; boundary++) {
+        CGFloat x = NSMinX(rect) + (CGFloat)boundary * whiteWidth;
+        NSRectFill(NSMakeRect(floor(x), NSMinY(rect), 1.0, NSHeight(rect)));
+    }
+    NSFrameRect(rect);
 
     for (NSInteger pitch = firstPitch; pitch <= lastPitch; pitch++) {
         if (!IsBlackKey(pitch)) continue;
@@ -90,6 +101,51 @@ static BOOL IsBlackKey(NSInteger pitch)
         [[NSColor blackColor] setStroke];
         NSFrameRect(key);
     }
+}
+
+- (NSInteger)pitchAtPoint:(NSPoint)point inKeyboardRect:(NSRect)rect
+{
+    if (!NSPointInRect(point, rect)) return -1;
+    NSInteger firstPitch = 21;
+    NSInteger lastPitch = 108;
+    CGFloat whiteWidth = NSWidth(rect) / 52.0;
+    CGFloat blackWidth = MAX((CGFloat)3.0, whiteWidth * 0.62);
+    CGFloat blackHeight = NSHeight(rect) * 0.62;
+    NSInteger whiteIndex = 0;
+    for (NSInteger pitch = firstPitch; pitch <= lastPitch; pitch++) {
+        if (IsBlackKey(pitch)) continue;
+        CGFloat whiteX = NSMinX(rect) + (CGFloat)whiteIndex * whiteWidth;
+        NSInteger blackPitch = pitch + 1;
+        if (blackPitch <= lastPitch && IsBlackKey(blackPitch)) {
+            NSRect blackKey = NSMakeRect(whiteX + whiteWidth - blackWidth / 2.0,
+                                         NSMinY(rect), blackWidth, blackHeight);
+            if (NSPointInRect(point, blackKey)) return blackPitch;
+        }
+        whiteIndex++;
+    }
+    NSInteger requestedWhite = MIN((NSInteger)51, MAX((NSInteger)0,
+        (NSInteger)floor((point.x - NSMinX(rect)) / whiteWidth)));
+    whiteIndex = 0;
+    for (NSInteger pitch = firstPitch; pitch <= lastPitch; pitch++) {
+        if (IsBlackKey(pitch)) continue;
+        if (whiteIndex++ == requestedWhite) return pitch;
+    }
+    return -1;
+}
+
+- (void)mouseDown:(NSEvent *)event
+{
+    NSPoint point = [self convertPoint:[event locationInWindow] fromView:nil];
+    CGFloat split = floor(NSWidth([self bounds]) * 0.7);
+    NSRect keyboard = NSMakeRect(12.0, 28.0, split - 24.0, NSHeight([self bounds]) - 38.0);
+    NSInteger pitch = [self pitchAtPoint:point inKeyboardRect:keyboard];
+    if (pitch < 0) {
+        [super mouseDown:event];
+        return;
+    }
+    _inputPitch = pitch;
+    [self setNeedsDisplay:YES];
+    if (_action) [NSApp sendAction:_action to:_target from:self];
 }
 
 - (void)drawVoiceMetersInRect:(NSRect)rect activeNotes:(NSArray *)activeNotes

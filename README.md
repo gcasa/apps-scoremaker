@@ -15,7 +15,7 @@ The renderer is intentionally lightweight. It focuses on extracting timing, pitc
 - Read MIDI tempo and time-signature metadata when available.
 - Add pitched notes and edit score notes, tempo, and time signature from the inspector next to the sheet.
 - Play the current score through AVFoundation on macOS or GNUstep.
-- Show active notes on an 88-key piano and display live MIDI-velocity meters for each voice during playback.
+- Show active notes on an 88-key piano, display live MIDI-velocity meters for each voice during playback, and enter notes by clicking the piano keys.
 - Print the rendered score from the standard print panel.
 - Support common MusicKit scorefile timing, variable, `freq`, `keyNum`, `noteOn`, `noteOff`, `noteUpdate`, and duration-note patterns.
 - Map common scorefile instrument, patch, sound, preset, and program declarations to General MIDI sounds for playback.

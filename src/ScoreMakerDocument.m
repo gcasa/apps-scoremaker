@@ -456,6 +456,8 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
         initWithFrame:NSMakeRect(0.0, 0.0, contentBounds.size.width, PlaybackMonitorHeight)];
     [_playbackMonitorView setAutoresizingMask:NSViewWidthSizable | NSViewMaxYMargin];
     [_playbackMonitorView setDocument:[self scoreDocument]];
+    [_playbackMonitorView setTarget:self];
+    [_playbackMonitorView setAction:@selector(pianoKeyPressed:)];
     [[[self window] contentView] addSubview:_playbackMonitorView];
     [self refreshInspector];
     [self setWindowController:[[[NSWindowController alloc] initWithWindow:[self window]] autorelease]];
@@ -1646,6 +1648,15 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [[self scoreView] reloadDocument];
     [self updateChangeCount:NSChangeDone];
     [self refreshInspector];
+}
+
+- (void)pianoKeyPressed:(id)sender
+{
+    NSInteger pitch = [(PlaybackMonitorView *)sender inputPitch];
+    if (pitch < 0 || pitch > 127 || ![self scoreDocument] || _playbackTimer || _playbackPaused) return;
+    [_noteTypePopUp selectItemWithTitle:@"Note"];
+    [_notePitchField setIntegerValue:pitch];
+    [self addNote:sender];
 }
 
 - (void)printDocument:(id)sender
