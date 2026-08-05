@@ -18,6 +18,7 @@ The renderer is intentionally lightweight. It focuses on extracting timing, pitc
 - Print the rendered score from the standard print panel.
 - Support common MusicKit scorefile timing, variable, `freq`, `keyNum`, `noteOn`, `noteOff`, `noteUpdate`, and duration-note patterns.
 - Map common scorefile instrument, patch, sound, preset, and program declarations to General MIDI sounds for playback.
+- Preserve independent note voices and explicit measure boundaries, including pickup measures and per-measure time signatures.
 
 ## Screenshots
 
@@ -77,6 +78,8 @@ build/macos/ScoreMaker.app/Contents/MacOS/ScoreMaker path/to/song.score
 ## Limitations
 
 ScoreMaker maps common MusicKit-style instrument declarations to General MIDI programs for playback, but it does not emulate MusicKit synthesis engines, envelopes, wave tables, or DSP patch settings. When saving `.score` files, it writes the renderable note data and track program mappings from the current document rather than preserving every original source statement or comment.
+
+ScoreMaker keeps `.score` note statements compatible with MusicKit-style readers. Voice assignments and explicit measure structure are stored in an additional `ScoreMaker Structure V2` JSON metadata comment; older readers can ignore that comment and continue reading pitches, timing, parts, and programs. Files without V2 structure metadata open as voice 1 with measures derived from their time signature.
 
 MIDI parsing supports Standard MIDI files with tick-based timing. SMPTE time-division MIDI files are not supported.
 

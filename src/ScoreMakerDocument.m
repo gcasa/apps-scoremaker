@@ -943,6 +943,8 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     }
 
     NSUInteger oldTempo = [document tempoMicrosecondsPerQuarter];
+    NSUInteger oldNumerator = [document timeSignatureNumerator];
+    NSUInteger oldDenominator = [document timeSignatureDenominator];
     BOOL playbackActive = (_playbackTimer != nil || _playbackPaused);
     NSTimeInterval playbackElapsed = _playbackPaused ? _playbackPausedElapsed :
         ([NSDate timeIntervalSinceReferenceDate] - _playbackStartTime);
@@ -964,6 +966,9 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     }
     [document setTimeSignatureNumerator:(NSUInteger)numerator];
     [document setTimeSignatureDenominator:(NSUInteger)denominator];
+    if (oldNumerator != (NSUInteger)numerator || oldDenominator != (NSUInteger)denominator) {
+        [document buildDefaultMeasures];
+    }
 
     BOOL tempoChanged = oldTempo != [document tempoMicrosecondsPerQuarter];
 
@@ -1248,6 +1253,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [remainder setTimeSignatureDenominator:[source timeSignatureDenominator]];
     [remainder setPartNames:[[[source partNames] mutableCopy] autorelease]];
     [remainder setTrackPrograms:[[[source trackPrograms] mutableCopy] autorelease]];
+    [remainder setMeasures:[[[source measures] mutableCopy] autorelease]];
 
     for (ScoreNote *note in [source notes]) {
         NSUInteger noteEnd = [note startTick] + [note durationTicks];
@@ -1263,6 +1269,8 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
         [copy setDurationTicks:noteEnd - clippedStart];
         [copy setSlurStart:[note slurStart]];
         [copy setSlurEnd:[note slurEnd]];
+        [copy setVoice:[note voice]];
+        [copy setMeasureIndex:[note measureIndex]];
         [[remainder notes] addObject:copy];
         [remainder setTotalTicks:MAX([remainder totalTicks], [copy startTick] + [copy durationTicks])];
     }
@@ -1611,6 +1619,8 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     if (noteEnd > [document totalTicks]) {
         [document setTotalTicks:noteEnd];
     }
+    ScoreMeasure *measure = [document ensureMeasureContainingTick:startTick];
+    [note setMeasureIndex:(NSInteger)[[document measures] indexOfObjectIdenticalTo:measure]];
     if (![document nameForTrack:trackNumber - 1]) {
         [document setName:[NSString stringWithFormat:@"Part %ld", (long)trackNumber] forTrack:trackNumber - 1];
     }

@@ -2,6 +2,16 @@
 
 @implementation ScoreNote
 
+- (id)init
+{
+    self = [super init];
+    if (self) {
+        _voice = 1;
+        _measureIndex = -1;
+    }
+    return self;
+}
+
 static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
 {
     NSInteger pitchClass = pitch % 12;
@@ -110,10 +120,17 @@ static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
     _slurEnd = slurEnd;
 }
 
+- (NSInteger)voice { return _voice; }
+- (void)setVoice:(NSInteger)voice { _voice = MAX((NSInteger)1, voice); }
+- (NSInteger)measureIndex { return _measureIndex; }
+- (void)setMeasureIndex:(NSInteger)measureIndex { _measureIndex = MAX((NSInteger)-1, measureIndex); }
+
 - (NSComparisonResult)compareScoreNote:(ScoreNote *)other
 {
     if (_startTick < [other startTick]) return NSOrderedAscending;
     if (_startTick > [other startTick]) return NSOrderedDescending;
+    if (_voice < [other voice]) return NSOrderedAscending;
+    if (_voice > [other voice]) return NSOrderedDescending;
     if (_rest && ![other isRest]) return NSOrderedDescending;
     if (!_rest && [other isRest]) return NSOrderedAscending;
     if (_pitch > [other pitch]) return NSOrderedAscending;
@@ -121,6 +138,21 @@ static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
     return NSOrderedSame;
 }
 
+@end
+
+@implementation ScoreMeasure
+- (NSInteger)number { return _number; }
+- (void)setNumber:(NSInteger)number { _number = number; }
+- (NSUInteger)startTick { return _startTick; }
+- (void)setStartTick:(NSUInteger)startTick { _startTick = startTick; }
+- (NSUInteger)durationTicks { return _durationTicks; }
+- (void)setDurationTicks:(NSUInteger)durationTicks { _durationTicks = durationTicks; }
+- (NSUInteger)timeSignatureNumerator { return _timeSignatureNumerator; }
+- (void)setTimeSignatureNumerator:(NSUInteger)value { _timeSignatureNumerator = MAX((NSUInteger)1, value); }
+- (NSUInteger)timeSignatureDenominator { return _timeSignatureDenominator; }
+- (void)setTimeSignatureDenominator:(NSUInteger)value { _timeSignatureDenominator = MAX((NSUInteger)1, value); }
+- (BOOL)isImplicit { return _implicit; }
+- (void)setImplicit:(BOOL)implicit { _implicit = implicit; }
 @end
 
 @implementation ScoreDocument
@@ -175,6 +207,72 @@ static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
         [_notes release];
         _notes = [notes retain];
     }
+}
+
+- (NSMutableArray *)measures { return _measures; }
+
+- (void)setMeasures:(NSMutableArray *)measures
+{
+    if (_measures != measures) {
+        [_measures release];
+        _measures = [measures retain];
+    }
+}
+
+- (void)buildDefaultMeasures
+{
+    [_measures removeAllObjects];
+    NSUInteger duration = (_ticksPerQuarter * 4 * _timeSignatureNumerator) /
+                          MAX((NSUInteger)1, _timeSignatureDenominator);
+    if (duration == 0) duration = MAX((NSUInteger)1, _ticksPerQuarter * 4);
+    NSUInteger count = MAX((NSUInteger)1, (_totalTicks + duration - 1) / duration);
+    for (NSUInteger index = 0; index < count; index++) {
+        ScoreMeasure *measure = [[[ScoreMeasure alloc] init] autorelease];
+        [measure setNumber:(NSInteger)index + 1];
+        [measure setStartTick:index * duration];
+        [measure setDurationTicks:duration];
+        [measure setTimeSignatureNumerator:_timeSignatureNumerator];
+        [measure setTimeSignatureDenominator:_timeSignatureDenominator];
+        [_measures addObject:measure];
+    }
+    for (ScoreNote *note in _notes) {
+        ScoreMeasure *measure = [self measureContainingTick:[note startTick]];
+        [note setMeasureIndex:measure ? (NSInteger)[_measures indexOfObjectIdenticalTo:measure] : -1];
+    }
+}
+
+- (ScoreMeasure *)measureContainingTick:(NSUInteger)tick
+{
+    for (ScoreMeasure *measure in _measures) {
+        NSUInteger end = [measure startTick] + [measure durationTicks];
+        if (tick >= [measure startTick] && tick < end) return measure;
+    }
+    return nil;
+}
+
+- (ScoreMeasure *)ensureMeasureContainingTick:(NSUInteger)tick
+{
+    ScoreMeasure *existing = [self measureContainingTick:tick];
+    if (existing) return existing;
+    if ([_measures count] == 0) [self buildDefaultMeasures];
+    existing = [self measureContainingTick:tick];
+    while (!existing) {
+        ScoreMeasure *previous = [_measures lastObject];
+        NSUInteger start = previous ? [previous startTick] + [previous durationTicks] : 0;
+        NSUInteger beats = previous ? [previous timeSignatureNumerator] : _timeSignatureNumerator;
+        NSUInteger beatType = previous ? [previous timeSignatureDenominator] : _timeSignatureDenominator;
+        NSUInteger duration = (_ticksPerQuarter * 4 * beats) / MAX((NSUInteger)1, beatType);
+        if (duration == 0) duration = MAX((NSUInteger)1, _ticksPerQuarter * 4);
+        ScoreMeasure *measure = [[[ScoreMeasure alloc] init] autorelease];
+        [measure setNumber:previous ? [previous number] + 1 : 1];
+        [measure setStartTick:start];
+        [measure setDurationTicks:duration];
+        [measure setTimeSignatureNumerator:beats];
+        [measure setTimeSignatureDenominator:beatType];
+        [_measures addObject:measure];
+        if (tick >= start && tick < start + duration) existing = measure;
+    }
+    return existing;
 }
 
 - (NSMutableDictionary *)partNames
@@ -271,6 +369,7 @@ static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
     self = [super init];
     if (self) {
         _notes = [[NSMutableArray alloc] init];
+        _measures = [[NSMutableArray alloc] init];
         _partNames = [[NSMutableDictionary alloc] init];
         _trackPrograms = [[NSMutableDictionary alloc] init];
         _annotationText = [@"" retain];
@@ -290,6 +389,7 @@ static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
     [_titleFontName release];
     [_composer release];
     [_notes release];
+    [_measures release];
     [_partNames release];
     [_trackPrograms release];
     [_annotationText release];

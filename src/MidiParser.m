@@ -219,6 +219,7 @@ static NSString *GeneralMidiProgramName(unsigned char program)
     }
 
     [[document notes] sortUsingSelector:@selector(compareScoreNote:)];
+    [document buildDefaultMeasures];
 
     return document;
 }

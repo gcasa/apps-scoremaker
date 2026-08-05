@@ -11,6 +11,8 @@
     NSInteger _accidental;
     BOOL _slurStart;
     BOOL _slurEnd;
+    NSInteger _voice;
+    NSInteger _measureIndex;
 }
 - (NSInteger)pitch;
 - (void)setPitch:(NSInteger)pitch;
@@ -30,7 +32,34 @@
 - (void)setSlurStart:(BOOL)slurStart;
 - (BOOL)slurEnd;
 - (void)setSlurEnd:(BOOL)slurEnd;
+- (NSInteger)voice;
+- (void)setVoice:(NSInteger)voice;
+- (NSInteger)measureIndex;
+- (void)setMeasureIndex:(NSInteger)measureIndex;
 - (NSComparisonResult)compareScoreNote:(ScoreNote *)other;
+@end
+
+@interface ScoreMeasure : NSObject
+{
+    NSInteger _number;
+    NSUInteger _startTick;
+    NSUInteger _durationTicks;
+    NSUInteger _timeSignatureNumerator;
+    NSUInteger _timeSignatureDenominator;
+    BOOL _implicit;
+}
+- (NSInteger)number;
+- (void)setNumber:(NSInteger)number;
+- (NSUInteger)startTick;
+- (void)setStartTick:(NSUInteger)startTick;
+- (NSUInteger)durationTicks;
+- (void)setDurationTicks:(NSUInteger)durationTicks;
+- (NSUInteger)timeSignatureNumerator;
+- (void)setTimeSignatureNumerator:(NSUInteger)value;
+- (NSUInteger)timeSignatureDenominator;
+- (void)setTimeSignatureDenominator:(NSUInteger)value;
+- (BOOL)isImplicit;
+- (void)setImplicit:(BOOL)implicit;
 @end
 
 @interface ScoreDocument : NSObject
@@ -39,6 +68,7 @@
     NSString *_titleFontName;
     NSString *_composer;
     NSMutableArray *_notes;
+    NSMutableArray *_measures;
     NSMutableDictionary *_partNames;
     NSMutableDictionary *_trackPrograms;
     NSString *_annotationText;
@@ -56,6 +86,11 @@
 - (void)setComposer:(NSString *)composer;
 - (NSMutableArray *)notes;
 - (void)setNotes:(NSMutableArray *)notes;
+- (NSMutableArray *)measures;
+- (void)setMeasures:(NSMutableArray *)measures;
+- (void)buildDefaultMeasures;
+- (ScoreMeasure *)measureContainingTick:(NSUInteger)tick;
+- (ScoreMeasure *)ensureMeasureContainingTick:(NSUInteger)tick;
 - (NSMutableDictionary *)partNames;
 - (void)setPartNames:(NSMutableDictionary *)partNames;
 - (NSMutableDictionary *)trackPrograms;

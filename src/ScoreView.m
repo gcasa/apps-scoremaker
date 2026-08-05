@@ -515,17 +515,13 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
                   systemStart:(NSUInteger)systemStart
                     systemEnd:(NSUInteger)systemEnd
 {
-    NSUInteger beatsPerMeasure = [_document timeSignatureNumerator];
-    NSUInteger beatUnit = [_document timeSignatureDenominator];
-    NSUInteger ticksPerMeasure = ([_document ticksPerQuarter] * 4 * beatsPerMeasure) / MAX((NSUInteger)1, beatUnit);
-    if (ticksPerMeasure == 0) ticksPerMeasure = [_document ticksPerQuarter] * 4;
-
-    NSUInteger firstMeasure = ((systemStart + ticksPerMeasure - 1) / ticksPerMeasure) * ticksPerMeasure;
-    for (NSUInteger tick = firstMeasure; tick <= systemEnd; tick += ticksPerMeasure) {
+    if ([[_document measures] count] == 0) [_document buildDefaultMeasures];
+    for (ScoreMeasure *measure in [_document measures]) {
+        NSUInteger tick = [measure startTick];
+        if (tick < systemStart || tick > systemEnd) continue;
         CGFloat x = [self xForTick:tick start:systemStart end:systemEnd left:left right:right];
         [NSBezierPath strokeLineFromPoint:NSMakePoint(x, top)
                                   toPoint:NSMakePoint(x, top + StaffGap + 4.0 * LineSpacing)];
-        if (tick + ticksPerMeasure <= tick) break;
     }
 
     NSUInteger compositionEnd = [_document totalTicks];
@@ -597,7 +593,7 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
         NSUInteger beat = [note startTick] / quarter;
         NSString *key = [NSString stringWithFormat:@"%ld:%ld:%d:%lu",
                          (long)[note track],
-                         (long)[note channel],
+                         (long)[note voice],
                          treble,
                          (unsigned long)beat];
         NSMutableArray *group = [groupsByBeat objectForKey:key];
@@ -1014,6 +1010,8 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
         [_document setTotalTicks:endTick];
         [self updateFrameForDocument];
     }
+    ScoreMeasure *measure = [_document ensureMeasureContainingTick:[note startTick]];
+    [note setMeasureIndex:(NSInteger)[[_document measures] indexOfObjectIdenticalTo:measure]];
     if (![_document nameForTrack:[note track]]) {
         [_document setName:[NSString stringWithFormat:@"Part %ld", (long)([note track] + 1)] forTrack:[note track]];
     }

@@ -3,6 +3,7 @@
 
 static NSString * const ScorefileParserErrorDomain = @"ScoreMakerScorefileParser";
 static NSString * const ScoreMakerMetadataMarker = @"ScoreMaker Metadata V1";
+static NSString * const ScoreMakerStructureMarker = @"ScoreMaker Structure V2";
 
 static NSError *ScorefileError(NSString *message)
 {
@@ -10,9 +11,9 @@ static NSError *ScorefileError(NSString *message)
     return [NSError errorWithDomain:ScorefileParserErrorDomain code:1 userInfo:info];
 }
 
-static NSDictionary *ScoreMakerMetadataFromScorefile(NSString *input)
+static NSDictionary *ScoreMakerJSONCommentFromScorefile(NSString *input, NSString *marker)
 {
-    NSRange markerRange = [input rangeOfString:ScoreMakerMetadataMarker];
+    NSRange markerRange = [input rangeOfString:marker];
     if (markerRange.location == NSNotFound) return nil;
 
     NSUInteger payloadStart = NSMaxRange(markerRange);
@@ -30,6 +31,11 @@ static NSDictionary *ScoreMakerMetadataFromScorefile(NSString *input)
     return [metadata isKindOfClass:[NSDictionary class]] ? metadata : nil;
 }
 
+static NSDictionary *ScoreMakerMetadataFromScorefile(NSString *input)
+{
+    return ScoreMakerJSONCommentFromScorefile(input, ScoreMakerMetadataMarker);
+}
+
 static NSString *ScoreMakerMetadataComment(ScoreDocument *document, NSError **error)
 {
     NSMutableDictionary *metadata = [NSMutableDictionary dictionary];
@@ -44,6 +50,82 @@ static NSString *ScoreMakerMetadataComment(ScoreDocument *document, NSError **er
     NSString *encoded = [metadataData base64EncodedStringWithOptions:NSDataBase64Encoding76CharacterLineLength];
     encoded = [encoded stringByReplacingOccurrencesOfString:@"\r\n" withString:@"\n"];
     return [NSString stringWithFormat:@"/* %@\n%@\n*/\n\n", ScoreMakerMetadataMarker, encoded];
+}
+
+static NSString *ScoreMakerStructureComment(ScoreDocument *document, NSError **error)
+{
+    NSMutableArray *measures = [NSMutableArray array];
+    for (ScoreMeasure *measure in [document measures]) {
+        [measures addObject:[NSDictionary dictionaryWithObjectsAndKeys:
+            [NSNumber numberWithInteger:[measure number]], @"number",
+            [NSNumber numberWithUnsignedInteger:[measure startTick]], @"startTick",
+            [NSNumber numberWithUnsignedInteger:[measure durationTicks]], @"durationTicks",
+            [NSNumber numberWithUnsignedInteger:[measure timeSignatureNumerator]], @"beats",
+            [NSNumber numberWithUnsignedInteger:[measure timeSignatureDenominator]], @"beatType",
+            [NSNumber numberWithBool:[measure isImplicit]], @"implicit", nil]];
+    }
+    NSMutableArray *noteDetails = [NSMutableArray array];
+    for (ScoreNote *note in [document notes]) {
+        [noteDetails addObject:[NSDictionary dictionaryWithObjectsAndKeys:
+            [NSNumber numberWithInteger:[note voice]], @"voice",
+            [NSNumber numberWithInteger:[note measureIndex]], @"measureIndex",
+            [NSNumber numberWithUnsignedInteger:[note startTick]], @"startTick",
+            [NSNumber numberWithUnsignedInteger:[note durationTicks]], @"durationTicks",
+            [NSNumber numberWithInteger:[note pitch]], @"pitch",
+            [NSNumber numberWithInteger:[note track]], @"track",
+            [NSNumber numberWithBool:[note isRest]], @"rest", nil]];
+    }
+    NSDictionary *structure = [NSDictionary dictionaryWithObjectsAndKeys:
+        [NSNumber numberWithInteger:2], @"version", measures, @"measures",
+        noteDetails, @"noteDetails", nil];
+    NSData *data = [NSJSONSerialization dataWithJSONObject:structure options:0 error:error];
+    if (!data) return nil;
+    NSString *encoded = [data base64EncodedStringWithOptions:NSDataBase64Encoding76CharacterLineLength];
+    encoded = [encoded stringByReplacingOccurrencesOfString:@"\r\n" withString:@"\n"];
+    return [NSString stringWithFormat:@"/* %@\n%@\n*/\n\n", ScoreMakerStructureMarker, encoded];
+}
+
+static void ApplyScoreMakerStructure(ScoreDocument *document, NSDictionary *structure)
+{
+    NSArray *storedMeasures = [structure objectForKey:@"measures"];
+    if ([storedMeasures isKindOfClass:[NSArray class]] && [storedMeasures count] > 0) {
+        NSMutableArray *measures = [NSMutableArray array];
+        for (NSDictionary *item in storedMeasures) {
+            if (![item isKindOfClass:[NSDictionary class]]) continue;
+            ScoreMeasure *measure = [[[ScoreMeasure alloc] init] autorelease];
+            [measure setNumber:[[item objectForKey:@"number"] integerValue]];
+            [measure setStartTick:[[item objectForKey:@"startTick"] unsignedIntegerValue]];
+            [measure setDurationTicks:MAX((NSUInteger)1, [[item objectForKey:@"durationTicks"] unsignedIntegerValue])];
+            [measure setTimeSignatureNumerator:MAX((NSUInteger)1, [[item objectForKey:@"beats"] unsignedIntegerValue])];
+            [measure setTimeSignatureDenominator:MAX((NSUInteger)1, [[item objectForKey:@"beatType"] unsignedIntegerValue])];
+            [measure setImplicit:[[item objectForKey:@"implicit"] boolValue]];
+            [measures addObject:measure];
+        }
+        if ([measures count]) [document setMeasures:measures];
+    }
+    NSArray *details = [structure objectForKey:@"noteDetails"];
+    NSMutableSet *assigned = [NSMutableSet set];
+    for (NSDictionary *item in details) {
+        if (![item isKindOfClass:[NSDictionary class]]) continue;
+        ScoreNote *note = nil;
+        for (ScoreNote *candidate in [document notes]) {
+            NSValue *identity = [NSValue valueWithPointer:candidate];
+            if ([assigned containsObject:identity]) continue;
+            if ([candidate startTick] == [[item objectForKey:@"startTick"] unsignedIntegerValue] &&
+                [candidate durationTicks] == [[item objectForKey:@"durationTicks"] unsignedIntegerValue] &&
+                [candidate pitch] == [[item objectForKey:@"pitch"] integerValue] &&
+                [candidate track] == [[item objectForKey:@"track"] integerValue] &&
+                [candidate isRest] == [[item objectForKey:@"rest"] boolValue]) {
+                note = candidate;
+                [assigned addObject:identity];
+                break;
+            }
+        }
+        if (!note) continue;
+        [note setVoice:[[item objectForKey:@"voice"] integerValue]];
+        [note setMeasureIndex:[[item objectForKey:@"measureIndex"] integerValue]];
+    }
+    [[document notes] sortUsingSelector:@selector(compareScoreNote:)];
 }
 
 static NSString *StripComments(NSString *input)
@@ -627,6 +709,7 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
     [document setTitle:[[path lastPathComponent] stringByDeletingPathExtension]];
     [document setTicksPerQuarter:480];
     NSDictionary *metadata = ScoreMakerMetadataFromScorefile(raw);
+    NSDictionary *structure = ScoreMakerJSONCommentFromScorefile(raw, ScoreMakerStructureMarker);
     NSString *metadataTitle = [metadata objectForKey:@"title"];
     NSString *metadataTitleFont = [metadata objectForKey:@"titleFont"];
     NSString *metadataComposer = [metadata objectForKey:@"composer"];
@@ -922,6 +1005,11 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
     }
 
     [[document notes] sortUsingSelector:@selector(compareScoreNote:)];
+    if (structure) {
+        ApplyScoreMakerStructure(document, structure);
+    } else {
+        [document buildDefaultMeasures];
+    }
     return document;
 }
 
@@ -947,6 +1035,10 @@ static NSString *ScorefileIdentifierForPartName(NSString *name)
     NSString *metadataComment = ScoreMakerMetadataComment(document, error);
     if (!metadataComment) return nil;
     [output appendString:metadataComment];
+    if ([[document measures] count] == 0) [document buildDefaultMeasures];
+    NSString *structureComment = ScoreMakerStructureComment(document, error);
+    if (!structureComment) return nil;
+    [output appendString:structureComment];
     if ([[document title] length] > 0) {
         [output appendFormat:@"string scoreTitle = \"%@\";\n", EscapeScorefileString([document title])];
     }

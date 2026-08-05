@@ -13,7 +13,7 @@ LDFLAGS := -framework Cocoa -framework AVFoundation -framework AudioToolbox -fra
 APP_DIR := $(BUILD_DIR)/macos/$(APP_NAME).app
 APP_BIN := $(APP_DIR)/Contents/MacOS/$(APP_NAME)
 
-.PHONY: all clean run release
+.PHONY: all clean run release test
 all: $(APP_BIN)
 
 $(APP_BIN): $(SOURCES) Info.plist $(RESOURCE_FILES)
@@ -28,6 +28,11 @@ run: $(APP_BIN)
 
 release:
 	$(MAKE) BUILD_DIR=build/release CFLAGS="-Wall -Wextra -O2 -DNDEBUG -fobjc-exceptions -fconstant-string-class=NSConstantString"
+
+test: $(APP_BIN)
+	mkdir -p "$(BUILD_DIR)/tests"
+	$(CC) $(CFLAGS) -Isrc tests/ScorefileCompatibilityTests.m src/ScorefileParser.m src/MusicXMLParser.m src/ScoreModel.m -framework Foundation -o "$(BUILD_DIR)/tests/scorefile-tests"
+	"$(BUILD_DIR)/tests/scorefile-tests"
 
 else
 CC := clang
