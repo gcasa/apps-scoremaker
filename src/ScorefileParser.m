@@ -73,7 +73,8 @@ static NSString *ScoreMakerStructureComment(ScoreDocument *document, NSError **e
             [NSNumber numberWithUnsignedInteger:[note durationTicks]], @"durationTicks",
             [NSNumber numberWithInteger:[note pitch]], @"pitch",
             [NSNumber numberWithInteger:[note track]], @"track",
-            [NSNumber numberWithBool:[note isRest]], @"rest", nil]];
+            [NSNumber numberWithBool:[note isRest]], @"rest",
+            [NSNumber numberWithUnsignedInteger:[note velocity]], @"velocity", nil]];
     }
     NSDictionary *structure = [NSDictionary dictionaryWithObjectsAndKeys:
         [NSNumber numberWithInteger:2], @"version", measures, @"measures",
@@ -124,6 +125,8 @@ static void ApplyScoreMakerStructure(ScoreDocument *document, NSDictionary *stru
         if (!note) continue;
         [note setVoice:[[item objectForKey:@"voice"] integerValue]];
         [note setMeasureIndex:[[item objectForKey:@"measureIndex"] integerValue]];
+        NSNumber *velocity = [item objectForKey:@"velocity"];
+        if (velocity) [note setVelocity:[velocity unsignedIntegerValue]];
     }
     [[document notes] sortUsingSelector:@selector(compareScoreNote:)];
 }

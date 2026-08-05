@@ -30,6 +30,12 @@ explicit measures without breaking MusicKit-style .score files.
   legacy defaults, V1/V2 metadata, multi-voice scores, pickup measures, and
   .score/MusicXML round trips.
 * Documented the voice, measure, and .score compatibility behavior.
+* Added a resizable bottom playback monitor with an 88-key piano that
+  highlights every currently sounding pitch.
+* Added live per-voice MIDI-velocity meters and numeric velocity readings.
+* Preserved imported MIDI note velocity in the score model, playback export,
+  and backward-compatible V2 .score metadata; legacy notes retain the previous
+  default velocity of 64.
 
 2026-08-01
 ----------

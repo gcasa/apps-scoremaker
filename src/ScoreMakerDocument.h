@@ -1,5 +1,6 @@
 #import <AppKit/AppKit.h>
 #import "ScoreView.h"
+#import "PlaybackMonitorView.h"
 #if defined(__APPLE__)
 #import <AudioToolbox/AudioToolbox.h>
 #import <CoreMIDI/CoreMIDI.h>
@@ -13,6 +14,7 @@
     NSScrollView *_scrollView;
     ScoreView *_scoreView;
     NSView *_inspectorView;
+    PlaybackMonitorView *_playbackMonitorView;
     NSTextField *_tempoField;
     NSSlider *_tempoSlider;
     NSTextField *_timeNumeratorField;

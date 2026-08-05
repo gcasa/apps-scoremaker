@@ -8,6 +8,7 @@
     if (self) {
         _voice = 1;
         _measureIndex = -1;
+        _velocity = 64;
     }
     return self;
 }
@@ -124,6 +125,8 @@ static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
 - (void)setVoice:(NSInteger)voice { _voice = MAX((NSInteger)1, voice); }
 - (NSInteger)measureIndex { return _measureIndex; }
 - (void)setMeasureIndex:(NSInteger)measureIndex { _measureIndex = MAX((NSInteger)-1, measureIndex); }
+- (NSUInteger)velocity { return _velocity; }
+- (void)setVelocity:(NSUInteger)velocity { _velocity = MIN((NSUInteger)127, velocity); }
 
 - (NSComparisonResult)compareScoreNote:(ScoreNote *)other
 {

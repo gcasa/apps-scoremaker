@@ -15,6 +15,7 @@
 
 static CGFloat const InspectorWidth = 280.0;
 static CGFloat const InspectorPadding = 18.0;
+static CGFloat const PlaybackMonitorHeight = 150.0;
 
 #if defined(__APPLE__)
 static NSString *ScoreMakerMIDIEndpointName(MIDIEndpointRef endpoint)
@@ -362,6 +363,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
         _scoreDocument = [document retain];
     }
     [[self scoreView] setDocument:_scoreDocument];
+    [_playbackMonitorView setDocument:_scoreDocument];
     if ([self window]) {
         [[self window] setTitle:[self displayName]];
     }
@@ -376,6 +378,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [_scrollView release];
     [_scoreView release];
     [_inspectorView release];
+    [_playbackMonitorView release];
     [_tempoField release];
     [_tempoSlider release];
     [_timeNumeratorField release];
@@ -433,9 +436,12 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
                                                  name:ScoreViewSelectionDidChangeNotification
                                                object:[self scoreView]];
     NSRect contentBounds = [[[self window] contentView] bounds];
-    NSRect scoreFrame = contentBounds;
+    NSRect scoreFrame = NSMakeRect(0.0, PlaybackMonitorHeight,
+                                   contentBounds.size.width,
+                                   MAX((CGFloat)300.0, contentBounds.size.height - PlaybackMonitorHeight));
     scoreFrame.size.width = MAX((CGFloat)300.0, scoreFrame.size.width - InspectorWidth);
-    NSRect inspectorFrame = NSMakeRect(NSMaxX(scoreFrame), 0.0, InspectorWidth, contentBounds.size.height);
+    NSRect inspectorFrame = NSMakeRect(NSMaxX(scoreFrame), PlaybackMonitorHeight,
+                                       InspectorWidth, scoreFrame.size.height);
 
     [self setScrollView:[[[NSScrollView alloc] initWithFrame:scoreFrame] autorelease]];
     [[self scrollView] setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
@@ -446,6 +452,11 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [[[self window] contentView] addSubview:[self scrollView]];
     [self buildInspectorWithFrame:inspectorFrame];
     [[[self window] contentView] addSubview:[self inspectorView]];
+    _playbackMonitorView = [[PlaybackMonitorView alloc]
+        initWithFrame:NSMakeRect(0.0, 0.0, contentBounds.size.width, PlaybackMonitorHeight)];
+    [_playbackMonitorView setAutoresizingMask:NSViewWidthSizable | NSViewMaxYMargin];
+    [_playbackMonitorView setDocument:[self scoreDocument]];
+    [[[self window] contentView] addSubview:_playbackMonitorView];
     [self refreshInspector];
     [self setWindowController:[[[NSWindowController alloc] initWithWindow:[self window]] autorelease]];
     [self addWindowController:[self windowController]];
@@ -1271,6 +1282,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
         [copy setSlurEnd:[note slurEnd]];
         [copy setVoice:[note voice]];
         [copy setMeasureIndex:[note measureIndex]];
+        [copy setVelocity:[note velocity]];
         [[remainder notes] addObject:copy];
         [remainder setTotalTicks:MAX([remainder totalTicks], [copy startTick] + [copy durationTicks])];
     }
@@ -1317,6 +1329,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [_pauseButton setTitle:@"Pause"];
     [_pauseButton setEnabled:NO];
     [[self scoreView] clearPlayback];
+    [_playbackMonitorView clearPlayback];
     [self stopPlaybackAudioOnly];
 }
 
@@ -1350,6 +1363,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
         [_playbackTimer release];
         _playbackTimer = nil;
         [[self scoreView] clearPlayback];
+        [_playbackMonitorView clearPlayback];
         [_pauseButton setTitle:@"Pause"];
         [_pauseButton setEnabled:NO];
         return;
@@ -1357,6 +1371,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
 
     [[self scoreView] setPlaybackTick:tick];
     [[self scoreView] scrollPlaybackTickToVisible:tick];
+    [_playbackMonitorView setPlaybackTick:tick];
 }
 
 - (void)startPlaybackHighlightAtTick:(NSUInteger)tick
@@ -1368,6 +1383,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     _playbackStartTime = [NSDate timeIntervalSinceReferenceDate] - elapsed;
     [[self scoreView] setPlaybackTick:tick];
     [[self scoreView] scrollPlaybackTickToVisible:tick];
+    [_playbackMonitorView setPlaybackTick:tick];
     _playbackPaused = NO;
     _playbackPausedElapsed = elapsed;
     [_pauseButton setTitle:@"Pause"];

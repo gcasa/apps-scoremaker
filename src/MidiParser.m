@@ -316,12 +316,15 @@ static NSString *GeneralMidiProgramName(unsigned char program)
                 starts = [NSMutableArray array];
                 [activeNotes setObject:starts forKey:key];
             }
-            [starts addObject:[NSNumber numberWithUnsignedInteger:absoluteTick]];
+            [starts addObject:[NSDictionary dictionaryWithObjectsAndKeys:
+                [NSNumber numberWithUnsignedInteger:absoluteTick], @"tick",
+                [NSNumber numberWithUnsignedChar:data2], @"velocity", nil]];
         } else if (eventType == 0x80 || (eventType == 0x90 && data2 == 0)) {
             NSString *key = [NSString stringWithFormat:@"%lu:%u:%u", (unsigned long)trackIndex, channel, data1];
             NSMutableArray *starts = [activeNotes objectForKey:key];
             if ([starts count] > 0) {
-                NSUInteger startTick = [[starts objectAtIndex:0] unsignedIntegerValue];
+                NSDictionary *start = [starts objectAtIndex:0];
+                NSUInteger startTick = [[start objectForKey:@"tick"] unsignedIntegerValue];
                 [starts removeObjectAtIndex:0];
                 if (absoluteTick > startTick) {
                     ScoreNote *note = [[[ScoreNote alloc] init] autorelease];
@@ -330,6 +333,7 @@ static NSString *GeneralMidiProgramName(unsigned char program)
                     [note setTrack:trackIndex];
                     [note setStartTick:startTick];
                     [note setDurationTicks:absoluteTick - startTick];
+                    [note setVelocity:[[start objectForKey:@"velocity"] unsignedIntegerValue]];
                     if (![document nameForTrack:(NSInteger)trackIndex]) {
                         NSString *name = [channelNames objectForKey:[NSNumber numberWithUnsignedChar:channel]];
                         if (!name && channel == 9) {
@@ -467,7 +471,7 @@ static NSString *GeneralMidiProgramName(unsigned char program)
                                [NSNumber numberWithInteger:1], @"order",
                                [NSNumber numberWithUnsignedChar:(unsigned char)(0x90 | channel)], @"status",
                                [NSNumber numberWithUnsignedChar:pitch], @"data1",
-                               [NSNumber numberWithUnsignedChar:64], @"data2",
+                               [NSNumber numberWithUnsignedInteger:[note velocity]], @"data2",
                                nil]];
             [events addObject:[NSDictionary dictionaryWithObjectsAndKeys:
                                [NSNumber numberWithUnsignedInteger:[note startTick] + MAX([note durationTicks], (NSUInteger)1)], @"tick",

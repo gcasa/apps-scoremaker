@@ -13,6 +13,7 @@
     BOOL _slurEnd;
     NSInteger _voice;
     NSInteger _measureIndex;
+    NSUInteger _velocity;
 }
 - (NSInteger)pitch;
 - (void)setPitch:(NSInteger)pitch;
@@ -36,6 +37,8 @@
 - (void)setVoice:(NSInteger)voice;
 - (NSInteger)measureIndex;
 - (void)setMeasureIndex:(NSInteger)measureIndex;
+- (NSUInteger)velocity;
+- (void)setVelocity:(NSUInteger)velocity;
 - (NSComparisonResult)compareScoreNote:(ScoreNote *)other;
 @end
 

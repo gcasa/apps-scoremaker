@@ -18,7 +18,8 @@ static void CompareNotes(ScoreDocument *left, ScoreDocument *right)
         ScoreNote *b = [[right notes] objectAtIndex:index];
         Require([a pitch] == [b pitch] && [a track] == [b track] &&
                 [a startTick] == [b startTick] && [a durationTicks] == [b durationTicks] &&
-                [a isRest] == [b isRest], @"legacy note data changed after round trip");
+                [a isRest] == [b isRest] && [a velocity] == [b velocity],
+                @"legacy note data changed after round trip");
     }
 }
 
@@ -60,6 +61,7 @@ int main(void)
         ScoreNote *note = [[[ScoreNote alloc] init] autorelease];
         [note setPitch:voice == 1 ? 72 : 48]; [note setTrack:0]; [note setChannel:0];
         [note setStartTick:480]; [note setDurationTicks:480]; [note setVoice:voice]; [note setMeasureIndex:1];
+        [note setVelocity:voice == 1 ? 96 : 48];
         [[voices notes] addObject:note];
     }
     NSError *error = nil;
@@ -70,6 +72,8 @@ int main(void)
     Require([[voiceRoundTrip measures] count] == 2, @"explicit measures did not round trip");
     Require([[[voiceRoundTrip notes] objectAtIndex:0] voice] == 1 &&
             [[[voiceRoundTrip notes] objectAtIndex:1] voice] == 2, @"voices did not round trip");
+    Require([[[voiceRoundTrip notes] objectAtIndex:0] velocity] == 96 &&
+            [[[voiceRoundTrip notes] objectAtIndex:1] velocity] == 48, @"velocities did not round trip");
 
     NSData *musicXML = [MusicXMLParser dataForDocument:voices error:&error];
     NSString *xmlPath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"scoremaker-voices.musicxml"];
