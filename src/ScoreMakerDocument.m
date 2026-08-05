@@ -13,7 +13,7 @@
 - (void)setCurrentPosition:(NSTimeInterval)position;
 @end
 
-static CGFloat const InspectorWidth = 280.0;
+static CGFloat const InspectorWidth = 320.0;
 static CGFloat const InspectorPadding = 18.0;
 static CGFloat const PlaybackMonitorHeight = 150.0;
 static CGFloat const InspectorContentHeight = 780.0;
@@ -416,7 +416,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
 
 - (void)makeWindowControllers
 {
-    NSRect frame = NSMakeRect(100.0, 100.0, 1240.0, 880.0);
+    NSRect frame = NSMakeRect(100.0, 100.0, 1320.0, 880.0);
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"

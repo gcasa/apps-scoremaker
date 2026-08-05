@@ -49,6 +49,8 @@ explicit measures without breaking MusicKit-style .score files.
   then automatically reset the keyboard state and audition player.
 * Fixed virtual-piano black-key entry so sharp note names and accidentals are
   retained and rendered correctly instead of being overwritten as naturals.
+* Widened the initial document window and inspector so controls, palette items,
+  and score notes are not clipped by the inspector scrollbar.
 * Preserved imported MIDI note velocity in the score model, playback export,
   and backward-compatible V2 .score metadata; legacy notes retain the previous
   default velocity of 64.
