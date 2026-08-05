@@ -75,6 +75,15 @@ explicit measures without breaking MusicKit-style .score files.
 * Preserved imported MIDI note velocity in the score model, playback export,
   and backward-compatible V2 .score metadata; legacy notes retain the previous
   default velocity of 64.
+* Added density-aware engraving that allocates extra horizontal space to busy
+  onsets, chords, and accidentals while retaining proportional rhythmic space.
+* Reflowed complete explicit measures across systems and pages so dense music
+  uses more systems and sparse music fits naturally without splitting bars.
+* Displaced colliding noteheads in unisons and seconds, staggered close chord
+  accidentals into separate columns, and kept beams, slurs, selection, playback
+  highlights, editing hit tests, and printing aligned to engraved positions.
+* Kept page reflow as a view-only calculation, requiring no changes to the
+  backward-compatible `.score` representation.
 
 2026-08-01
 ----------

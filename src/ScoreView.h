@@ -11,6 +11,7 @@ extern NSString * const ScorePalettePasteboardType;
     ScoreNote *_selectedNote;
     NSUInteger _playbackTick;
     BOOL _showPlayback;
+    NSArray *_systemLayouts;
 }
 - (ScoreDocument *)document;
 - (void)setDocument:(ScoreDocument *)document;
