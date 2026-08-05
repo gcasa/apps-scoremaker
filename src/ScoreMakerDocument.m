@@ -16,7 +16,7 @@
 static CGFloat const InspectorWidth = 320.0;
 static CGFloat const InspectorPadding = 18.0;
 static CGFloat const PlaybackMonitorHeight = 150.0;
-static CGFloat const InspectorContentHeight = 860.0;
+static CGFloat const InspectorContentHeight = 920.0;
 
 #if defined(__APPLE__)
 static NSString *ScoreMakerMIDIEndpointName(MIDIEndpointRef endpoint)
@@ -76,6 +76,10 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
 - (void)reloadMIDIInputs;
 - (void)stopMIDIRecording;
 - (void)handleMIDIInputEvent:(NSDictionary *)event;
+- (void)midiDevicesChanged:(id)sender;
+- (void)registerUndoSnapshotWithName:(NSString *)name;
+- (void)restoreScoreSnapshot:(ScoreDocument *)snapshot;
+- (void)commitUndoBaseline;
 @end
 
 @implementation ScorePaletteItemView
@@ -363,12 +367,40 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     return _scoreDocument;
 }
 
+- (void)commitUndoBaseline
+{
+    [_undoBaseline release];
+    _undoBaseline = _scoreDocument ? [_scoreDocument copy] : nil;
+}
+
+- (void)registerUndoSnapshotWithName:(NSString *)name
+{
+    if (_restoringUndo || !_scoreDocument) return;
+    ScoreDocument *snapshot = [[_scoreDocument copy] autorelease];
+    [[[self undoManager] prepareWithInvocationTarget:self] restoreScoreSnapshot:snapshot];
+    [[self undoManager] setActionName:name ?: @"Edit Score"];
+}
+
+- (void)restoreScoreSnapshot:(ScoreDocument *)snapshot
+{
+    if (!snapshot) return;
+    ScoreDocument *redoSnapshot = [[_scoreDocument copy] autorelease];
+    [[[self undoManager] prepareWithInvocationTarget:self] restoreScoreSnapshot:redoSnapshot];
+    _restoringUndo = YES;
+    [self setScoreDocument:[[snapshot copy] autorelease]];
+    _restoringUndo = NO;
+    [[self scoreView] reloadDocument];
+    [self refreshInspector];
+    [self commitUndoBaseline];
+}
+
 - (void)setScoreDocument:(ScoreDocument *)document
 {
     if (_scoreDocument != document) {
         [_scoreDocument release];
         _scoreDocument = [document retain];
     }
+    if (!_restoringUndo) [self commitUndoBaseline];
     [[self scoreView] setDocument:_scoreDocument];
     [_playbackMonitorView setDocument:_scoreDocument];
     if ([self window]) {
@@ -384,6 +416,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [self stopAudition];
     [self stopMIDIRecording];
     [_midiInputManager disconnect];
+    [_midiInputManager setTarget:nil];
     [_scoreDocument release];
     [_scrollView release];
     [_scoreView release];
@@ -408,12 +441,15 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [_stopButton release];
     [_midiInputPopUp release];
     [_midiQuantizePopUp release];
+    [_midiRoutingPopUp release];
     [_recordButton release];
     [_midiInputManager release];
     [_midiActiveNotes release];
     [_midiHeldStepNotes release];
     [_midiSustainedNotes release];
     [_midiMetronomeSound release];
+    [_undoBaseline release];
+    [_midiRecordingUndoSnapshot release];
     [_annotationTextView release];
 
     [super dealloc];
@@ -426,6 +462,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [self stopAudition];
     [self stopMIDIRecording];
     [_midiInputManager disconnect];
+    [_midiInputManager setTarget:nil];
     [super close];
 }
 
@@ -475,6 +512,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     _midiInputManager = [[MIDIInputManager alloc] init];
     [_midiInputManager setTarget:self];
     [_midiInputManager setAction:@selector(handleMIDIInputEvent:)];
+    [_midiInputManager setChangeAction:@selector(midiDevicesChanged:)];
     _midiActiveNotes = [[NSMutableDictionary alloc] init];
     _midiHeldStepNotes = [[NSMutableSet alloc] init];
     _midiSustainedNotes = [[NSMutableSet alloc] init];
@@ -737,7 +775,18 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [[self inspectorView] addSubview:_recordButton];
     [self reloadMIDIInputs];
 
-    NSTextField *paletteLabel = [self labelWithString:@"Palette" frame:NSMakeRect(InspectorPadding, frame.size.height - 490.0, 120.0, 18.0)];
+    NSTextField *routingLabel = [self labelWithString:@"Input Routing" frame:NSMakeRect(InspectorPadding, frame.size.height - 482.0, 120.0, 18.0)];
+    [routingLabel setAutoresizingMask:NSViewMinYMargin];
+    [[self inspectorView] addSubview:routingLabel];
+    _midiRoutingPopUp = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 510.0, 218.0, 26.0) pullsDown:NO];
+    [_midiRoutingPopUp addItemWithTitle:@"Selected Part"];
+    [[_midiRoutingPopUp lastItem] setRepresentedObject:@"selected"];
+    [_midiRoutingPopUp addItemWithTitle:@"MIDI Channel → Part"];
+    [[_midiRoutingPopUp lastItem] setRepresentedObject:@"channel"];
+    [_midiRoutingPopUp setAutoresizingMask:NSViewMinYMargin];
+    [[self inspectorView] addSubview:_midiRoutingPopUp];
+
+    NSTextField *paletteLabel = [self labelWithString:@"Palette" frame:NSMakeRect(InspectorPadding, frame.size.height - 548.0, 120.0, 18.0)];
     [paletteLabel setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:paletteLabel];
 
@@ -746,7 +795,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     for (NSUInteger i = 0; i < [toolItems count]; i++) {
         ScorePaletteItemView *toolPalette = [[[ScorePaletteItemView alloc]
             initWithFrame:NSMakeRect(InspectorPadding + (CGFloat)i * 61.0,
-                                     frame.size.height - 518.0,
+                                     frame.size.height - 576.0,
                                      58.0,
                                      27.0)
                  document:self
@@ -769,7 +818,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
         NSUInteger denominator = [[denominators objectAtIndex:i] unsignedIntegerValue];
         NSString *valueLabel = denominator == 1 ? @"Whole" : (denominator == 2 ? @"Half" : [NSString stringWithFormat:@"1/%lu", (unsigned long)denominator]);
         NSString *noteLabel = [NSString stringWithFormat:@"%@ Note", valueLabel];
-        ScorePaletteItemView *notePalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 548.0 - (CGFloat)i * 27.0, 110.0, 24.0)
+        ScorePaletteItemView *notePalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 606.0 - (CGFloat)i * 27.0, 110.0, 24.0)
                                                                                 document:self
                                                                                     item:@"note"
                                                                                    label:noteLabel
@@ -778,7 +827,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
         [[self inspectorView] addSubview:notePalette];
 
         NSString *restLabel = [NSString stringWithFormat:@"%@ Rest", valueLabel];
-        ScorePaletteItemView *restPalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding + 122.0, frame.size.height - 548.0 - (CGFloat)i * 27.0, 110.0, 24.0)
+        ScorePaletteItemView *restPalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding + 122.0, frame.size.height - 606.0 - (CGFloat)i * 27.0, 110.0, 24.0)
                                                                                 document:self
                                                                                     item:@"rest"
                                                                                    label:restLabel
@@ -787,11 +836,11 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
         [[self inspectorView] addSubview:restPalette];
     }
 
-    NSTextField *notesLabel = [self labelWithString:@"Score Notes" frame:NSMakeRect(InspectorPadding, frame.size.height - 726.0, 120.0, 18.0)];
+    NSTextField *notesLabel = [self labelWithString:@"Score Notes" frame:NSMakeRect(InspectorPadding, frame.size.height - 784.0, 120.0, 18.0)];
     [notesLabel setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:notesLabel];
 
-    NSScrollView *notesScroll = [[[NSScrollView alloc] initWithFrame:NSMakeRect(InspectorPadding, InspectorPadding, frame.size.width - 2.0 * InspectorPadding, frame.size.height - 760.0)] autorelease];
+    NSScrollView *notesScroll = [[[NSScrollView alloc] initWithFrame:NSMakeRect(InspectorPadding, InspectorPadding, frame.size.width - 2.0 * InspectorPadding, frame.size.height - 818.0)] autorelease];
     [notesScroll setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
     [notesScroll setHasVerticalScroller:YES];
     [notesScroll setBorderType:NSBezelBorder];
@@ -942,6 +991,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     (void)sender;
     ScoreDocument *document = [self scoreDocument];
     if (!document) return;
+    [self registerUndoSnapshotWithName:@"Add Part"];
 
     NSInteger highestPart = -1;
     NSEnumerator *noteEnumerator = [[document notes] objectEnumerator];
@@ -969,6 +1019,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
         }
     }
     [_instrumentPopUp selectItemAtIndex:0];
+    [self commitUndoBaseline];
 }
 
 - (void)partDidChange:(id)sender
@@ -981,11 +1032,13 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
         return;
     }
     NSInteger part = [self selectedPartNumber];
+    [self registerUndoSnapshotWithName:@"Change Part"];
     [note setTrack:part];
     [note setChannel:part % 16];
     [[self scoreView] setNeedsDisplay:YES];
     [self updateChangeCount:NSChangeDone];
     [self refreshInspector];
+    [self commitUndoBaseline];
 }
 
 - (void)instrumentDidChange:(id)sender
@@ -993,9 +1046,11 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     (void)sender;
     ScoreDocument *document = [self scoreDocument];
     if (!document) return;
+    [self registerUndoSnapshotWithName:@"Change Instrument"];
     [document setProgram:[NSNumber numberWithInteger:[_instrumentPopUp indexOfSelectedItem]]
                 forTrack:[self selectedPartNumber]];
     [self updateChangeCount:NSChangeDone];
+    [self commitUndoBaseline];
 }
 
 - (BOOL)isSupportedTimeSignatureDenominator:(NSUInteger)denominator
@@ -1020,6 +1075,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     if (!document) {
         return;
     }
+    if (markChange) [self registerUndoSnapshotWithName:@"Edit Score Metadata"];
 
     NSUInteger oldTempo = [document tempoMicrosecondsPerQuarter];
     NSUInteger oldNumerator = [document timeSignatureNumerator];
@@ -1059,6 +1115,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     if (playbackActive && tempoChanged) {
         [self restartPlaybackAtTick:playbackTick];
     }
+    if (markChange) [self commitUndoBaseline];
 }
 
 - (void)scoreMetadataDidChange:(id)sender
@@ -1092,16 +1149,23 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
         return;
     }
 
+    [self registerUndoSnapshotWithName:@"Edit Score Notes"];
     [document setAnnotationText:[_annotationTextView string]];
     [self updateChangeCount:NSChangeDone];
+    [self commitUndoBaseline];
 }
 
 - (void)scoreViewDidEditScore:(NSNotification *)notification
 {
     (void)notification;
+    if (!_restoringUndo && _undoBaseline) {
+        [[[self undoManager] prepareWithInvocationTarget:self] restoreScoreSnapshot:_undoBaseline];
+        [[self undoManager] setActionName:@"Edit Score"];
+    }
     [[self scoreView] reloadDocument];
     [self updateChangeCount:NSChangeDone];
     [self refreshInspector];
+    [self commitUndoBaseline];
 }
 
 - (void)scoreViewSelectionDidChange:(NSNotification *)notification
@@ -1667,7 +1731,6 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     if (!document) {
         return;
     }
-
     BOOL rest = [[_noteTypePopUp titleOfSelectedItem] isEqualToString:@"Rest"];
     NSInteger pitch = 0;
     if (!rest && ![self pitchString:[_notePitchField stringValue] toMidiPitch:&pitch]) {
@@ -1677,6 +1740,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
         [alert runModal];
         return;
     }
+    [self registerUndoSnapshotWithName:@"Add Note"];
 
     double startBeats = [_noteStartField doubleValue];
     NSUInteger denominator = [self denominatorForSelectedNoteValue];
@@ -1715,6 +1779,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [[self scoreView] reloadDocument];
     [self updateChangeCount:NSChangeDone];
     [self refreshInspector];
+    [self commitUndoBaseline];
 }
 
 - (void)pianoKeyPressed:(id)sender
@@ -1824,6 +1889,30 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     }
 }
 
+- (void)midiDevicesChanged:(id)sender
+{
+    (void)sender;
+    if (!_midiInputPopUp) return;
+    unsigned int selectedEndpoint = [[[_midiInputPopUp selectedItem] representedObject] unsignedIntValue];
+    [self reloadMIDIInputs];
+    NSMenuItem *matchingItem = nil;
+    for (NSMenuItem *item in [_midiInputPopUp itemArray]) {
+        if ([[item representedObject] unsignedIntValue] == selectedEndpoint && selectedEndpoint != 0) {
+            matchingItem = item;
+            break;
+        }
+    }
+    if (matchingItem) {
+        [_midiInputPopUp selectItem:matchingItem];
+        [_midiInputManager connectToSource:selectedEndpoint];
+    } else {
+        [self stopMIDIRecording];
+        [_midiInputManager connectToSource:0];
+        [_midiInputPopUp selectItemAtIndex:0];
+    }
+    [self refreshInspector];
+}
+
 - (void)midiInputDidChange:(id)sender
 {
     (void)sender;
@@ -1855,12 +1944,12 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
 
 - (ScoreNote *)appendMIDINotePitch:(NSInteger)pitch
                           velocity:(NSUInteger)velocity
+                             track:(NSInteger)track
                          startTick:(NSUInteger)startTick
                      durationTicks:(NSUInteger)durationTicks
 {
     ScoreDocument *document = [self scoreDocument];
     if (!document) return nil;
-    NSInteger track = [self selectedPartNumber];
     ScoreNote *note = [[[ScoreNote alloc] init] autorelease];
     [note setPitch:pitch];
     [note setVelocity:velocity];
@@ -1900,6 +1989,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     if (end <= start) end = start + quantum;
     [self appendMIDINotePitch:[[active objectForKey:@"pitch"] integerValue]
                       velocity:[[active objectForKey:@"velocity"] unsignedIntegerValue]
+                         track:[[active objectForKey:@"track"] integerValue]
                      startTick:start
                  durationTicks:end - start];
     [_midiActiveNotes removeObjectForKey:key];
@@ -1915,6 +2005,8 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     NSInteger data2 = [[event objectForKey:@"data2"] integerValue];
     NSTimeInterval time = [[event objectForKey:@"time"] doubleValue];
     NSInteger voice = 1;
+    NSString *routing = [[_midiRoutingPopUp selectedItem] representedObject];
+    NSInteger destinationTrack = [routing isEqualToString:@"channel"] ? channel : [self selectedPartNumber];
 
     if (type == 0xb0 && data1 == 64) {
         BOOL wasDown = _midiSustainDown;
@@ -1941,15 +2033,17 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
                 [_midiActiveNotes setObject:[NSDictionary dictionaryWithObjectsAndKeys:
                     [NSNumber numberWithDouble:time], @"time",
                     [NSNumber numberWithInteger:data1], @"pitch",
-                    [NSNumber numberWithInteger:data2], @"velocity", nil] forKey:key];
+                    [NSNumber numberWithInteger:data2], @"velocity",
+                    [NSNumber numberWithInteger:destinationTrack], @"track", nil] forKey:key];
             }
         } else if (![_midiHeldStepNotes containsObject:key]) {
             [self auditionPitch:data1];
             if ([_midiHeldStepNotes count] == 0) {
+                [self registerUndoSnapshotWithName:@"MIDI Step Entry"];
                 _midiStepStartTick = (NSUInteger)llround(MAX(0.0, [_noteStartField doubleValue]) *
                                                          [[self scoreDocument] ticksPerQuarter]);
             }
-            [self appendMIDINotePitch:data1 velocity:data2 startTick:_midiStepStartTick
+            [self appendMIDINotePitch:data1 velocity:data2 track:destinationTrack startTick:_midiStepStartTick
                          durationTicks:[self durationTicksForNoteValueDenominator:[self denominatorForSelectedNoteValue]]];
             [_midiHeldStepNotes addObject:key];
             [[[self scoreDocument] notes] sortUsingSelector:@selector(compareScoreNote:)];
@@ -1971,6 +2065,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
             double durationBeats = [self beatsForNoteValueDenominator:[self denominatorForSelectedNoteValue]];
             [_noteStartField setDoubleValue:(double)_midiStepStartTick /
                 [[self scoreDocument] ticksPerQuarter] + durationBeats];
+            [self commitUndoBaseline];
         }
     }
 }
@@ -2005,6 +2100,8 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [_midiSustainedNotes removeAllObjects];
     _midiSustainDown = NO;
     _midiRecordedNotes = NO;
+    [_midiRecordingUndoSnapshot release];
+    _midiRecordingUndoSnapshot = [[self scoreDocument] copy];
     _midiRecording = YES;
     _midiCountingIn = YES;
     _midiRecordStartTick = (NSUInteger)llround(MAX(0.0, [_noteStartField doubleValue]) *
@@ -2051,11 +2148,19 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [_playbackMonitorView clearLiveNotes];
     [_recordButton setTitle:@"Record"];
     if (_midiRecordedNotes && [self scoreDocument]) {
+        if (_midiRecordingUndoSnapshot) {
+            [[[self undoManager] prepareWithInvocationTarget:self]
+                restoreScoreSnapshot:_midiRecordingUndoSnapshot];
+            [[self undoManager] setActionName:@"MIDI Recording"];
+        }
         [[[self scoreDocument] notes] sortUsingSelector:@selector(compareScoreNote:)];
         [[self scoreView] reloadDocument];
         [self updateChangeCount:NSChangeDone];
         [self refreshInspector];
+        [self commitUndoBaseline];
     }
+    [_midiRecordingUndoSnapshot release];
+    _midiRecordingUndoSnapshot = nil;
     _midiRecordedNotes = NO;
 }
 
@@ -2110,9 +2215,11 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [[alert window] setInitialFirstResponder:titleField];
     if ([alert runModal] != NSAlertFirstButtonReturn) return;
 
+    [self registerUndoSnapshotWithName:@"Edit Title"];
     [document setTitle:[titleField stringValue]];
     [self updateChangeCount:NSChangeDone];
     [[self scoreView] setNeedsDisplay:YES];
+    [self commitUndoBaseline];
 }
 
 - (void)chooseTitleFont:(id)sender
@@ -2136,9 +2243,11 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     NSFont *convertedFont = [sender convertFont:currentFont];
     if (!convertedFont) return;
 
+    [self registerUndoSnapshotWithName:@"Change Title Font"];
     [[self scoreDocument] setTitleFontName:[convertedFont fontName]];
     [self updateChangeCount:NSChangeDone];
     [[self scoreView] setNeedsDisplay:YES];
+    [self commitUndoBaseline];
 }
 
 - (BOOL)readFromURL:(NSURL *)url ofType:(NSString *)typeName error:(NSError **)error

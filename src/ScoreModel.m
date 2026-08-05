@@ -141,6 +141,16 @@ static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
     return NSOrderedSame;
 }
 
+- (id)copyWithZone:(NSZone *)zone
+{
+    ScoreNote *copy = [[ScoreNote allocWithZone:zone] init];
+    [copy setPitch:_pitch]; [copy setAccidental:_accidental]; [copy setChannel:_channel];
+    [copy setTrack:_track]; [copy setStartTick:_startTick]; [copy setDurationTicks:_durationTicks];
+    [copy setRest:_rest]; [copy setSlurStart:_slurStart]; [copy setSlurEnd:_slurEnd];
+    [copy setVoice:_voice]; [copy setMeasureIndex:_measureIndex]; [copy setVelocity:_velocity];
+    return copy;
+}
+
 @end
 
 @implementation ScoreMeasure
@@ -156,6 +166,14 @@ static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
 - (void)setTimeSignatureDenominator:(NSUInteger)value { _timeSignatureDenominator = MAX((NSUInteger)1, value); }
 - (BOOL)isImplicit { return _implicit; }
 - (void)setImplicit:(BOOL)implicit { _implicit = implicit; }
+- (id)copyWithZone:(NSZone *)zone
+{
+    ScoreMeasure *copy = [[ScoreMeasure allocWithZone:zone] init];
+    [copy setNumber:_number]; [copy setStartTick:_startTick]; [copy setDurationTicks:_durationTicks];
+    [copy setTimeSignatureNumerator:_timeSignatureNumerator];
+    [copy setTimeSignatureDenominator:_timeSignatureDenominator]; [copy setImplicit:_implicit];
+    return copy;
+}
 @end
 
 @implementation ScoreDocument
@@ -432,6 +450,25 @@ static NSInteger DefaultAccidentalForPitch(NSInteger pitch)
         return;
     }
     [_trackPrograms setObject:[NSNumber numberWithInteger:value] forKey:trackNumber];
+}
+
+- (id)copyWithZone:(NSZone *)zone
+{
+    ScoreDocument *copy = [[ScoreDocument allocWithZone:zone] init];
+    [copy setTitle:_title]; [copy setTitleFontName:_titleFontName]; [copy setComposer:_composer];
+    [copy setAnnotationText:_annotationText]; [copy setTicksPerQuarter:_ticksPerQuarter];
+    [copy setTempoMicrosecondsPerQuarter:_tempoMicrosecondsPerQuarter];
+    [copy setTimeSignatureNumerator:_timeSignatureNumerator];
+    [copy setTimeSignatureDenominator:_timeSignatureDenominator]; [copy setTotalTicks:_totalTicks];
+    NSMutableArray *notes = [NSMutableArray arrayWithCapacity:[_notes count]];
+    for (ScoreNote *note in _notes) [notes addObject:[[note copy] autorelease]];
+    [copy setNotes:notes];
+    NSMutableArray *measures = [NSMutableArray arrayWithCapacity:[_measures count]];
+    for (ScoreMeasure *measure in _measures) [measures addObject:[[measure copy] autorelease]];
+    [copy setMeasures:measures];
+    [copy setPartNames:[[[NSMutableDictionary alloc] initWithDictionary:_partNames copyItems:YES] autorelease]];
+    [copy setTrackPrograms:[[[NSMutableDictionary alloc] initWithDictionary:_trackPrograms copyItems:YES] autorelease]];
+    return copy;
 }
 
 @end

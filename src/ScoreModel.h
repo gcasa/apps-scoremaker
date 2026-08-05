@@ -1,6 +1,6 @@
 #import <Foundation/Foundation.h>
 
-@interface ScoreNote : NSObject
+@interface ScoreNote : NSObject <NSCopying>
 {
     NSInteger _pitch;
     NSInteger _channel;
@@ -42,7 +42,7 @@
 - (NSComparisonResult)compareScoreNote:(ScoreNote *)other;
 @end
 
-@interface ScoreMeasure : NSObject
+@interface ScoreMeasure : NSObject <NSCopying>
 {
     NSInteger _number;
     NSUInteger _startTick;
@@ -65,7 +65,7 @@
 - (void)setImplicit:(BOOL)implicit;
 @end
 
-@interface ScoreDocument : NSObject
+@interface ScoreDocument : NSObject <NSCopying>
 {
     NSString *_title;
     NSString *_titleFontName;

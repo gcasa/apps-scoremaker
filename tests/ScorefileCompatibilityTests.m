@@ -84,6 +84,15 @@ int main(void)
     Require([[[xmlRoundTrip notes] objectAtIndex:0] voice] == 1 &&
             [[[xmlRoundTrip notes] objectAtIndex:1] voice] == 2, @"MusicXML voices did not round trip");
 
+    ScoreDocument *snapshot = [voices copy];
+    [[[voices notes] objectAtIndex:0] setPitch:84];
+    [[voices measures] removeLastObject];
+    Require([[[snapshot notes] objectAtIndex:0] pitch] == 72,
+            @"undo snapshot did not deeply copy notes");
+    Require([[snapshot measures] count] == 2,
+            @"undo snapshot did not deeply copy measures");
+    [snapshot release];
+
     NSLog(@"PASS: .score compatibility and V2 structure round trips");
     [pool drain];
     return 0;

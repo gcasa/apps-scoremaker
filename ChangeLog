@@ -60,6 +60,15 @@ explicit measures without breaking MusicKit-style .score files.
   note durations, repeated-note handling, and sustain-pedal extension.
 * Added batch insertion of recorded notes into the selected part while
   preserving velocities and explicit measure associations.
+* Added deep score-model snapshots and an Edit menu with Undo/Redo keyboard
+  shortcuts for score, metadata, title, annotation, part, and instrument edits.
+* Made every completed MIDI recording take a single undoable transaction whose
+  notes, measures, parts, metadata, and velocities are restored by Redo.
+* Added CoreMIDI setup-change notifications so input menus refresh and active
+  recording shuts down safely when a selected device is removed; surviving
+  devices reconnect automatically.
+* Added input routing between the inspector's selected part and direct MIDI
+  channel-to-part mapping.
 * Preserved imported MIDI note velocity in the score model, playback export,
   and backward-compatible V2 .score metadata; legacy notes retain the previous
   default velocity of 64.

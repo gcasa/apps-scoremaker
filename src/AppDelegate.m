@@ -190,6 +190,27 @@
                                            keyEquivalent:@"p"] autorelease]];
     [fileItem setSubmenu:fileMenu];
 
+    NSMenuItem *editItem = [[[NSMenuItem alloc] initWithTitle:@"Edit" action:NULL keyEquivalent:@""] autorelease];
+    [mainMenu addItem:editItem];
+    NSMenu *editMenu = [[[NSMenu alloc] initWithTitle:@"Edit"] autorelease];
+    [editMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Undo"
+                                                  action:@selector(undo:)
+                                           keyEquivalent:@"z"] autorelease]];
+    [editMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Redo"
+                                                  action:@selector(redo:)
+                                           keyEquivalent:@"Z"] autorelease]];
+    [editMenu addItem:[NSMenuItem separatorItem]];
+    [editMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Cut"
+                                                  action:@selector(cut:)
+                                           keyEquivalent:@"x"] autorelease]];
+    [editMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Copy"
+                                                  action:@selector(copy:)
+                                           keyEquivalent:@"c"] autorelease]];
+    [editMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Paste"
+                                                  action:@selector(paste:)
+                                           keyEquivalent:@"v"] autorelease]];
+    [editItem setSubmenu:editMenu];
+
     NSMenuItem *scoreItem = [[[NSMenuItem alloc] initWithTitle:@"Score" action:NULL keyEquivalent:@""] autorelease];
     [mainMenu addItem:scoreItem];
     NSMenu *scoreMenu = [[[NSMenu alloc] initWithTitle:@"Score"] autorelease];

@@ -50,11 +50,32 @@ static void MIDIInputRead(const MIDIPacketList *packets, void *readRefCon, void 
     }
     [pool drain];
 }
+
+static void MIDIInputNotify(const MIDINotification *message, void *refCon)
+{
+    MIDIInputManager *manager = (MIDIInputManager *)refCon;
+    if ((message->messageID == kMIDIMsgObjectAdded || message->messageID == kMIDIMsgObjectRemoved ||
+         message->messageID == kMIDIMsgSetupChanged) && manager->_changeAction)
+        [manager->_target performSelectorOnMainThread:manager->_changeAction withObject:nil waitUntilDone:NO];
+}
 #endif
 
 @implementation MIDIInputManager
+- (id)init
+{
+    self = [super init];
+#if defined(__APPLE__)
+    if (self) {
+        MIDIClientRef client = 0;
+        if (MIDIClientCreate(CFSTR("ScoreMaker MIDI Input"), MIDIInputNotify, self, &client) == noErr)
+            _client = (unsigned int)client;
+    }
+#endif
+    return self;
+}
 - (void)setTarget:(id)target { _target = target; }
 - (void)setAction:(SEL)action { _action = action; }
+- (void)setChangeAction:(SEL)action { _changeAction = action; }
 
 - (NSArray *)availableSources
 {
@@ -79,17 +100,15 @@ static void MIDIInputRead(const MIDIPacketList *packets, void *readRefCon, void 
 #if defined(__APPLE__)
     [self disconnect];
     if (!source) return YES;
-    MIDIClientRef client = 0;
-    MIDIPortRef port = 0;
-    if (MIDIClientCreate(CFSTR("ScoreMaker MIDI Input"), NULL, NULL, &client) != noErr) return NO;
-    if (MIDIInputPortCreate(client, CFSTR("ScoreMaker Input Port"), MIDIInputRead, self, &port) != noErr) {
-        MIDIClientDispose(client);
+    if (!_client) return NO;
+    MIDIPortRef port = (MIDIPortRef)_inputPort;
+    if (!port && MIDIInputPortCreate((MIDIClientRef)_client, CFSTR("ScoreMaker Input Port"), MIDIInputRead, self, &port) != noErr) {
         return NO;
     }
     if (MIDIPortConnectSource(port, (MIDIEndpointRef)source, NULL) != noErr) {
-        MIDIPortDispose(port); MIDIClientDispose(client); return NO;
+        if (!_inputPort) MIDIPortDispose(port);
+        return NO;
     }
-    _client = (unsigned int)client;
     _inputPort = (unsigned int)port;
     _source = source;
     _runningStatus = 0;
@@ -104,11 +123,20 @@ static void MIDIInputRead(const MIDIPacketList *packets, void *readRefCon, void 
 {
 #if defined(__APPLE__)
     if (_inputPort && _source) MIDIPortDisconnectSource((MIDIPortRef)_inputPort, (MIDIEndpointRef)_source);
-    if (_inputPort) MIDIPortDispose((MIDIPortRef)_inputPort);
-    if (_client) MIDIClientDispose((MIDIClientRef)_client);
-    _client = 0; _inputPort = 0; _source = 0; _runningStatus = 0;
+    _source = 0; _runningStatus = 0;
 #endif
 }
 
-- (void)dealloc { [self disconnect]; [super dealloc]; }
+- (void)dealloc
+{
+    _target = nil;
+    _action = NULL;
+    _changeAction = NULL;
+    [self disconnect];
+#if defined(__APPLE__)
+    if (_inputPort) MIDIPortDispose((MIDIPortRef)_inputPort);
+    if (_client) MIDIClientDispose((MIDIClientRef)_client);
+#endif
+    [super dealloc];
+}
 @end

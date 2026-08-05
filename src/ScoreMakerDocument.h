@@ -35,6 +35,7 @@
     NSButton *_stopButton;
     NSPopUpButton *_midiInputPopUp;
     NSPopUpButton *_midiQuantizePopUp;
+    NSPopUpButton *_midiRoutingPopUp;
     NSButton *_recordButton;
     NSTextView *_annotationTextView;
     NSSound *_playbackSound;
@@ -56,6 +57,9 @@
     BOOL _midiCountingIn;
     BOOL _midiSustainDown;
     BOOL _midiRecordedNotes;
+    ScoreDocument *_undoBaseline;
+    ScoreDocument *_midiRecordingUndoSnapshot;
+    BOOL _restoringUndo;
     NSTimer *_playbackTimer;
     NSTimeInterval _playbackStartTime;
     NSTimeInterval _playbackPausedElapsed;
