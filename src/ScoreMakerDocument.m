@@ -65,6 +65,11 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
 - (NSString *)palettePayloadForItem:(NSString *)item denominator:(NSUInteger)denominator;
 @end
 
+@interface ScoreMakerDocument (Playback)
+- (BOOL)restartPlaybackAtTick:(NSUInteger)tick;
+- (void)startPlaybackHighlightAtTick:(NSUInteger)tick;
+@end
+
 @implementation ScorePaletteItemView
 
 - (id)initWithFrame:(NSRect)frame document:(ScoreMakerDocument *)document item:(NSString *)item label:(NSString *)label denominator:(NSUInteger)denominator
@@ -1226,10 +1231,10 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
 
 }
 
-- (void)restartPlaybackAtTick:(NSUInteger)tick
+- (BOOL)restartPlaybackAtTick:(NSUInteger)tick
 {
     ScoreDocument *source = [self scoreDocument];
-    if (!source || tick >= [source totalTicks]) return;
+    if (!source || tick >= [source totalTicks]) return NO;
 
     BOOL wasPaused = _playbackPaused;
     ScoreDocument *remainder = [[[ScoreDocument alloc] init] autorelease];
@@ -1267,14 +1272,14 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     if (!midiData) {
         [[NSDocumentController sharedDocumentController] presentError:error];
         [self stopCurrentPlayback];
-        return;
+        return NO;
     }
 
     [self stopPlaybackAudioOnly];
     if (![self playMIDIDataDirectly:midiData error:&error]) {
         [[NSDocumentController sharedDocumentController] presentError:error];
         [self stopCurrentPlayback];
-        return;
+        return NO;
     }
 
     double secondsPerQuarter = (double)[source tempoMicrosecondsPerQuarter] / 1000000.0;
@@ -1291,6 +1296,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
         _playbackPaused = YES;
         [_pauseButton setTitle:@"Resume"];
     }
+    return YES;
 }
 
 - (void)stopCurrentPlayback
@@ -1345,16 +1351,25 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [[self scoreView] scrollPlaybackTickToVisible:tick];
 }
 
-- (void)startPlaybackHighlight
+- (void)startPlaybackHighlightAtTick:(NSUInteger)tick
 {
-    _playbackStartTime = [NSDate timeIntervalSinceReferenceDate];
-    [[self scoreView] setPlaybackTick:0];
-    [[self scoreView] scrollPlaybackTickToVisible:0];
+    ScoreDocument *document = [self scoreDocument];
+    double secondsPerQuarter = (double)[document tempoMicrosecondsPerQuarter] / 1000000.0;
+    NSTimeInterval elapsed = ((double)tick / (double)MAX((NSUInteger)1, [document ticksPerQuarter])) *
+                             MAX(secondsPerQuarter, 0.001);
+    _playbackStartTime = [NSDate timeIntervalSinceReferenceDate] - elapsed;
+    [[self scoreView] setPlaybackTick:tick];
+    [[self scoreView] scrollPlaybackTickToVisible:tick];
     _playbackPaused = NO;
-    _playbackPausedElapsed = 0.0;
+    _playbackPausedElapsed = elapsed;
     [_pauseButton setTitle:@"Pause"];
     [_pauseButton setEnabled:YES];
     [self schedulePlaybackTimer];
+}
+
+- (void)startPlaybackHighlight
+{
+    [self startPlaybackHighlightAtTick:0];
 }
 
 - (void)pausePlayback:(id)sender
@@ -1456,6 +1471,16 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [self stopCurrentPlayback];
 
     [self syncInspectorMetadataMarkingChange:NO];
+    ScoreNote *selectedNote = [[self scoreView] selectedNote];
+    NSUInteger startTick = selectedNote ? [selectedNote startTick] : 0;
+
+    if (startTick > 0) {
+        if ([self restartPlaybackAtTick:startTick]) {
+            [self startPlaybackHighlightAtTick:startTick];
+        }
+        return;
+    }
+
     NSError *error = nil;
     NSData *midiData = [MidiParser dataForDocument:document error:&error];
     if (!midiData) {
