@@ -1,0 +1,163 @@
+ScoreMaker ChangeLog
+====================
+
+2026-08-05
+----------
+
+Summary: Added position-aware playback and introduced semantic voices and
+explicit measures without breaking MusicKit-style .score files.
+
+* Started playback at the selected note's tick, with beginning-of-score
+  playback retained when no note is selected.
+* Kept playback audio, highlighting, scrolling, pause, resume, tempo changes,
+  and MIDI-output changes synchronized when playback starts after tick zero.
+* Added independent voice numbers to notes; notes from legacy sources default
+  to voice 1.
+* Added explicit measure objects containing measure number, starting tick,
+  duration, time signature, and pickup/implicit status.
+* Derived conventional measures for legacy .score and MIDI files that do not
+  contain explicit measure structure.
+* Updated score editing and playback-copy paths to retain note voice and
+  measure associations.
+* Rendered barlines from explicit measure boundaries and prevented notes in
+  different voices from being combined into the same beam group.
+* Imported and exported MusicXML voice assignments, explicit measures, pickup
+  measures, and per-measure time signatures.
+* Preserved existing .score statements and V1 metadata while adding an
+  ignorable, Base64-encoded JSON `ScoreMaker Structure V2` comment for voices
+  and measures.
+* Added `make test` compatibility coverage for every bundled .score example,
+  legacy defaults, V1/V2 metadata, multi-voice scores, pickup measures, and
+  .score/MusicXML round trips.
+* Documented the voice, measure, and .score compatibility behavior.
+
+2026-08-01
+----------
+
+Summary: Improved score completion and expanded the example library.
+
+* Added a final double barline at the end of the composition.
+* Added further example scores for exercising parsing, rendering, and
+  playback.
+
+2026-07-29
+----------
+
+Summary: Expanded MIDI and scorefile support, enriched sample music, and
+corrected printing and notation behavior.
+
+* Added MIDI-related model, parser, and playback improvements.
+* Expanded document metadata handling across the parser, model, and view.
+* Improved score rendering and added more example music.
+* Added and corrected the Bach violin fugue example.
+* Fixed scorefile parsing problems and broadened support for score grammar
+  constructs.
+* Corrected multi-page printing logic.
+
+2026-07-28
+----------
+
+Summary: Moved playback to AVFoundation and stabilized the document changes.
+
+* Updated ScoreMaker documents to use AVFoundation for MIDI playback.
+* Resolved integration conflicts and applied follow-up document fixes.
+
+2026-07-27
+----------
+
+Summary: Added expressive notation and MusicXML interoperability, then fixed
+the associated parser and display issues.
+
+* Added slurs and sharp/flat notation with related minor fixes.
+* Added MusicXML import and export support.
+* Corrected MusicXML document handling and parser behavior.
+* Fixed delegate and score-view integration issues.
+* Added editable score-title support.
+* Resolved changes merged from the main branch.
+
+2026-07-26
+----------
+
+Summary: Made playback visually track the score and substantially improved
+interactive note, part, and instrument editing.
+
+* Added live note highlighting during playback.
+* Corrected drag-and-drop note positioning and snapping.
+* Reflected the selected note in the inspector.
+* Improved note placement and added part and instrument management.
+* Added example scores and corrected document behavior.
+* Applied several playback fixes and follow-up stabilization attempts.
+* Integrated concurrent changes from the main branch.
+
+2026-07-21
+----------
+
+Summary: Expanded rhythmic notation and note-entry tools.
+
+* Added editable note durations.
+* Added whole-note and half-note rendering.
+* Enhanced the notation palette for entering notes of different values.
+
+2026-07-14
+----------
+
+Summary: Added direct playback stopping.
+
+* Added a Stop button and its playback-control behavior.
+
+2026-07-13
+----------
+
+Summary: Stabilized playback and document shutdown.
+
+* Fixed playback behavior.
+* Stopped and deallocated MIDI-player and NSSound resources when closing a
+  document.
+* Updated the application icon.
+
+2026-06-10
+----------
+
+Summary: Improved instrument consistency during playback.
+
+* Forced playback to use SoundFont instruments where appropriate.
+
+2026-06-05
+----------
+
+Summary: Expanded build documentation.
+
+* Added GNUstep setup and usage instructions to the README.
+
+2026-06-04
+----------
+
+Summary: Converted the initial viewer into a document-oriented, cross-platform
+AppKit/GNUstep application with notation resources and editing foundations.
+
+* Added and refined treble and bass clefs, supporting image resources, and
+  application/document icons.
+* Made the Objective-C code non-ARC, Objective-C 1.0 compatible, and usable
+  with GNUstep.
+* Added the document class and document-oriented creation/opening behavior.
+* Added GNUstep application, menu, and recent-document fixes.
+* Added new supporting classes and reorganized build inputs.
+* Updated Makefile, GNUmakefile, plist, resource, and ignore configuration.
+* Fixed document and score-view crashes and other initial regressions.
+* Added beaming plus sharp and flat rendering.
+* Corrected the README launch command and added screenshots.
+* Cleaned up initial implementation issues and integrated main-branch changes.
+
+2026-06-03
+----------
+
+Summary: Established the ScoreMaker project, licensing, layout, and first
+notation capabilities.
+
+* Added the initial application sources and project files.
+* Removed generated build products and added ignore rules.
+* Renamed and reorganized source directories.
+* Added the GNU Lesser General Public License version 2.1.
+* Fixed an early regression.
+* Added General MIDI instrument names.
+* Added initial treble- and bass-clef support.
