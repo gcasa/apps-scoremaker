@@ -82,6 +82,8 @@ build/macos/ScoreMaker.app/Contents/MacOS/ScoreMaker path/to/song.score
 - `src/MidiParser.*`: Standard MIDI parser.
 - `src/ScorefileParser.*`: MusicKit `.score` reader and writer.
 - `src/ScoreModel.*`: Shared score and note model.
+- `src/NotationModel.*`: Normalized semantic notation elements used across rendering and future playback/export work.
+- `src/EngravingLayout.*`: Deterministic system breaking and rhythmic horizontal-position pipeline.
 - `src/ScoreView.*`: AppKit score rendering.
 - `Info.plist`: macOS app metadata and document type declarations.
 - `Makefile`: macOS and GNUstep build targets.

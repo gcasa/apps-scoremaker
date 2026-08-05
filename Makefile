@@ -1,7 +1,7 @@
 APP_NAME := ScoreMaker
 BUILD_DIR := build
 SRC_DIR := src
-SOURCES := $(SRC_DIR)/main.m $(SRC_DIR)/AppDelegate.m $(SRC_DIR)/ScoreMakerDocumentController.m $(SRC_DIR)/ScoreMakerDocument.m $(SRC_DIR)/MidiParser.m $(SRC_DIR)/MusicXMLParser.m $(SRC_DIR)/ScorefileParser.m $(SRC_DIR)/ScoreModel.m $(SRC_DIR)/ScoreView.m $(SRC_DIR)/PlaybackMonitorView.m $(SRC_DIR)/MIDIInputManager.m
+SOURCES := $(SRC_DIR)/main.m $(SRC_DIR)/AppDelegate.m $(SRC_DIR)/ScoreMakerDocumentController.m $(SRC_DIR)/ScoreMakerDocument.m $(SRC_DIR)/MidiParser.m $(SRC_DIR)/MusicXMLParser.m $(SRC_DIR)/ScorefileParser.m $(SRC_DIR)/ScoreModel.m $(SRC_DIR)/NotationModel.m $(SRC_DIR)/EngravingLayout.m $(SRC_DIR)/ScoreView.m $(SRC_DIR)/PlaybackMonitorView.m $(SRC_DIR)/MIDIInputManager.m
 RESOURCE_FILES := Resources/treble_clef.png Resources/bass_clef.png Resources/ScoreMakerAppIcon.icns Resources/ScoreMakerDocumentIcon.icns
 
 UNAME_S := $(shell uname -s)
@@ -31,7 +31,7 @@ release:
 
 test: $(APP_BIN)
 	mkdir -p "$(BUILD_DIR)/tests"
-	$(CC) $(CFLAGS) -Isrc tests/ScorefileCompatibilityTests.m src/ScorefileParser.m src/MusicXMLParser.m src/ScoreModel.m -framework Foundation -o "$(BUILD_DIR)/tests/scorefile-tests"
+	$(CC) $(CFLAGS) -Isrc tests/ScorefileCompatibilityTests.m src/ScorefileParser.m src/MusicXMLParser.m src/ScoreModel.m src/NotationModel.m src/EngravingLayout.m -framework Foundation -framework AppKit -o "$(BUILD_DIR)/tests/scorefile-tests"
 	"$(BUILD_DIR)/tests/scorefile-tests"
 
 else

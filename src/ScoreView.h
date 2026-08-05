@@ -1,5 +1,6 @@
 #import <AppKit/AppKit.h>
 #import "ScoreModel.h"
+#import "EngravingLayout.h"
 
 extern NSString * const ScoreViewDidEditScoreNotification;
 extern NSString * const ScoreViewSelectionDidChangeNotification;
@@ -11,7 +12,7 @@ extern NSString * const ScorePalettePasteboardType;
     ScoreNote *_selectedNote;
     NSUInteger _playbackTick;
     BOOL _showPlayback;
-    NSArray *_systemLayouts;
+    ScoreEngravingLayout *_engravingLayout;
 }
 - (ScoreDocument *)document;
 - (void)setDocument:(ScoreDocument *)document;

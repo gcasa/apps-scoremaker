@@ -1,6 +1,8 @@
 #import <Foundation/Foundation.h>
 #import "ScorefileParser.h"
 #import "MusicXMLParser.h"
+#import "NotationModel.h"
+#import "EngravingLayout.h"
 
 static void Require(BOOL condition, NSString *message)
 {
@@ -116,6 +118,25 @@ int main(void)
     Require([[snapshot measures] count] == 2,
             @"undo snapshot did not deeply copy measures");
     [snapshot release];
+
+    NSArray *notation = [ScoreNotationModel elementsForDocument:voices];
+    NSUInteger ties = 0, tuplets = 0, dynamics = 0, keys = 0, repeats = 0;
+    for (ScoreNotationElement *element in notation) {
+        if ([element kind] == ScoreNotationTie) ties++;
+        if ([element kind] == ScoreNotationTuplet) tuplets++;
+        if ([element kind] == ScoreNotationDynamic) dynamics++;
+        if ([element kind] == ScoreNotationKeySignature) keys++;
+        if ([element kind] == ScoreNotationRepeat) repeats++;
+    }
+    Require(ties == 2 && tuplets == 1 && dynamics == 1 && keys == 1 && repeats == 1,
+            @"unified notation model omitted semantic elements");
+    ScoreEngraver *engraver = [[[ScoreEngraver alloc] init] autorelease];
+    ScoreEngravingLayout *layout = [engraver layoutDocument:voices musicWidth:684 minimumMeasureWidth:140];
+    Require([[layout systems] count] > 0 && [[layout notationElements] count] == [notation count],
+            @"engraving pipeline did not retain normalized notation");
+    ScoreEngravingSystem *layoutSystem = [[layout systems] objectAtIndex:0];
+    Require([layoutSystem fractionForTick:[layoutSystem startTick]] == 0.0,
+            @"engraving system tick mapping is invalid");
 
     NSLog(@"PASS: .score compatibility and V2 structure round trips");
     [pool drain];

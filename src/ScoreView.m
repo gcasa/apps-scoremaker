@@ -51,8 +51,8 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
         [_document release];
         _document = [document retain];
         _selectedNote = nil;
-        [_systemLayouts release];
-        _systemLayouts = nil;
+        [_engravingLayout release];
+        _engravingLayout = nil;
         [self reloadDocument];
     }
 }
@@ -82,9 +82,8 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     NSUInteger system = 0;
     NSArray *layouts = [self systemLayouts];
     for (NSUInteger index = 0; index < [layouts count]; index++) {
-        NSDictionary *layout = [layouts objectAtIndex:index];
-        if (tick >= [[layout objectForKey:@"start"] unsignedIntegerValue] &&
-            tick < [[layout objectForKey:@"end"] unsignedIntegerValue]) {
+        ScoreEngravingSystem *layout = [layouts objectAtIndex:index];
+        if (tick >= [layout startTick] && tick < [layout endTick]) {
             system = index;
             break;
         }
@@ -100,7 +99,7 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
 - (void)dealloc
 {
     [_document release];
-    [_systemLayouts release];
+    [_engravingLayout release];
     [super dealloc];
 }
 
@@ -114,108 +113,20 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
 
 - (void)reloadDocument
 {
-    [_systemLayouts release];
-    _systemLayouts = nil;
+    [_engravingLayout release];
+    _engravingLayout = nil;
     [self updateFrameForDocument];
     [self setNeedsDisplay:YES];
 }
 
-- (CGFloat)estimatedWidthForMeasure:(ScoreMeasure *)measure
-{
-    NSMutableSet *onsets = [NSMutableSet set];
-    NSUInteger noteCount = 0;
-    NSUInteger accidentalCount = 0;
-    NSMutableDictionary *chordSizes = [NSMutableDictionary dictionary];
-    NSUInteger end = [measure startTick] + [measure durationTicks];
-    for (ScoreNote *note in [_document notes]) {
-        if ([note startTick] < [measure startTick] || [note startTick] >= end) continue;
-        NSNumber *tick = [NSNumber numberWithUnsignedInteger:[note startTick]];
-        [onsets addObject:tick];
-        noteCount++;
-        if ([note accidental] != 0) accidentalCount++;
-        [chordSizes setObject:[NSNumber numberWithUnsignedInteger:[[chordSizes objectForKey:tick] unsignedIntegerValue] + 1]
-                      forKey:tick];
-    }
-    NSUInteger chordExtra = 0;
-    for (NSNumber *size in [chordSizes allValues])
-        if ([size unsignedIntegerValue] > 1) chordExtra += [size unsignedIntegerValue] - 1;
-    return MAX(MinimumMeasureWidth, 42.0 + [onsets count] * 17.0 + noteCount * 2.5 +
-               accidentalCount * 7.0 + chordExtra * 4.0);
-}
-
-- (NSDictionary *)systemLayoutFromMeasureIndex:(NSUInteger)first throughIndex:(NSUInteger)last
-{
-    NSArray *measures = [_document measures];
-    ScoreMeasure *firstMeasure = [measures objectAtIndex:first];
-    ScoreMeasure *lastMeasure = [measures objectAtIndex:last];
-    NSUInteger start = [firstMeasure startTick];
-    NSUInteger end = [lastMeasure startTick] + [lastMeasure durationTicks];
-    NSMutableSet *tickSet = [NSMutableSet setWithObjects:
-        [NSNumber numberWithUnsignedInteger:start], [NSNumber numberWithUnsignedInteger:end], nil];
-    for (NSUInteger index = first; index <= last; index++)
-        [tickSet addObject:[NSNumber numberWithUnsignedInteger:[[measures objectAtIndex:index] startTick]]];
-    for (ScoreNote *note in [_document notes])
-        if ([note startTick] >= start && [note startTick] < end)
-            [tickSet addObject:[NSNumber numberWithUnsignedInteger:[note startTick]]];
-    NSArray *ticks = [[tickSet allObjects] sortedArrayUsingSelector:@selector(compare:)];
-    NSMutableArray *weights = [NSMutableArray array];
-    CGFloat totalWeight = 0.0;
-    for (NSUInteger index = 0; index + 1 < [ticks count]; index++) {
-        NSUInteger tick = [[ticks objectAtIndex:index] unsignedIntegerValue];
-        NSUInteger next = [[ticks objectAtIndex:index + 1] unsignedIntegerValue];
-        NSUInteger symbols = 0, accidentals = 0;
-        for (ScoreNote *note in [_document notes]) {
-            if ([note startTick] != tick) continue;
-            symbols++;
-            if ([note accidental] != 0) accidentals++;
-        }
-        CGFloat rhythmic = 10.0 + 18.0 * sqrt((double)(next - tick) /
-            (double)MAX((NSUInteger)1, [_document ticksPerQuarter]));
-        CGFloat weight = MAX(rhythmic, 15.0 + symbols * 3.5 + accidentals * 6.0);
-        [weights addObject:[NSNumber numberWithDouble:weight]];
-        totalWeight += weight;
-    }
-    NSMutableArray *fractions = [NSMutableArray arrayWithObject:[NSNumber numberWithDouble:0.0]];
-    CGFloat cumulative = 0.0;
-    for (NSNumber *weight in weights) {
-        cumulative += [weight doubleValue];
-        [fractions addObject:[NSNumber numberWithDouble:(totalWeight > 0.0 ? cumulative / totalWeight : 1.0)]];
-    }
-    return [NSDictionary dictionaryWithObjectsAndKeys:
-        [NSNumber numberWithUnsignedInteger:start], @"start",
-        [NSNumber numberWithUnsignedInteger:end], @"end",
-        [NSNumber numberWithUnsignedInteger:first], @"firstMeasure",
-        [NSNumber numberWithUnsignedInteger:last], @"lastMeasure",
-        ticks, @"ticks", fractions, @"fractions", nil];
-}
-
 - (NSArray *)systemLayouts
 {
-    if (_systemLayouts) return _systemLayouts;
+    if (_engravingLayout) return [_engravingLayout systems];
     if (!_document) return [NSArray array];
-    if ([[_document measures] count] == 0) [_document buildDefaultMeasures];
-    NSArray *measures = [_document measures];
-    NSMutableArray *systems = [NSMutableArray array];
-    if ([measures count] == 0) {
-        _systemLayouts = [[NSArray arrayWithObject:[NSDictionary dictionaryWithObjectsAndKeys:
-            [NSNumber numberWithUnsignedInteger:0], @"start",
-            [NSNumber numberWithUnsignedInteger:MAX((NSUInteger)1, [_document ticksPerQuarter] * 4)], @"end", nil]] retain];
-        return _systemLayouts;
-    }
-    NSUInteger first = 0;
-    CGFloat used = 0.0;
-    for (NSUInteger index = 0; index < [measures count]; index++) {
-        CGFloat width = [self estimatedWidthForMeasure:[measures objectAtIndex:index]];
-        if (index > first && used + width > EngravingMusicWidth) {
-            [systems addObject:[self systemLayoutFromMeasureIndex:first throughIndex:index - 1]];
-            first = index;
-            used = 0.0;
-        }
-        used += MIN(width, EngravingMusicWidth);
-    }
-    [systems addObject:[self systemLayoutFromMeasureIndex:first throughIndex:[measures count] - 1]];
-    _systemLayouts = [systems copy];
-    return _systemLayouts;
+    ScoreEngraver *engraver = [[[ScoreEngraver alloc] init] autorelease];
+    _engravingLayout = [[engraver layoutDocument:_document musicWidth:EngravingMusicWidth
+                              minimumMeasureWidth:MinimumMeasureWidth] retain];
+    return [_engravingLayout systems];
 }
 
 - (NSUInteger)systemCount
@@ -397,9 +308,9 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     CGFloat right = PageWidth - Margin;
     CGFloat trebleTop = y;
     CGFloat bassTop = y + StaffGap;
-    NSDictionary *layout = [[self systemLayouts] objectAtIndex:systemIndex];
-    NSUInteger startTick = [[layout objectForKey:@"start"] unsignedIntegerValue];
-    NSUInteger endTick = [[layout objectForKey:@"end"] unsignedIntegerValue];
+    ScoreEngravingSystem *layout = [[self systemLayouts] objectAtIndex:systemIndex];
+    NSUInteger startTick = [layout startTick];
+    NSUInteger endTick = [layout endTick];
 
     [self drawPartNamesForSystemStart:startTick
                             systemEnd:endTick
@@ -890,26 +801,13 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     if (end <= start) return left;
     if (tick <= start) return left;
     if (tick >= end) return right;
-    NSDictionary *matching = nil;
-    for (NSDictionary *layout in [self systemLayouts]) {
-        if ([[layout objectForKey:@"start"] unsignedIntegerValue] == start &&
-            [[layout objectForKey:@"end"] unsignedIntegerValue] == end) {
+    ScoreEngravingSystem *matching = nil;
+    for (ScoreEngravingSystem *layout in [self systemLayouts]) {
+        if ([layout startTick] == start && [layout endTick] == end) {
             matching = layout; break;
         }
     }
-    NSArray *ticks = [matching objectForKey:@"ticks"];
-    NSArray *fractions = [matching objectForKey:@"fractions"];
-    if ([ticks count] == [fractions count] && [ticks count] > 1) {
-        for (NSUInteger index = 0; index + 1 < [ticks count]; index++) {
-            NSUInteger a = [[ticks objectAtIndex:index] unsignedIntegerValue];
-            NSUInteger b = [[ticks objectAtIndex:index + 1] unsignedIntegerValue];
-            if (tick < a || tick > b) continue;
-            CGFloat local = b > a ? (CGFloat)(tick - a) / (CGFloat)(b - a) : 0.0;
-            CGFloat fa = [[fractions objectAtIndex:index] doubleValue];
-            CGFloat fb = [[fractions objectAtIndex:index + 1] doubleValue];
-            return left + (fa + local * (fb - fa)) * (right - left);
-        }
-    }
+    if (matching) return left + [matching fractionForTick:tick] * (right - left);
     return left + (CGFloat)(tick - start) / (CGFloat)(end - start) * (right - left);
 }
 
@@ -1166,9 +1064,9 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
         if (point.x < staffLeft - 20.0 || point.x > staffRight + 20.0) {
             continue;
         }
-        NSDictionary *layout = [[self systemLayouts] objectAtIndex:system];
-        if (systemStart) *systemStart = [[layout objectForKey:@"start"] unsignedIntegerValue];
-        if (systemEnd) *systemEnd = [[layout objectForKey:@"end"] unsignedIntegerValue];
+        ScoreEngravingSystem *layout = [[self systemLayouts] objectAtIndex:system];
+        if (systemStart) *systemStart = [layout startTick];
+        if (systemEnd) *systemEnd = [layout endTick];
         if (left) *left = staffLeft;
         if (right) *right = staffRight;
         if (staffTop) *staffTop = top;
@@ -1205,11 +1103,10 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
 
     CGFloat fraction = right > left ? (clampedX - left) / (right - left) : 0.0;
     NSUInteger tick = systemStart + (NSUInteger)llround(fraction * (CGFloat)(systemEnd - systemStart));
-    for (NSDictionary *layout in [self systemLayouts]) {
-        if ([[layout objectForKey:@"start"] unsignedIntegerValue] != systemStart ||
-            [[layout objectForKey:@"end"] unsignedIntegerValue] != systemEnd) continue;
-        NSArray *ticks = [layout objectForKey:@"ticks"];
-        NSArray *fractions = [layout objectForKey:@"fractions"];
+    for (ScoreEngravingSystem *layout in [self systemLayouts]) {
+        if ([layout startTick] != systemStart || [layout endTick] != systemEnd) continue;
+        NSArray *ticks = [layout ticks];
+        NSArray *fractions = [layout fractions];
         for (NSUInteger index = 0; index + 1 < [fractions count]; index++) {
             CGFloat fa = [[fractions objectAtIndex:index] doubleValue];
             CGFloat fb = [[fractions objectAtIndex:index + 1] doubleValue];
@@ -1300,9 +1197,9 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
         NSUInteger systemStart = 0;
         NSUInteger systemEnd = 0;
         for (NSUInteger index = 0; index < systemCount; index++) {
-            NSDictionary *layout = [[self systemLayouts] objectAtIndex:index];
-            NSUInteger start = [[layout objectForKey:@"start"] unsignedIntegerValue];
-            NSUInteger end = [[layout objectForKey:@"end"] unsignedIntegerValue];
+            ScoreEngravingSystem *layout = [[self systemLayouts] objectAtIndex:index];
+            NSUInteger start = [layout startTick];
+            NSUInteger end = [layout endTick];
             if ([note startTick] >= start && [note startTick] < end) {
                 system = index; systemStart = start; systemEnd = end; break;
             }
