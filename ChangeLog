@@ -51,6 +51,15 @@ explicit measures without breaking MusicKit-style .score files.
   retained and rendered correctly instead of being overwritten as naturals.
 * Widened the initial document window and inspector so controls, palette items,
   and score notes are not clipped by the inspector scrollbar.
+* Added macOS CoreMIDI input-device discovery, selection, connection, and
+  thread-safe delivery of note and sustain-pedal messages to documents.
+* Added velocity-sensitive MIDI step entry with live piano/meter feedback,
+  audition, insertion-point advancement, and held-note chord grouping.
+* Added real-time MIDI recording with a one-measure audible count-in,
+  continuing metronome, selectable 1/8, 1/16, or 1/32 quantization, captured
+  note durations, repeated-note handling, and sustain-pedal extension.
+* Added batch insertion of recorded notes into the selected part while
+  preserving velocities and explicit measure associations.
 * Preserved imported MIDI note velocity in the score model, playback export,
   and backward-compatible V2 .score metadata; legacy notes retain the previous
   default velocity of 64.

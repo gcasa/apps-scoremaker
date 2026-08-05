@@ -16,7 +16,7 @@
 static CGFloat const InspectorWidth = 320.0;
 static CGFloat const InspectorPadding = 18.0;
 static CGFloat const PlaybackMonitorHeight = 150.0;
-static CGFloat const InspectorContentHeight = 780.0;
+static CGFloat const InspectorContentHeight = 860.0;
 
 #if defined(__APPLE__)
 static NSString *ScoreMakerMIDIEndpointName(MIDIEndpointRef endpoint)
@@ -73,6 +73,9 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
 - (void)stopAudition;
 - (void)auditionPitch:(NSInteger)pitch;
 - (void)finishAudition:(NSTimer *)timer;
+- (void)reloadMIDIInputs;
+- (void)stopMIDIRecording;
+- (void)handleMIDIInputEvent:(NSDictionary *)event;
 @end
 
 @implementation ScorePaletteItemView
@@ -379,6 +382,8 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [[NSNotificationCenter defaultCenter] removeObserver:self];
     [self stopCurrentPlayback];
     [self stopAudition];
+    [self stopMIDIRecording];
+    [_midiInputManager disconnect];
     [_scoreDocument release];
     [_scrollView release];
     [_scoreView release];
@@ -401,6 +406,14 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [_playButton release];
     [_pauseButton release];
     [_stopButton release];
+    [_midiInputPopUp release];
+    [_midiQuantizePopUp release];
+    [_recordButton release];
+    [_midiInputManager release];
+    [_midiActiveNotes release];
+    [_midiHeldStepNotes release];
+    [_midiSustainedNotes release];
+    [_midiMetronomeSound release];
     [_annotationTextView release];
 
     [super dealloc];
@@ -411,6 +424,8 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [[NSNotificationCenter defaultCenter] removeObserver:self];
     [self stopCurrentPlayback];
     [self stopAudition];
+    [self stopMIDIRecording];
+    [_midiInputManager disconnect];
     [super close];
 }
 
@@ -457,6 +472,13 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [[self scrollView] setDocumentView:[self scoreView]];
 
     [[[self window] contentView] addSubview:[self scrollView]];
+    _midiInputManager = [[MIDIInputManager alloc] init];
+    [_midiInputManager setTarget:self];
+    [_midiInputManager setAction:@selector(handleMIDIInputEvent:)];
+    _midiActiveNotes = [[NSMutableDictionary alloc] init];
+    _midiHeldStepNotes = [[NSMutableSet alloc] init];
+    _midiSustainedNotes = [[NSMutableSet alloc] init];
+
     CGFloat inspectorContentHeight = MAX(InspectorContentHeight, inspectorFrame.size.height);
     [self buildInspectorWithFrame:NSMakeRect(0.0, 0.0, InspectorWidth, inspectorContentHeight)];
     _inspectorScrollView = [[NSScrollView alloc] initWithFrame:inspectorFrame];
@@ -691,7 +713,31 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [_instrumentPopUp setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:_instrumentPopUp];
 
-    NSTextField *paletteLabel = [self labelWithString:@"Palette" frame:NSMakeRect(InspectorPadding, frame.size.height - 424.0, 120.0, 18.0)];
+    NSTextField *midiInputLabel = [self labelWithString:@"MIDI Input" frame:NSMakeRect(InspectorPadding, frame.size.height - 424.0, 120.0, 18.0)];
+    [midiInputLabel setAutoresizingMask:NSViewMinYMargin];
+    [[self inspectorView] addSubview:midiInputLabel];
+    NSTextField *gridLabel = [self labelWithString:@"Grid" frame:NSMakeRect(InspectorPadding + 156.0, frame.size.height - 424.0, 50.0, 18.0)];
+    [gridLabel setAutoresizingMask:NSViewMinYMargin];
+    [[self inspectorView] addSubview:gridLabel];
+    _midiInputPopUp = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 452.0, 150.0, 26.0) pullsDown:NO];
+    [_midiInputPopUp setTarget:self];
+    [_midiInputPopUp setAction:@selector(midiInputDidChange:)];
+    [_midiInputPopUp setAutoresizingMask:NSViewMinYMargin];
+    [[self inspectorView] addSubview:_midiInputPopUp];
+    _midiQuantizePopUp = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(InspectorPadding + 156.0, frame.size.height - 452.0, 62.0, 26.0) pullsDown:NO];
+    [_midiQuantizePopUp addItemsWithTitles:[NSArray arrayWithObjects:@"1/8", @"1/16", @"1/32", nil]];
+    [_midiQuantizePopUp selectItemWithTitle:@"1/16"];
+    [_midiQuantizePopUp setAutoresizingMask:NSViewMinYMargin];
+    [[self inspectorView] addSubview:_midiQuantizePopUp];
+    _recordButton = [[NSButton alloc] initWithFrame:NSMakeRect(InspectorPadding + 224.0, frame.size.height - 452.0, 60.0, 26.0)];
+    [_recordButton setTitle:@"Record"];
+    [_recordButton setTarget:self];
+    [_recordButton setAction:@selector(toggleMIDIRecording:)];
+    [_recordButton setAutoresizingMask:NSViewMinYMargin];
+    [[self inspectorView] addSubview:_recordButton];
+    [self reloadMIDIInputs];
+
+    NSTextField *paletteLabel = [self labelWithString:@"Palette" frame:NSMakeRect(InspectorPadding, frame.size.height - 490.0, 120.0, 18.0)];
     [paletteLabel setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:paletteLabel];
 
@@ -700,7 +746,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     for (NSUInteger i = 0; i < [toolItems count]; i++) {
         ScorePaletteItemView *toolPalette = [[[ScorePaletteItemView alloc]
             initWithFrame:NSMakeRect(InspectorPadding + (CGFloat)i * 61.0,
-                                     frame.size.height - 452.0,
+                                     frame.size.height - 518.0,
                                      58.0,
                                      27.0)
                  document:self
@@ -723,7 +769,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
         NSUInteger denominator = [[denominators objectAtIndex:i] unsignedIntegerValue];
         NSString *valueLabel = denominator == 1 ? @"Whole" : (denominator == 2 ? @"Half" : [NSString stringWithFormat:@"1/%lu", (unsigned long)denominator]);
         NSString *noteLabel = [NSString stringWithFormat:@"%@ Note", valueLabel];
-        ScorePaletteItemView *notePalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 482.0 - (CGFloat)i * 27.0, 110.0, 24.0)
+        ScorePaletteItemView *notePalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding, frame.size.height - 548.0 - (CGFloat)i * 27.0, 110.0, 24.0)
                                                                                 document:self
                                                                                     item:@"note"
                                                                                    label:noteLabel
@@ -732,7 +778,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
         [[self inspectorView] addSubview:notePalette];
 
         NSString *restLabel = [NSString stringWithFormat:@"%@ Rest", valueLabel];
-        ScorePaletteItemView *restPalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding + 122.0, frame.size.height - 482.0 - (CGFloat)i * 27.0, 110.0, 24.0)
+        ScorePaletteItemView *restPalette = [[[ScorePaletteItemView alloc] initWithFrame:NSMakeRect(InspectorPadding + 122.0, frame.size.height - 548.0 - (CGFloat)i * 27.0, 110.0, 24.0)
                                                                                 document:self
                                                                                     item:@"rest"
                                                                                    label:restLabel
@@ -741,11 +787,11 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
         [[self inspectorView] addSubview:restPalette];
     }
 
-    NSTextField *notesLabel = [self labelWithString:@"Score Notes" frame:NSMakeRect(InspectorPadding, frame.size.height - 660.0, 120.0, 18.0)];
+    NSTextField *notesLabel = [self labelWithString:@"Score Notes" frame:NSMakeRect(InspectorPadding, frame.size.height - 726.0, 120.0, 18.0)];
     [notesLabel setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:notesLabel];
 
-    NSScrollView *notesScroll = [[[NSScrollView alloc] initWithFrame:NSMakeRect(InspectorPadding, InspectorPadding, frame.size.width - 2.0 * InspectorPadding, frame.size.height - 694.0)] autorelease];
+    NSScrollView *notesScroll = [[[NSScrollView alloc] initWithFrame:NSMakeRect(InspectorPadding, InspectorPadding, frame.size.width - 2.0 * InspectorPadding, frame.size.height - 760.0)] autorelease];
     [notesScroll setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
     [notesScroll setHasVerticalScroller:YES];
     [notesScroll setBorderType:NSBezelBorder];
@@ -787,6 +833,8 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [_playButton setEnabled:hasDocument];
     [_pauseButton setEnabled:hasDocument && (_playbackTimer || _playbackPaused)];
     [_stopButton setEnabled:hasDocument];
+    [_recordButton setEnabled:hasDocument && [_midiInputPopUp indexOfSelectedItem] > 0];
+    [_midiQuantizePopUp setEnabled:hasDocument];
     [_annotationTextView setEditable:hasDocument];
 
     if (!hasDocument) {
@@ -1762,6 +1810,253 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
 {
     (void)timer;
     [self stopAudition];
+}
+
+- (void)reloadMIDIInputs
+{
+    if (!_midiInputPopUp) return;
+    [_midiInputPopUp removeAllItems];
+    [_midiInputPopUp addItemWithTitle:@"None (Step Entry Off)"];
+    [[_midiInputPopUp lastItem] setRepresentedObject:[NSNumber numberWithUnsignedInt:0]];
+    for (NSDictionary *source in [_midiInputManager availableSources]) {
+        [_midiInputPopUp addItemWithTitle:[source objectForKey:@"name"]];
+        [[_midiInputPopUp lastItem] setRepresentedObject:[source objectForKey:@"endpoint"]];
+    }
+}
+
+- (void)midiInputDidChange:(id)sender
+{
+    (void)sender;
+    [self stopMIDIRecording];
+    unsigned int endpoint = [[[_midiInputPopUp selectedItem] representedObject] unsignedIntValue];
+    if (![_midiInputManager connectToSource:endpoint]) {
+        [_midiInputPopUp selectItemAtIndex:0];
+        NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+        [alert setMessageText:@"The MIDI input could not be opened"];
+        [alert setInformativeText:@"Disconnect and reconnect the keyboard, then choose it again."];
+        [alert runModal];
+    }
+    [self refreshInspector];
+}
+
+- (NSUInteger)midiQuantizationTicks
+{
+    NSString *title = [_midiQuantizePopUp titleOfSelectedItem];
+    NSInteger denominator = [[title substringFromIndex:MIN((NSUInteger)2, [title length])] integerValue];
+    if (denominator <= 0) denominator = 16;
+    return MAX((NSUInteger)1, ([[self scoreDocument] ticksPerQuarter] * 4) / (NSUInteger)denominator);
+}
+
+- (NSUInteger)quantizedTick:(NSUInteger)tick
+{
+    NSUInteger quantum = [self midiQuantizationTicks];
+    return ((tick + quantum / 2) / quantum) * quantum;
+}
+
+- (ScoreNote *)appendMIDINotePitch:(NSInteger)pitch
+                          velocity:(NSUInteger)velocity
+                         startTick:(NSUInteger)startTick
+                     durationTicks:(NSUInteger)durationTicks
+{
+    ScoreDocument *document = [self scoreDocument];
+    if (!document) return nil;
+    NSInteger track = [self selectedPartNumber];
+    ScoreNote *note = [[[ScoreNote alloc] init] autorelease];
+    [note setPitch:pitch];
+    [note setVelocity:velocity];
+    [note setTrack:track];
+    [note setChannel:track % 16];
+    [note setVoice:1];
+    [note setStartTick:startTick];
+    [note setDurationTicks:MAX((NSUInteger)1, durationTicks)];
+    [[document notes] addObject:note];
+    NSUInteger end = startTick + [note durationTicks];
+    [document setTotalTicks:MAX([document totalTicks], end)];
+    ScoreMeasure *measure = [document ensureMeasureContainingTick:startTick];
+    [note setMeasureIndex:(NSInteger)[[document measures] indexOfObjectIdenticalTo:measure]];
+    if (![document nameForTrack:track])
+        [document setName:[NSString stringWithFormat:@"Part %ld", (long)(track + 1)] forTrack:track];
+    return note;
+}
+
+- (NSUInteger)midiTickForTime:(NSTimeInterval)time
+{
+    ScoreDocument *document = [self scoreDocument];
+    double secondsPerQuarter = (double)[document tempoMicrosecondsPerQuarter] / 1000000.0;
+    if (secondsPerQuarter <= 0.0) secondsPerQuarter = 0.5;
+    NSTimeInterval elapsed = MAX((NSTimeInterval)0.0, time - _midiRecordStartTime);
+    return _midiRecordStartTick + (NSUInteger)llround((elapsed / secondsPerQuarter) * [document ticksPerQuarter]);
+}
+
+- (void)finishRecordedMIDIKey:(NSString *)key atTime:(NSTimeInterval)endTime
+{
+    NSDictionary *active = [_midiActiveNotes objectForKey:key];
+    if (!active) return;
+    NSUInteger rawStart = [self midiTickForTime:[[active objectForKey:@"time"] doubleValue]];
+    NSUInteger rawEnd = [self midiTickForTime:endTime];
+    NSUInteger start = [self quantizedTick:rawStart];
+    NSUInteger end = [self quantizedTick:rawEnd];
+    NSUInteger quantum = [self midiQuantizationTicks];
+    if (end <= start) end = start + quantum;
+    [self appendMIDINotePitch:[[active objectForKey:@"pitch"] integerValue]
+                      velocity:[[active objectForKey:@"velocity"] unsignedIntegerValue]
+                     startTick:start
+                 durationTicks:end - start];
+    [_midiActiveNotes removeObjectForKey:key];
+    [_midiSustainedNotes removeObject:key];
+    _midiRecordedNotes = YES;
+}
+
+- (void)handleMIDIInputEvent:(NSDictionary *)event
+{
+    NSInteger type = [[event objectForKey:@"type"] integerValue];
+    NSInteger channel = [[event objectForKey:@"channel"] integerValue];
+    NSInteger data1 = [[event objectForKey:@"data1"] integerValue];
+    NSInteger data2 = [[event objectForKey:@"data2"] integerValue];
+    NSTimeInterval time = [[event objectForKey:@"time"] doubleValue];
+    NSInteger voice = 1;
+
+    if (type == 0xb0 && data1 == 64) {
+        BOOL wasDown = _midiSustainDown;
+        _midiSustainDown = data2 >= 64;
+        if (wasDown && !_midiSustainDown && _midiRecording && !_midiCountingIn) {
+            NSArray *keys = [[_midiSustainedNotes allObjects] copy];
+            for (NSString *key in keys) [self finishRecordedMIDIKey:key atTime:time];
+            [keys release];
+        }
+        return;
+    }
+
+    BOOL noteOn = type == 0x90 && data2 > 0;
+    BOOL noteOff = type == 0x80 || (type == 0x90 && data2 == 0);
+    if (!noteOn && !noteOff) return;
+    NSString *key = [NSString stringWithFormat:@"%ld:%ld", (long)channel, (long)data1];
+
+    if (noteOn) {
+        [_playbackMonitorView liveNoteOn:data1 voice:voice velocity:data2];
+        if (_midiRecording) {
+            if (!_midiCountingIn) {
+                if ([_midiActiveNotes objectForKey:key])
+                    [self finishRecordedMIDIKey:key atTime:time];
+                [_midiActiveNotes setObject:[NSDictionary dictionaryWithObjectsAndKeys:
+                    [NSNumber numberWithDouble:time], @"time",
+                    [NSNumber numberWithInteger:data1], @"pitch",
+                    [NSNumber numberWithInteger:data2], @"velocity", nil] forKey:key];
+            }
+        } else if (![_midiHeldStepNotes containsObject:key]) {
+            [self auditionPitch:data1];
+            if ([_midiHeldStepNotes count] == 0) {
+                _midiStepStartTick = (NSUInteger)llround(MAX(0.0, [_noteStartField doubleValue]) *
+                                                         [[self scoreDocument] ticksPerQuarter]);
+            }
+            [self appendMIDINotePitch:data1 velocity:data2 startTick:_midiStepStartTick
+                         durationTicks:[self durationTicksForNoteValueDenominator:[self denominatorForSelectedNoteValue]]];
+            [_midiHeldStepNotes addObject:key];
+            [[[self scoreDocument] notes] sortUsingSelector:@selector(compareScoreNote:)];
+            [[self scoreView] reloadDocument];
+            [self updateChangeCount:NSChangeDone];
+        }
+        return;
+    }
+
+    [_playbackMonitorView liveNoteOff:data1];
+    if (_midiRecording) {
+        if (!_midiCountingIn) {
+            if (_midiSustainDown) [_midiSustainedNotes addObject:key];
+            else [self finishRecordedMIDIKey:key atTime:time];
+        }
+    } else {
+        [_midiHeldStepNotes removeObject:key];
+        if ([_midiHeldStepNotes count] == 0) {
+            double durationBeats = [self beatsForNoteValueDenominator:[self denominatorForSelectedNoteValue]];
+            [_noteStartField setDoubleValue:(double)_midiStepStartTick /
+                [[self scoreDocument] ticksPerQuarter] + durationBeats];
+        }
+    }
+}
+
+- (void)midiMetronomeTick:(NSTimer *)timer
+{
+    (void)timer;
+    if (_midiMetronomeSound) [_midiMetronomeSound play]; else NSBeep();
+    if (_midiCountingIn) {
+        NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
+        if (now + 0.001 >= _midiRecordStartTime) {
+            _midiCountingIn = NO;
+            _midiCountInBeatsRemaining = 0;
+            [_recordButton setTitle:@"Stop"];
+        } else if (_midiCountInBeatsRemaining > 0) {
+            _midiCountInBeatsRemaining--;
+            [_recordButton setTitle:[NSString stringWithFormat:@"%lu", (unsigned long)_midiCountInBeatsRemaining]];
+        }
+    }
+}
+
+- (void)toggleMIDIRecording:(id)sender
+{
+    (void)sender;
+    if (_midiRecording) {
+        [self stopMIDIRecording];
+        return;
+    }
+    if (![self scoreDocument] || [_midiInputPopUp indexOfSelectedItem] <= 0) return;
+    [self stopCurrentPlayback];
+    [_midiActiveNotes removeAllObjects];
+    [_midiSustainedNotes removeAllObjects];
+    _midiSustainDown = NO;
+    _midiRecordedNotes = NO;
+    _midiRecording = YES;
+    _midiCountingIn = YES;
+    _midiRecordStartTick = (NSUInteger)llround(MAX(0.0, [_noteStartField doubleValue]) *
+                                               [[self scoreDocument] ticksPerQuarter]);
+    NSUInteger beats = MAX((NSUInteger)1, [[self scoreDocument] timeSignatureNumerator]);
+    _midiCountInBeatsRemaining = beats;
+    NSTimeInterval beatDuration = (double)[[self scoreDocument] tempoMicrosecondsPerQuarter] / 1000000.0;
+    if (beatDuration <= 0.0) beatDuration = 0.5;
+    _midiRecordStartTime = [NSDate timeIntervalSinceReferenceDate] + beatDuration * beats;
+    [_recordButton setTitle:[NSString stringWithFormat:@"%lu", (unsigned long)beats]];
+    _midiMetronomeSound = [[NSSound soundNamed:@"Tink"] retain];
+    _midiMetronomeTimer = [[NSTimer scheduledTimerWithTimeInterval:beatDuration
+                                                            target:self
+                                                          selector:@selector(midiMetronomeTick:)
+                                                          userInfo:nil repeats:YES] retain];
+    [self midiMetronomeTick:_midiMetronomeTimer];
+}
+
+- (void)stopMIDIRecording
+{
+    if (!_midiRecording && !_midiMetronomeTimer) {
+        [_midiHeldStepNotes removeAllObjects];
+        [_playbackMonitorView clearLiveNotes];
+        return;
+    }
+    NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
+    if (_midiRecording && !_midiCountingIn) {
+        NSArray *keys = [[_midiActiveNotes allKeys] copy];
+        for (NSString *key in keys) [self finishRecordedMIDIKey:key atTime:now];
+        [keys release];
+    }
+    [_midiMetronomeTimer invalidate];
+    [_midiMetronomeTimer release];
+    _midiMetronomeTimer = nil;
+    [_midiMetronomeSound stop];
+    [_midiMetronomeSound release];
+    _midiMetronomeSound = nil;
+    _midiRecording = NO;
+    _midiCountingIn = NO;
+    _midiSustainDown = NO;
+    [_midiActiveNotes removeAllObjects];
+    [_midiSustainedNotes removeAllObjects];
+    [_midiHeldStepNotes removeAllObjects];
+    [_playbackMonitorView clearLiveNotes];
+    [_recordButton setTitle:@"Record"];
+    if (_midiRecordedNotes && [self scoreDocument]) {
+        [[[self scoreDocument] notes] sortUsingSelector:@selector(compareScoreNote:)];
+        [[self scoreView] reloadDocument];
+        [self updateChangeCount:NSChangeDone];
+        [self refreshInspector];
+    }
+    _midiRecordedNotes = NO;
 }
 
 - (void)printDocument:(id)sender

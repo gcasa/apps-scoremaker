@@ -10,6 +10,16 @@ static BOOL IsBlackKey(NSInteger pitch)
 
 @implementation PlaybackMonitorView
 
+- (id)initWithFrame:(NSRect)frame
+{
+    self = [super initWithFrame:frame];
+    if (self) {
+        _inputPitch = -1;
+        _liveNotes = [[NSMutableDictionary alloc] init];
+    }
+    return self;
+}
+
 - (BOOL)isFlipped { return YES; }
 
 - (void)setDocument:(ScoreDocument *)document
@@ -36,6 +46,27 @@ static BOOL IsBlackKey(NSInteger pitch)
         _inputPitch = -1;
         [self setNeedsDisplay:YES];
     }
+}
+
+- (void)liveNoteOn:(NSInteger)pitch voice:(NSInteger)voice velocity:(NSUInteger)velocity
+{
+    [_liveNotes setObject:[NSDictionary dictionaryWithObjectsAndKeys:
+        [NSNumber numberWithInteger:MAX((NSInteger)1, voice)], @"voice",
+        [NSNumber numberWithUnsignedInteger:MIN((NSUInteger)127, velocity)], @"velocity", nil]
+                   forKey:[NSNumber numberWithInteger:pitch]];
+    [self setNeedsDisplay:YES];
+}
+
+- (void)liveNoteOff:(NSInteger)pitch
+{
+    [_liveNotes removeObjectForKey:[NSNumber numberWithInteger:pitch]];
+    [self setNeedsDisplay:YES];
+}
+
+- (void)clearLiveNotes
+{
+    [_liveNotes removeAllObjects];
+    [self setNeedsDisplay:YES];
 }
 
 - (void)setPlaybackTick:(NSUInteger)tick
@@ -72,6 +103,7 @@ static BOOL IsBlackKey(NSInteger pitch)
         [activePitches addObject:[NSNumber numberWithInteger:[note pitch]]];
     if (_inputPitch >= 21 && _inputPitch <= 108)
         [activePitches addObject:[NSNumber numberWithInteger:_inputPitch]];
+    [activePitches addObjectsFromArray:[_liveNotes allKeys]];
 
     NSInteger firstPitch = 21; // A0
     NSInteger lastPitch = 108; // C8
@@ -176,6 +208,8 @@ static BOOL IsBlackKey(NSInteger pitch)
     NSMutableSet *voiceSet = [NSMutableSet set];
     for (ScoreNote *note in [_document notes])
         [voiceSet addObject:[NSNumber numberWithInteger:[note voice]]];
+    for (NSDictionary *live in [_liveNotes allValues])
+        [voiceSet addObject:[live objectForKey:@"voice"]];
     if ([voiceSet count] == 0) [voiceSet addObject:[NSNumber numberWithInteger:1]];
     NSArray *voices = [[voiceSet allObjects] sortedArrayUsingSelector:@selector(compare:)];
     CGFloat rowHeight = MIN((CGFloat)24.0, NSHeight(rect) / MAX((CGFloat)1.0, (CGFloat)[voices count]));
@@ -187,6 +221,9 @@ static BOOL IsBlackKey(NSInteger pitch)
         NSUInteger velocity = 0;
         for (ScoreNote *note in activeNotes)
             if ([note voice] == [voice integerValue]) velocity = MAX(velocity, [note velocity]);
+        for (NSDictionary *live in [_liveNotes allValues])
+            if ([[live objectForKey:@"voice"] integerValue] == [voice integerValue])
+                velocity = MAX(velocity, [[live objectForKey:@"velocity"] unsignedIntegerValue]);
         CGFloat y = NSMinY(rect) + (CGFloat)index * rowHeight;
         NSString *label = [NSString stringWithFormat:@"Voice %@", voice];
         [label drawInRect:NSMakeRect(NSMinX(rect), y + 3.0, 58.0, rowHeight) withAttributes:labelAttributes];
@@ -227,6 +264,7 @@ static BOOL IsBlackKey(NSInteger pitch)
 - (void)dealloc
 {
     [_document release];
+    [_liveNotes release];
     [super dealloc];
 }
 

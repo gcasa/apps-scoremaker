@@ -9,6 +9,7 @@
     NSInteger _inputPitch;
     id _target;
     SEL _action;
+    NSMutableDictionary *_liveNotes;
 }
 - (void)setDocument:(ScoreDocument *)document;
 - (void)setPlaybackTick:(NSUInteger)tick;
@@ -18,4 +19,7 @@
 - (NSInteger)inputPitch;
 - (void)setInputPitch:(NSInteger)pitch;
 - (void)resetInputPitch;
+- (void)liveNoteOn:(NSInteger)pitch voice:(NSInteger)voice velocity:(NSUInteger)velocity;
+- (void)liveNoteOff:(NSInteger)pitch;
+- (void)clearLiveNotes;
 @end

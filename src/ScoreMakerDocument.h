@@ -1,6 +1,7 @@
 #import <AppKit/AppKit.h>
 #import "ScoreView.h"
 #import "PlaybackMonitorView.h"
+#import "MIDIInputManager.h"
 #if defined(__APPLE__)
 #import <AudioToolbox/AudioToolbox.h>
 #import <CoreMIDI/CoreMIDI.h>
@@ -32,12 +33,29 @@
     NSButton *_playButton;
     NSButton *_pauseButton;
     NSButton *_stopButton;
+    NSPopUpButton *_midiInputPopUp;
+    NSPopUpButton *_midiQuantizePopUp;
+    NSButton *_recordButton;
     NSTextView *_annotationTextView;
     NSSound *_playbackSound;
     id _midiPlayer;
     NSSound *_auditionSound;
     id _auditionPlayer;
     NSTimer *_auditionResetTimer;
+    MIDIInputManager *_midiInputManager;
+    NSMutableDictionary *_midiActiveNotes;
+    NSMutableSet *_midiHeldStepNotes;
+    NSMutableSet *_midiSustainedNotes;
+    NSTimer *_midiMetronomeTimer;
+    NSSound *_midiMetronomeSound;
+    NSTimeInterval _midiRecordStartTime;
+    NSUInteger _midiRecordStartTick;
+    NSUInteger _midiStepStartTick;
+    NSUInteger _midiCountInBeatsRemaining;
+    BOOL _midiRecording;
+    BOOL _midiCountingIn;
+    BOOL _midiSustainDown;
+    BOOL _midiRecordedNotes;
     NSTimer *_playbackTimer;
     NSTimeInterval _playbackStartTime;
     NSTimeInterval _playbackPausedElapsed;

@@ -16,7 +16,8 @@ ScoreMaker_OBJC_FILES = \
 	src/ScoreModel.m \
 	src/ScoreMakerDocument.m \
 	src/ScoreView.m \
-	src/PlaybackMonitorView.m
+	src/PlaybackMonitorView.m \
+	src/MIDIInputManager.m
 
 ScoreMaker_HEADER_FILES = \
 	src/AppDelegate.h \
@@ -27,7 +28,8 @@ ScoreMaker_HEADER_FILES = \
 	src/ScoreModel.h \
 	src/ScoreMakerDocument.h \
 	src/ScoreView.h \
-	src/PlaybackMonitorView.h
+	src/PlaybackMonitorView.h \
+	src/MIDIInputManager.h
 
 ScoreMaker_RESOURCE_FILES = \
 	Resources/bass_clef.png \
