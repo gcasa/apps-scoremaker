@@ -39,6 +39,14 @@ explicit measures without breaking MusicKit-style .score files.
 * Added immediate audio audition when an on-screen piano key is pressed, using
   the selected part's instrument and current rhythmic duration without
   disturbing the main playback controls.
+* Made the inspector vertically scrollable, increased the initial window
+  height, and reserved separate non-overlapping areas for the palette and
+  score-notes editor at every supported window size.
+* Reset all piano-key input and playback highlights when playback stops or
+  reaches the end of the score.
+* Marked middle C on the on-screen piano with a `C` label.
+* Made a clicked piano key remain highlighted only for its audition duration,
+  then automatically reset the keyboard state and audition player.
 * Preserved imported MIDI note velocity in the score model, playback export,
   and backward-compatible V2 .score metadata; legacy notes retain the previous
   default velocity of 64.

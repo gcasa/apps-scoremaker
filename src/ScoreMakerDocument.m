@@ -16,6 +16,7 @@
 static CGFloat const InspectorWidth = 280.0;
 static CGFloat const InspectorPadding = 18.0;
 static CGFloat const PlaybackMonitorHeight = 150.0;
+static CGFloat const InspectorContentHeight = 780.0;
 
 #if defined(__APPLE__)
 static NSString *ScoreMakerMIDIEndpointName(MIDIEndpointRef endpoint)
@@ -71,6 +72,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
 - (void)startPlaybackHighlightAtTick:(NSUInteger)tick;
 - (void)stopAudition;
 - (void)auditionPitch:(NSInteger)pitch;
+- (void)finishAudition:(NSTimer *)timer;
 @end
 
 @implementation ScorePaletteItemView
@@ -380,6 +382,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [_scoreDocument release];
     [_scrollView release];
     [_scoreView release];
+    [_inspectorScrollView release];
     [_inspectorView release];
     [_playbackMonitorView release];
     [_tempoField release];
@@ -413,7 +416,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
 
 - (void)makeWindowControllers
 {
-    NSRect frame = NSMakeRect(100.0, 100.0, 1240.0, 760.0);
+    NSRect frame = NSMakeRect(100.0, 100.0, 1240.0, 880.0);
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -454,8 +457,19 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [[self scrollView] setDocumentView:[self scoreView]];
 
     [[[self window] contentView] addSubview:[self scrollView]];
-    [self buildInspectorWithFrame:inspectorFrame];
-    [[[self window] contentView] addSubview:[self inspectorView]];
+    CGFloat inspectorContentHeight = MAX(InspectorContentHeight, inspectorFrame.size.height);
+    [self buildInspectorWithFrame:NSMakeRect(0.0, 0.0, InspectorWidth, inspectorContentHeight)];
+    _inspectorScrollView = [[NSScrollView alloc] initWithFrame:inspectorFrame];
+    [_inspectorScrollView setAutoresizingMask:NSViewMinXMargin | NSViewHeightSizable];
+    [_inspectorScrollView setHasVerticalScroller:YES];
+    [_inspectorScrollView setHasHorizontalScroller:NO];
+    [_inspectorScrollView setBorderType:NSNoBorder];
+    [_inspectorScrollView setDocumentView:[self inspectorView]];
+    [[[self window] contentView] addSubview:_inspectorScrollView];
+    NSClipView *inspectorClip = [_inspectorScrollView contentView];
+    [inspectorClip scrollToPoint:NSMakePoint(0.0, MAX((CGFloat)0.0,
+        inspectorContentHeight - NSHeight([inspectorClip bounds])))];
+    [_inspectorScrollView reflectScrolledClipView:inspectorClip];
     _playbackMonitorView = [[PlaybackMonitorView alloc]
         initWithFrame:NSMakeRect(0.0, 0.0, contentBounds.size.width, PlaybackMonitorHeight)];
     [_playbackMonitorView setAutoresizingMask:NSViewWidthSizable | NSViewMaxYMargin];
@@ -492,7 +506,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
 - (void)buildInspectorWithFrame:(NSRect)frame
 {
     [self setInspectorView:[[[NSView alloc] initWithFrame:frame] autorelease]];
-    [[self inspectorView] setAutoresizingMask:NSViewMinXMargin | NSViewHeightSizable];
+    [[self inspectorView] setAutoresizingMask:NSViewWidthSizable];
 
     NSTextField *title = [self labelWithString:@"Score" frame:NSMakeRect(InspectorPadding, frame.size.height - 36.0, 220.0, 20.0)];
     [title setFont:[NSFont boldSystemFontOfSize:15.0]];
@@ -1667,19 +1681,27 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
 
 - (void)stopAudition
 {
+    [_auditionResetTimer invalidate];
+    [_auditionResetTimer release];
+    _auditionResetTimer = nil;
     [(AVMIDIPlayer *)_auditionPlayer stop];
     [_auditionPlayer release];
     _auditionPlayer = nil;
     [_auditionSound stop];
     [_auditionSound release];
     _auditionSound = nil;
+    [_playbackMonitorView resetInputPitch];
 }
 
 - (void)auditionPitch:(NSInteger)pitch
 {
     [self stopAudition];
+    [_playbackMonitorView setInputPitch:pitch];
     ScoreDocument *source = [self scoreDocument];
-    if (!source) return;
+    if (!source) {
+        [_playbackMonitorView resetInputPitch];
+        return;
+    }
 
     ScoreDocument *audition = [[[ScoreDocument alloc] init] autorelease];
     [audition setTicksPerQuarter:[source ticksPerQuarter]];
@@ -1697,16 +1719,42 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [audition setTotalTicks:[note durationTicks]];
 
     NSData *data = [MidiParser dataForDocument:audition error:NULL];
-    if (!data) return;
+    if (!data) {
+        [_playbackMonitorView resetInputPitch];
+        return;
+    }
+    BOOL started = NO;
     AVMIDIPlayer *player = [[[AVMIDIPlayer alloc] initWithData:data soundBankURL:nil error:NULL] autorelease];
     if (player) {
         [player prepareToPlay];
         [player play:nil];
         _auditionPlayer = [player retain];
+        started = YES;
+    } else {
+        NSSound *sound = [[[NSSound alloc] initWithData:data] autorelease];
+        if (sound && [sound play]) {
+            _auditionSound = [sound retain];
+            started = YES;
+        }
+    }
+    if (!started) {
+        [_playbackMonitorView resetInputPitch];
         return;
     }
-    NSSound *sound = [[[NSSound alloc] initWithData:data] autorelease];
-    if (sound && [sound play]) _auditionSound = [sound retain];
+    double secondsPerQuarter = (double)[audition tempoMicrosecondsPerQuarter] / 1000000.0;
+    NSTimeInterval duration = ((double)[note durationTicks] /
+        (double)MAX((NSUInteger)1, [audition ticksPerQuarter])) * MAX(secondsPerQuarter, 0.001);
+    _auditionResetTimer = [[NSTimer scheduledTimerWithTimeInterval:MAX((NSTimeInterval)0.05, duration)
+                                                            target:self
+                                                          selector:@selector(finishAudition:)
+                                                          userInfo:nil
+                                                           repeats:NO] retain];
+}
+
+- (void)finishAudition:(NSTimer *)timer
+{
+    (void)timer;
+    [self stopAudition];
 }
 
 - (void)printDocument:(id)sender

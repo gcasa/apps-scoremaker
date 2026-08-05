@@ -16,4 +16,6 @@
 - (void)setTarget:(id)target;
 - (void)setAction:(SEL)action;
 - (NSInteger)inputPitch;
+- (void)setInputPitch:(NSInteger)pitch;
+- (void)resetInputPitch;
 @end

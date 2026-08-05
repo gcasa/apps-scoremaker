@@ -13,6 +13,7 @@
     ScoreDocument *_scoreDocument;
     NSScrollView *_scrollView;
     ScoreView *_scoreView;
+    NSScrollView *_inspectorScrollView;
     NSView *_inspectorView;
     PlaybackMonitorView *_playbackMonitorView;
     NSTextField *_tempoField;
@@ -36,6 +37,7 @@
     id _midiPlayer;
     NSSound *_auditionSound;
     id _auditionPlayer;
+    NSTimer *_auditionResetTimer;
     NSTimer *_playbackTimer;
     NSTimeInterval _playbackStartTime;
     NSTimeInterval _playbackPausedElapsed;

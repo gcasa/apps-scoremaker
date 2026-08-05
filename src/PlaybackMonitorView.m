@@ -18,12 +18,25 @@ static BOOL IsBlackKey(NSInteger pitch)
         [_document release];
         _document = [document retain];
     }
+    _inputPitch = -1;
     [self setNeedsDisplay:YES];
 }
 
 - (void)setTarget:(id)target { _target = target; }
 - (void)setAction:(SEL)action { _action = action; }
 - (NSInteger)inputPitch { return _inputPitch; }
+- (void)setInputPitch:(NSInteger)pitch
+{
+    _inputPitch = pitch;
+    [self setNeedsDisplay:YES];
+}
+- (void)resetInputPitch
+{
+    if (_inputPitch != -1) {
+        _inputPitch = -1;
+        [self setNeedsDisplay:YES];
+    }
+}
 
 - (void)setPlaybackTick:(NSUInteger)tick
 {
@@ -35,6 +48,7 @@ static BOOL IsBlackKey(NSInteger pitch)
 - (void)clearPlayback
 {
     _showPlayback = NO;
+    _inputPitch = -1;
     [self setNeedsDisplay:YES];
 }
 
@@ -77,6 +91,16 @@ static BOOL IsBlackKey(NSInteger pitch)
         BOOL active = [activePitches containsObject:[NSNumber numberWithInteger:pitch]];
         [(active ? [NSColor colorWithCalibratedRed:0.25 green:0.65 blue:1.0 alpha:1.0] : [NSColor whiteColor]) setFill];
         NSRectFill(key);
+        if (pitch == 60) {
+            NSMutableParagraphStyle *centered = [[[NSMutableParagraphStyle alloc] init] autorelease];
+            [centered setAlignment:NSTextAlignmentCenter];
+            NSDictionary *attributes = [NSDictionary dictionaryWithObjectsAndKeys:
+                [NSFont boldSystemFontOfSize:9.0], NSFontAttributeName,
+                [NSColor blackColor], NSForegroundColorAttributeName,
+                centered, NSParagraphStyleAttributeName, nil];
+            [@"C" drawInRect:NSMakeRect(x, NSMaxY(key) - 15.0, whiteWidth, 12.0)
+              withAttributes:attributes];
+        }
         whiteIndex++;
     }
 
@@ -143,8 +167,7 @@ static BOOL IsBlackKey(NSInteger pitch)
         [super mouseDown:event];
         return;
     }
-    _inputPitch = pitch;
-    [self setNeedsDisplay:YES];
+    [self setInputPitch:pitch];
     if (_action) [NSApp sendAction:_action to:_target from:self];
 }
 

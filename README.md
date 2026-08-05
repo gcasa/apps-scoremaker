@@ -15,7 +15,7 @@ The renderer is intentionally lightweight. It focuses on extracting timing, pitc
 - Read MIDI tempo and time-signature metadata when available.
 - Add pitched notes and edit score notes, tempo, and time signature from the inspector next to the sheet.
 - Play the current score through AVFoundation on macOS or GNUstep.
-- Show active notes on an 88-key piano, display live MIDI-velocity meters for each voice during playback, and audition and enter notes by clicking the piano keys.
+- Show active notes on an 88-key piano with middle C marked, display live MIDI-velocity meters for each voice during playback, and audition and enter notes by clicking the piano keys.
 - Print the rendered score from the standard print panel.
 - Support common MusicKit scorefile timing, variable, `freq`, `keyNum`, `noteOn`, `noteOff`, `noteUpdate`, and duration-note patterns.
 - Map common scorefile instrument, patch, sound, preset, and program declarations to General MIDI sounds for playback.
@@ -52,6 +52,7 @@ The GNUstep build expects `gnustep-config`, GNUstep GUI libraries, and an Object
 Open the app, then choose `File > Open...` to load a `.mid`, `.midi`, or `.score` file.
 
 Use the inspector on the right side of the sheet to add pitched notes, add freeform score notes, change the tempo in BPM, or change the time signature.
+The inspector scrolls vertically when the window is not tall enough to show its complete palette and score-notes editor.
 
 Choose `Score > Play` or the Play button in the inspector to hear the current score. ScoreMaker sends the generated MIDI data directly to AVFoundation, using the platform AVFoundation implementation on macOS or GNUstep.
 
