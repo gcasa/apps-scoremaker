@@ -34,6 +34,8 @@
     NSTextView *_annotationTextView;
     NSSound *_playbackSound;
     id _midiPlayer;
+    NSSound *_auditionSound;
+    id _auditionPlayer;
     NSTimer *_playbackTimer;
     NSTimeInterval _playbackStartTime;
     NSTimeInterval _playbackPausedElapsed;

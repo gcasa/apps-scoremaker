@@ -69,6 +69,8 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
 @interface ScoreMakerDocument (Playback)
 - (BOOL)restartPlaybackAtTick:(NSUInteger)tick;
 - (void)startPlaybackHighlightAtTick:(NSUInteger)tick;
+- (void)stopAudition;
+- (void)auditionPitch:(NSInteger)pitch;
 @end
 
 @implementation ScorePaletteItemView
@@ -374,6 +376,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
 {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
     [self stopCurrentPlayback];
+    [self stopAudition];
     [_scoreDocument release];
     [_scrollView release];
     [_scoreView release];
@@ -404,6 +407,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
 {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
     [self stopCurrentPlayback];
+    [self stopAudition];
     [super close];
 }
 
@@ -1333,6 +1337,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [[self scoreView] clearPlayback];
     [_playbackMonitorView clearPlayback];
     [self stopPlaybackAudioOnly];
+    [self stopAudition];
 }
 
 - (void)schedulePlaybackTimer
@@ -1654,9 +1659,54 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
 {
     NSInteger pitch = [(PlaybackMonitorView *)sender inputPitch];
     if (pitch < 0 || pitch > 127 || ![self scoreDocument] || _playbackTimer || _playbackPaused) return;
+    [self auditionPitch:pitch];
     [_noteTypePopUp selectItemWithTitle:@"Note"];
     [_notePitchField setIntegerValue:pitch];
     [self addNote:sender];
+}
+
+- (void)stopAudition
+{
+    [(AVMIDIPlayer *)_auditionPlayer stop];
+    [_auditionPlayer release];
+    _auditionPlayer = nil;
+    [_auditionSound stop];
+    [_auditionSound release];
+    _auditionSound = nil;
+}
+
+- (void)auditionPitch:(NSInteger)pitch
+{
+    [self stopAudition];
+    ScoreDocument *source = [self scoreDocument];
+    if (!source) return;
+
+    ScoreDocument *audition = [[[ScoreDocument alloc] init] autorelease];
+    [audition setTicksPerQuarter:[source ticksPerQuarter]];
+    [audition setTempoMicrosecondsPerQuarter:[source tempoMicrosecondsPerQuarter]];
+    NSInteger sourceTrack = [self selectedPartNumber];
+    NSNumber *program = [source programForTrack:sourceTrack];
+    if (program) [audition setProgram:program forTrack:0];
+    ScoreNote *note = [[[ScoreNote alloc] init] autorelease];
+    [note setPitch:pitch];
+    [note setTrack:0];
+    [note setChannel:sourceTrack % 16];
+    [note setDurationTicks:[self durationTicksForNoteValueDenominator:[self denominatorForSelectedNoteValue]]];
+    [note setVelocity:96];
+    [[audition notes] addObject:note];
+    [audition setTotalTicks:[note durationTicks]];
+
+    NSData *data = [MidiParser dataForDocument:audition error:NULL];
+    if (!data) return;
+    AVMIDIPlayer *player = [[[AVMIDIPlayer alloc] initWithData:data soundBankURL:nil error:NULL] autorelease];
+    if (player) {
+        [player prepareToPlay];
+        [player play:nil];
+        _auditionPlayer = [player retain];
+        return;
+    }
+    NSSound *sound = [[[NSSound alloc] initWithData:data] autorelease];
+    if (sound && [sound play]) _auditionSound = [sound retain];
 }
 
 - (void)printDocument:(id)sender

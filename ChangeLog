@@ -36,6 +36,9 @@ explicit measures without breaking MusicKit-style .score files.
 * Added stronger dark separators between adjacent white piano keys.
 * Made the on-screen piano keys clickable for score entry using the current
   inspector duration, start position, and selected part.
+* Added immediate audio audition when an on-screen piano key is pressed, using
+  the selected part's instrument and current rhythmic duration without
+  disturbing the main playback controls.
 * Preserved imported MIDI note velocity in the score model, playback export,
   and backward-compatible V2 .score metadata; legacy notes retain the previous
   default velocity of 64.
