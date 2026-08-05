@@ -1675,7 +1675,14 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     if (pitch < 0 || pitch > 127 || ![self scoreDocument] || _playbackTimer || _playbackPaused) return;
     [self auditionPitch:pitch];
     [_noteTypePopUp selectItemWithTitle:@"Note"];
-    [_notePitchField setIntegerValue:pitch];
+    static NSString *pitchNames[] = {
+        @"C", @"C#", @"D", @"D#", @"E", @"F",
+        @"F#", @"G", @"G#", @"A", @"A#", @"B"
+    };
+    NSInteger pitchClass = pitch % 12;
+    NSInteger octave = pitch / 12 - 1;
+    [_notePitchField setStringValue:[NSString stringWithFormat:@"%@%ld",
+        pitchNames[pitchClass], (long)octave]];
     [self addNote:sender];
 }
 
