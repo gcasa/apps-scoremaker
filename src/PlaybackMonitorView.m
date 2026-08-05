@@ -130,7 +130,7 @@ static BOOL IsBlackKey(NSInteger pitch)
                 [NSFont boldSystemFontOfSize:9.0], NSFontAttributeName,
                 [NSColor blackColor], NSForegroundColorAttributeName,
                 centered, NSParagraphStyleAttributeName, nil];
-            [@"C" drawInRect:NSMakeRect(x, NSMaxY(key) - 15.0, whiteWidth, 12.0)
+            [@"C4" drawInRect:NSMakeRect(x, NSMaxY(key) - 15.0, whiteWidth, 12.0)
               withAttributes:attributes];
         }
         whiteIndex++;

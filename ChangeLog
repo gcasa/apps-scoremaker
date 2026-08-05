@@ -44,7 +44,7 @@ explicit measures without breaking MusicKit-style .score files.
   score-notes editor at every supported window size.
 * Reset all piano-key input and playback highlights when playback stops or
   reaches the end of the score.
-* Marked middle C on the on-screen piano with a `C` label.
+* Marked middle C on the on-screen piano with its full `C4` scientific-pitch label.
 * Made a clicked piano key remain highlighted only for its audition duration,
   then automatically reset the keyboard state and audition player.
 * Fixed virtual-piano black-key entry so sharp note names and accidentals are
@@ -69,6 +69,9 @@ explicit measures without breaking MusicKit-style .score files.
   devices reconnect automatically.
 * Added input routing between the inspector's selected part and direct MIDI
   channel-to-part mapping.
+* Added `Neon Causeway`, an original copyright-free synthwave example that
+  demonstrates layered bass, pad, and lead parts without reproducing any
+  protected television theme.
 * Preserved imported MIDI note velocity in the score model, playback export,
   and backward-compatible V2 .score metadata; legacy notes retain the previous
   default velocity of 64.

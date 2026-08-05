@@ -1,0 +1,225 @@
+/*
+ * Neon Causeway
+ * An original copyright-free synthwave example written for ScoreMaker.
+ * This composition may be used, modified, and redistributed without restriction.
+ */
+
+info tempo:112 timeSignature:4/4;
+string scoreTitle = "Neon Causeway";
+string scoreComposer = "ScoreMaker Example";
+string scoreAnnotation = "Original copyright-free 1980s-inspired synthwave study. Driving bass, suspended pads, and a bright lead evoke a neon-night atmosphere without quoting any existing theme.";
+
+part Pulse_Bass;
+Pulse_Bass program:38;
+part Glass_Pad;
+Glass_Pad program:89;
+part Night_Lead;
+Night_Lead program:81;
+
+BEGIN;
+
+/* Measures 1-2: E minor pulse and suspended pad. */
+t 0;
+Pulse_Bass (0.75) keyNum:e2k;
+Glass_Pad (4) keyNum:e3k;
+Glass_Pad (4) keyNum:b3k;
+Glass_Pad (4) keyNum:fs4k;
+t 1;
+Pulse_Bass (0.5) keyNum:b2k;
+t 1.75;
+Pulse_Bass (0.25) keyNum:d3k;
+t 2;
+Pulse_Bass (0.75) keyNum:e2k;
+Night_Lead (0.5) keyNum:b4k;
+t 2.5;
+Night_Lead (0.25) keyNum:d5k;
+t 2.75;
+Night_Lead (0.25) keyNum:e5k;
+t 3;
+Pulse_Bass (0.5) keyNum:g2k;
+Night_Lead (0.75) keyNum:fs5k;
+t 3.75;
+Night_Lead (0.25) keyNum:e5k;
+
+t 4;
+Pulse_Bass (0.75) keyNum:c2k;
+Glass_Pad (4) keyNum:c3k;
+Glass_Pad (4) keyNum:g3k;
+Glass_Pad (4) keyNum:b3k;
+Glass_Pad (4) keyNum:e4k;
+Night_Lead (0.5) keyNum:g5k;
+t 4.75;
+Pulse_Bass (0.25) keyNum:g2k;
+Night_Lead (0.25) keyNum:e5k;
+t 5;
+Pulse_Bass (0.5) keyNum:c3k;
+Night_Lead (0.5) keyNum:d5k;
+t 5.75;
+Pulse_Bass (0.25) keyNum:b2k;
+t 6;
+Pulse_Bass (0.75) keyNum:c2k;
+Night_Lead (0.25) keyNum:b4k;
+t 6.5;
+Night_Lead (0.5) keyNum:e5k;
+t 7;
+Pulse_Bass (0.5) keyNum:g2k;
+Night_Lead (0.75) keyNum:d5k;
+t 7.75;
+Night_Lead (0.25) keyNum:b4k;
+
+/* Measures 3-4: open G and D colors. */
+t 8;
+Pulse_Bass (0.75) keyNum:g1k;
+Glass_Pad (4) keyNum:g2k;
+Glass_Pad (4) keyNum:d3k;
+Glass_Pad (4) keyNum:a3k;
+Glass_Pad (4) keyNum:b3k;
+Night_Lead (0.5) keyNum:a4k;
+t 8.5;
+Night_Lead (0.25) keyNum:b4k;
+t 8.75;
+Pulse_Bass (0.25) keyNum:d2k;
+Night_Lead (0.25) keyNum:d5k;
+t 9;
+Pulse_Bass (0.5) keyNum:g2k;
+Night_Lead (0.75) keyNum:e5k;
+t 9.75;
+Pulse_Bass (0.25) keyNum:fs2k;
+Night_Lead (0.25) keyNum:d5k;
+t 10;
+Pulse_Bass (0.75) keyNum:g1k;
+Night_Lead (0.5) keyNum:b4k;
+t 10.5;
+Night_Lead (0.5) keyNum:a4k;
+t 11;
+Pulse_Bass (0.5) keyNum:d2k;
+Night_Lead (0.75) keyNum:g4k;
+t 11.75;
+Night_Lead (0.25) keyNum:a4k;
+
+t 12;
+Pulse_Bass (0.75) keyNum:d2k;
+Glass_Pad (4) keyNum:d3k;
+Glass_Pad (4) keyNum:a3k;
+Glass_Pad (4) keyNum:b3k;
+Glass_Pad (4) keyNum:fs4k;
+Night_Lead (0.5) keyNum:fs5k;
+t 12.5;
+Night_Lead (0.25) keyNum:e5k;
+t 12.75;
+Pulse_Bass (0.25) keyNum:a2k;
+Night_Lead (0.25) keyNum:d5k;
+t 13;
+Pulse_Bass (0.5) keyNum:d3k;
+Night_Lead (0.75) keyNum:b4k;
+t 13.75;
+Pulse_Bass (0.25) keyNum:c3k;
+Night_Lead (0.25) keyNum:a4k;
+t 14;
+Pulse_Bass (0.75) keyNum:d2k;
+Night_Lead (0.5) keyNum:fs4k;
+t 14.5;
+Night_Lead (0.5) keyNum:a4k;
+t 15;
+Pulse_Bass (0.5) keyNum:a2k;
+Night_Lead (1) keyNum:b4k;
+
+/* Measures 5-6: octave lift and a new lead answer. */
+t 16;
+Pulse_Bass (0.75) keyNum:e2k;
+Glass_Pad (4) keyNum:e3k;
+Glass_Pad (4) keyNum:g3k;
+Glass_Pad (4) keyNum:b3k;
+Glass_Pad (4) keyNum:fs4k;
+Night_Lead (0.25) keyNum:e5k;
+t 16.25;
+Night_Lead (0.25) keyNum:fs5k;
+t 16.5;
+Night_Lead (0.5) keyNum:b5k;
+t 17;
+Pulse_Bass (0.5) keyNum:b2k;
+Night_Lead (0.5) keyNum:a5k;
+t 17.5;
+Night_Lead (0.5) keyNum:fs5k;
+t 18;
+Pulse_Bass (0.75) keyNum:e2k;
+Night_Lead (0.75) keyNum:d5k;
+t 18.75;
+Night_Lead (0.25) keyNum:e5k;
+t 19;
+Pulse_Bass (0.5) keyNum:g2k;
+Night_Lead (1) keyNum:b4k;
+
+t 20;
+Pulse_Bass (0.75) keyNum:c2k;
+Glass_Pad (4) keyNum:c3k;
+Glass_Pad (4) keyNum:g3k;
+Glass_Pad (4) keyNum:d4k;
+Glass_Pad (4) keyNum:e4k;
+Night_Lead (0.5) keyNum:g5k;
+t 20.5;
+Night_Lead (0.5) keyNum:e5k;
+t 21;
+Pulse_Bass (0.5) keyNum:g2k;
+Night_Lead (0.25) keyNum:d5k;
+t 21.25;
+Night_Lead (0.25) keyNum:e5k;
+t 21.5;
+Night_Lead (0.5) keyNum:g5k;
+t 22;
+Pulse_Bass (0.75) keyNum:c2k;
+Night_Lead (0.75) keyNum:b5k;
+t 22.75;
+Night_Lead (0.25) keyNum:g5k;
+t 23;
+Pulse_Bass (0.5) keyNum:g2k;
+Night_Lead (1) keyNum:e5k;
+
+/* Measures 7-8: descending turnaround and final suspended chord. */
+t 24;
+Pulse_Bass (0.75) keyNum:a1k;
+Glass_Pad (4) keyNum:a2k;
+Glass_Pad (4) keyNum:e3k;
+Glass_Pad (4) keyNum:g3k;
+Glass_Pad (4) keyNum:b3k;
+Night_Lead (0.5) keyNum:e5k;
+t 24.5;
+Night_Lead (0.5) keyNum:d5k;
+t 25;
+Pulse_Bass (0.5) keyNum:e2k;
+Night_Lead (0.5) keyNum:b4k;
+t 25.5;
+Night_Lead (0.5) keyNum:g4k;
+t 26;
+Pulse_Bass (0.75) keyNum:a1k;
+Night_Lead (0.75) keyNum:a4k;
+t 26.75;
+Night_Lead (0.25) keyNum:b4k;
+t 27;
+Pulse_Bass (0.5) keyNum:e2k;
+Night_Lead (1) keyNum:d5k;
+
+t 28;
+Pulse_Bass (0.75) keyNum:b1k;
+Glass_Pad (4) keyNum:b2k;
+Glass_Pad (4) keyNum:fs3k;
+Glass_Pad (4) keyNum:a3k;
+Glass_Pad (4) keyNum:e4k;
+Night_Lead (0.5) keyNum:fs5k;
+t 28.5;
+Night_Lead (0.5) keyNum:e5k;
+t 29;
+Pulse_Bass (0.5) keyNum:fs2k;
+Night_Lead (0.5) keyNum:d5k;
+t 29.5;
+Night_Lead (0.5) keyNum:b4k;
+t 30;
+Pulse_Bass (0.75) keyNum:b1k;
+Night_Lead (0.5) keyNum:a4k;
+t 30.5;
+Night_Lead (0.5) keyNum:fs4k;
+t 31;
+Pulse_Bass (1) keyNum:e2k;
+Night_Lead (1) keyNum:e5k;
+
+END;
