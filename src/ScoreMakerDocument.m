@@ -1229,17 +1229,27 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
                           ? [articulationTitles objectForKey:[selectedNote articulation]]
                           : @"No articulation"];
   NSNumber *viewedPart = [[_partPopUp selectedItem] representedObject];
-  NSMutableSet *partSet = [NSMutableSet setWithObject:[NSNumber numberWithInteger:0]];
+  NSMutableSet *partSet = [NSMutableSet set];
   [partSet addObjectsFromArray:[[document partNames] allKeys]];
   [partSet addObjectsFromArray:[[document trackPrograms] allKeys]];
   NSEnumerator *partNoteEnumerator = [[document notes] objectEnumerator];
   ScoreNote *partNote = nil;
+  NSInteger firstNoteTrack = NSIntegerMax;
   while ((partNote = [partNoteEnumerator nextObject]) != nil)
     {
       [partSet addObject:[NSNumber numberWithInteger:[partNote track]]];
+      firstNoteTrack = MIN (firstNoteTrack, [partNote track]);
     }
+  if ([partSet count] == 0)
+    [partSet addObject:[NSNumber numberWithInteger:0]];
   NSInteger selectedPart
-    = viewedPart ? [viewedPart integerValue] : (selectedNote ? [selectedNote track] : 0);
+    = viewedPart ? [viewedPart integerValue]
+                 : (selectedNote
+                      ? [selectedNote track]
+                      : (firstNoteTrack != NSIntegerMax
+                           ? firstNoteTrack
+                           : [[[[partSet allObjects] sortedArrayUsingSelector:@selector (compare:)]
+                               objectAtIndex:0] integerValue]));
   if (![partSet containsObject:[NSNumber numberWithInteger:selectedPart]])
     selectedPart = [[[[partSet allObjects] sortedArrayUsingSelector:@selector (compare:)]
       objectAtIndex:0] integerValue];
@@ -2775,6 +2785,26 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       return;
     }
 
+  NSPopUpButton *scope = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (0.0, 0.0, 340.0, 26.0)
+                                                     pullsDown:NO] autorelease];
+  [scope addItemWithTitle:@"Full Score"];
+  NSString *partName = [[self scoreDocument] nameForTrack:[self selectedPartNumber]];
+  if (![partName length])
+    partName = [NSString stringWithFormat:@"Part %ld", (long)([self selectedPartNumber] + 1)];
+  [scope addItemWithTitle:[NSString stringWithFormat:@"Current Part — %@", partName]];
+  NSAlert *scopeAlert = [[[NSAlert alloc] init] autorelease];
+  [scopeAlert setMessageText:@"Publish Sheet Music"];
+  [scopeAlert
+    setInformativeText:@"Print the full score or independently reflow the currently viewed part."];
+  [scopeAlert setAccessoryView:scope];
+  [scopeAlert addButtonWithTitle:@"Continue"];
+  [scopeAlert addButtonWithTitle:@"Cancel"];
+  if ([scopeAlert runModal] != NSAlertFirstButtonReturn)
+    return;
+  NSNumber *previousTrack = [[[self scoreView] publicationTrack] retain];
+  if ([scope indexOfSelectedItem] == 1)
+    [[self scoreView] setPublicationTrack:[NSNumber numberWithInteger:[self selectedPartNumber]]];
+
   NSPrintInfo *printInfo = [[[self printInfo] copy] autorelease];
 #if defined(__APPLE__)
   [printInfo setOrientation:NSPaperOrientationPortrait];
@@ -2801,6 +2831,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [operation setShowsPrintPanel:YES];
   [operation setShowsProgressPanel:YES];
   [operation runOperation];
+  [[self scoreView] setPublicationTrack:previousTrack];
+  [previousTrack release];
 }
 
 - (void)editScoreTitle:(id)sender

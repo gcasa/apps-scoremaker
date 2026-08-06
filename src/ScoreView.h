@@ -33,6 +33,7 @@ extern NSString *const ScorePalettePasteboardType;
   BOOL _showPlayback;
   ScoreEngravingLayout *_engravingLayout;
   BOOL _separateParts;
+  NSNumber *_publicationTrack;
 }
 - (ScoreDocument *)document;
 - (void)setDocument:(ScoreDocument *)document;
@@ -44,6 +45,8 @@ extern NSString *const ScorePalettePasteboardType;
 - (NSSize)printedPageContentSize;
 - (BOOL)separateParts;
 - (void)setSeparateParts:(BOOL)separate;
+- (NSNumber *)publicationTrack;
+- (void)setPublicationTrack:(NSNumber *)track;
 - (BOOL)insertPaletteItem:(NSString *)item
                   atPoint:(NSPoint)point
                     pitch:(NSInteger)pitch

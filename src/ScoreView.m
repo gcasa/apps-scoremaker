@@ -70,6 +70,19 @@ NSString *const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
   [self reloadDocument];
 }
 
+- (NSNumber *)publicationTrack
+{
+  return _publicationTrack;
+}
+- (void)setPublicationTrack:(NSNumber *)track
+{
+  if (_publicationTrack == track || [_publicationTrack isEqual:track])
+    return;
+  [_publicationTrack release];
+  _publicationTrack = [track retain];
+  [self reloadDocument];
+}
+
 - (ScoreDocument *)document
 {
   return _document;
@@ -140,6 +153,7 @@ NSString *const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
 {
   [_document release];
   [_engravingLayout release];
+  [_publicationTrack release];
   [super dealloc];
 }
 
@@ -165,8 +179,18 @@ NSString *const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     return [_engravingLayout systems];
   if (!_document)
     return [NSArray array];
+  ScoreDocument *layoutDocument = _document;
+  if (_publicationTrack)
+    {
+      layoutDocument = [[_document copy] autorelease];
+      NSMutableArray *notes = [NSMutableArray array];
+      for (ScoreNote *note in [_document notes])
+        if ([note track] == [_publicationTrack integerValue])
+          [notes addObject:note];
+      [layoutDocument setNotes:notes];
+    }
   ScoreEngraver *engraver = [[[ScoreEngraver alloc] init] autorelease];
-  _engravingLayout = [[engraver layoutDocument:_document
+  _engravingLayout = [[engraver layoutDocument:layoutDocument
                                     musicWidth:EngravingMusicWidth
                            minimumMeasureWidth:MinimumMeasureWidth] retain];
   return [_engravingLayout systems];
@@ -185,6 +209,8 @@ NSString *const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
 
 - (NSArray *)scoreTracks
 {
+  if (_publicationTrack)
+    return [NSArray arrayWithObject:_publicationTrack];
   NSMutableSet *trackSet = [NSMutableSet setWithArray:[[_document partNames] allKeys]];
   for (ScoreNote *note in [_document notes])
     [trackSet addObject:[NSNumber numberWithInteger:[note track]]];
@@ -364,6 +390,20 @@ NSString *const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
   NSRect titleRect = NSMakeRect (Margin + 90.0, pageOriginY + Margin - 28.0,
                                  PageWidth - 2.0 * (Margin + 90.0), 40.0);
   [title drawInRect:titleRect withAttributes:titleAttrs];
+  if (_publicationTrack)
+    {
+      NSString *partName = [_document nameForTrack:[_publicationTrack integerValue]];
+      if (![partName length])
+        partName =
+          [NSString stringWithFormat:@"Part %ld", (long)([_publicationTrack integerValue] + 1)];
+      NSDictionary *partAttrs = [NSDictionary
+        dictionaryWithObjectsAndKeys:[NSFont boldSystemFontOfSize:14.0], NSFontAttributeName,
+                                     [NSColor blackColor], NSForegroundColorAttributeName, centered,
+                                     NSParagraphStyleAttributeName, nil];
+      [partName drawInRect:NSMakeRect (Margin + 90.0, pageOriginY + Margin + 8.0,
+                                       PageWidth - 2.0 * (Margin + 90.0), 22.0)
+            withAttributes:partAttrs];
+    }
 
   NSFont *pageNumberFont = [NSFont fontWithName:@"Times New Roman" size:12.0];
   if (!pageNumberFont)
