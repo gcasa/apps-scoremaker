@@ -30,6 +30,7 @@ ScoreMaker_OBJC_FILES = \
 	src/MidiParser.m \
 	src/MusicXMLParser.m \
 	src/ScorefileParser.m \
+	src/ScoreProjectSerializer.m \
 	src/ScoreModel.m \
 	src/MusicPlatformModel.m \
 	src/MusicEngine.m \
@@ -44,6 +45,7 @@ ScoreMaker_HEADER_FILES = \
 	src/MidiParser.h \
 	src/MusicXMLParser.h \
 	src/ScorefileParser.h \
+	src/ScoreProjectSerializer.h \
 	src/ScoreModel.h \
 	src/MusicPlatformModel.h \
 	src/MusicEngine.h \
