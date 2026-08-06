@@ -57,6 +57,7 @@ Open the app, then choose `File > Open...` to load a `.mid`, `.midi`, or `.score
 
 The bundled `examples/neon-causeway.score` is an original, copyright-free synthwave composition demonstrating bass, pad, lead, chords, accidentals, parts, and playback.
 The bundled `examples/time-rotor-study.score` is an original CC0 electronic science-fiction title study in 6/8. It is intentionally not an arrangement of any television theme.
+The bundled `examples/mozart-requiem/` collection contains fourteen independently openable complete multi-track scores, one for each commonly separated movement of Mozart's Requiem, K. 626.
 
 Use the inspector on the right side of the sheet to add pitched notes, add freeform score notes, change the tempo in BPM, or change the time signature.
 The inspector scrolls vertically when the window is not tall enough to show its complete palette and score-notes editor.

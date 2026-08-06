@@ -3,12 +3,13 @@
 
 static CGFloat const PageWidth = 980.0;
 static CGFloat const PaperInset = 18.0;
-static CGFloat const PaperHeight = 1222.0;
+static CGFloat const BasePaperHeight = 1222.0;
 static CGFloat const PageGap = 24.0;
 static CGFloat const Margin = 48.0;
 static CGFloat const PartLabelWidth = 82.0;
-static CGFloat const SystemHeight = 210.0;
+static CGFloat const SinglePartSystemHeight = 210.0;
 static CGFloat const StaffGap = 82.0;
+static CGFloat const PartStaffSpacing = 34.0;
 static CGFloat const LineSpacing = 10.0;
 static CGFloat const ClefImageWidth = 20.0;
 static CGFloat const ClefImageHeight = 60.0;
@@ -19,7 +20,7 @@ static CGFloat const ChordSnapDistance = 9.0;
 static CGFloat const NoteHorizontalInset = 6.0;
 static CGFloat const MinimumMeasureWidth = 140.0;
 static CGFloat const EngravingMusicWidth = 684.0;
-static NSUInteger const SystemsPerPage = 5;
+static CGFloat const SystemsPageHeight = 1050.0;
 NSString * const ScoreViewDidEditScoreNotification = @"ScoreViewDidEditScoreNotification";
 NSString * const ScoreViewSelectionDidChangeNotification = @"ScoreViewSelectionDidChangeNotification";
 NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
@@ -30,9 +31,18 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
 {
     self = [super initWithFrame:frame];
     if (self) {
+        _separateParts = YES;
         [self registerForDraggedTypes:[NSArray arrayWithObject:ScorePalettePasteboardType]];
     }
     return self;
+}
+
+- (BOOL)separateParts { return _separateParts; }
+- (void)setSeparateParts:(BOOL)separate
+{
+    if (_separateParts == separate) return;
+    _separateParts = separate;
+    [self reloadDocument];
 }
 
 - (ScoreDocument *)document
@@ -90,7 +100,7 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     }
     CGFloat systemY = [self yForSystem:system];
     NSRect visible = [self visibleRect];
-    NSRect target = NSMakeRect(NSMinX(visible), systemY - 28.0, 1.0, SystemHeight + 56.0);
+    NSRect target = NSMakeRect(NSMinX(visible), systemY - 28.0, 1.0, [self systemHeight] + 56.0);
     if (NSMinY(target) < NSMinY(visible) || NSMaxY(target) > NSMaxY(visible)) {
         [self scrollRectToVisible:target];
     }
@@ -106,7 +116,7 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
 - (void)updateFrameForDocument
 {
     NSUInteger pages = [self pageCount];
-    CGFloat height = 2.0 * PaperInset + (CGFloat)pages * PaperHeight +
+    CGFloat height = 2.0 * PaperInset + (CGFloat)pages * [self paperHeight] +
                      (CGFloat)(pages - 1) * PageGap;
     [self setFrameSize:NSMakeSize(PageWidth, height)];
 }
@@ -136,20 +146,54 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
 
 - (NSUInteger)pageCount
 {
-    return MAX((NSUInteger)1, ([self systemCount] + SystemsPerPage - 1) / SystemsPerPage);
+    NSUInteger perPage = [self systemsPerPage];
+    return MAX((NSUInteger)1, ([self systemCount] + perPage - 1) / perPage);
+}
+
+- (NSArray *)scoreTracks
+{
+    NSMutableSet *trackSet = [NSMutableSet setWithArray:[[_document partNames] allKeys]];
+    for (ScoreNote *note in [_document notes])
+        [trackSet addObject:[NSNumber numberWithInteger:[note track]]];
+    if ([trackSet count] == 0) [trackSet addObject:@0];
+    return [[trackSet allObjects] sortedArrayUsingSelector:@selector(compare:)];
+}
+
+- (CGFloat)partGrandStaffHeight
+{
+    return StaffGap + 4.0 * LineSpacing;
+}
+
+- (CGFloat)systemHeight
+{
+    NSUInteger parts = _separateParts ? MAX((NSUInteger)1, [[self scoreTracks] count]) : 1;
+    return [self partGrandStaffHeight] * parts + PartStaffSpacing * (parts - 1) +
+           (SinglePartSystemHeight - [self partGrandStaffHeight]);
+}
+
+- (NSUInteger)systemsPerPage
+{
+    return MAX((NSUInteger)1, (NSUInteger)floor(SystemsPageHeight / [self systemHeight]));
+}
+
+- (CGFloat)paperHeight
+{
+    /* Keep unusually large ensembles on the paper instead of clipping staves. */
+    return MAX(BasePaperHeight, Margin + FirstSystemOffset + [self systemHeight] + Margin);
 }
 
 - (CGFloat)pageOriginY:(NSUInteger)page
 {
-    return PaperInset + (CGFloat)page * (PaperHeight + PageGap);
+    return PaperInset + (CGFloat)page * ([self paperHeight] + PageGap);
 }
 
 - (CGFloat)yForSystem:(NSUInteger)system
 {
-    NSUInteger page = system / SystemsPerPage;
-    NSUInteger systemOnPage = system % SystemsPerPage;
+    NSUInteger perPage = [self systemsPerPage];
+    NSUInteger page = system / perPage;
+    NSUInteger systemOnPage = system % perPage;
     return [self pageOriginY:page] + Margin + FirstSystemOffset +
-           (CGFloat)systemOnPage * SystemHeight;
+           (CGFloat)systemOnPage * [self systemHeight];
 }
 
 - (BOOL)knowsPageRange:(NSRangePointer)range
@@ -162,12 +206,12 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
 {
     NSUInteger pageIndex = page > 0 ? (NSUInteger)page - 1 : 0;
     return NSMakeRect(PaperInset, [self pageOriginY:pageIndex],
-                      PageWidth - 2.0 * PaperInset, PaperHeight);
+                      PageWidth - 2.0 * PaperInset, [self paperHeight]);
 }
 
 - (NSSize)printedPageContentSize
 {
-    return NSMakeSize(PageWidth - 2.0 * PaperInset, PaperHeight);
+    return NSMakeSize(PageWidth - 2.0 * PaperInset, [self paperHeight]);
 }
 
 - (void)drawRect:(NSRect)dirtyRect
@@ -180,7 +224,7 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     if (drawingToScreen) {
         for (NSUInteger page = 0; page < [self pageCount]; page++) {
             NSRect paper = NSMakeRect(PaperInset, [self pageOriginY:page],
-                                      PageWidth - 2.0 * PaperInset, PaperHeight);
+                                      PageWidth - 2.0 * PaperInset, [self paperHeight]);
             if (!NSIntersectsRect(NSInsetRect(dirtyRect, -8.0, -8.0), paper)) continue;
             [[NSColor colorWithCalibratedWhite:0.75 alpha:0.35] setFill];
             NSRectFill(NSOffsetRect(paper, 3.0, 4.0));
@@ -207,7 +251,7 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
 
         for (NSUInteger page = 0; page < [self pageCount]; page++) {
             NSRect paper = NSMakeRect(PaperInset, [self pageOriginY:page],
-                                      PageWidth - 2.0 * PaperInset, PaperHeight);
+                                      PageWidth - 2.0 * PaperInset, [self paperHeight]);
             if (!NSIntersectsRect(dirtyRect, paper)) continue;
 
             [NSGraphicsContext saveGraphicsState];
@@ -221,8 +265,9 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
             [fit concat];
 
             [self drawHeaderForPage:page atOriginY:[self pageOriginY:page]];
-            NSUInteger firstSystem = page * SystemsPerPage;
-            NSUInteger lastSystem = MIN(systemCount, firstSystem + SystemsPerPage);
+            NSUInteger perPage = [self systemsPerPage];
+            NSUInteger firstSystem = page * perPage;
+            NSUInteger lastSystem = MIN(systemCount, firstSystem + perPage);
             for (NSUInteger system = firstSystem; system < lastSystem; system++) {
                 [self drawSystemAtY:[self yForSystem:system]
                         systemIndex:system];
@@ -306,46 +351,34 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
 {
     CGFloat left = Margin + PartLabelWidth;
     CGFloat right = PageWidth - Margin;
-    CGFloat trebleTop = y;
-    CGFloat bassTop = y + StaffGap;
     ScoreEngravingSystem *layout = [[self systemLayouts] objectAtIndex:systemIndex];
     NSUInteger startTick = [layout startTick];
     NSUInteger endTick = [layout endTick];
 
-    [self drawPartNamesForSystemStart:startTick
-                            systemEnd:endTick
-                                    x:Margin - 10.0
-                                    y:trebleTop
-                               height:bassTop + 4.0 * LineSpacing - trebleTop];
-    [self drawStaffFromX:left toX:right topY:trebleTop];
-    [self drawStaffFromX:left toX:right topY:bassTop];
-    [self drawBraceAtX:left - 14.0 topY:trebleTop bottomY:bassTop + 4.0 * LineSpacing];
-
-    [self drawClefNamed:@"treble_clef" fallback:@"G" inRect:NSMakeRect(left + 14.0,
-                                                                        trebleTop - 10.0,
-                                                                        ClefImageWidth,
-                                                                        ClefImageHeight)];
-    [self drawClefNamed:@"bass_clef" fallback:@"F" inRect:NSMakeRect(left + 16.0,
-                                                                      bassTop - 10.0,
-                                                                      ClefImageWidth,
-                                                                      ClefImageHeight)];
-
     CGFloat musicLeft = left + 100.0;
     CGFloat musicRight = right - 18.0;
-    if (systemIndex == 0) {
-        [self drawTempoMarkAtX:musicLeft y:trebleTop - 30.0];
+    NSArray *tracks = _separateParts ? [self scoreTracks] : [NSArray arrayWithObject:@-1];
+    CGFloat partStride = [self partGrandStaffHeight] + PartStaffSpacing;
+    NSUInteger perPage = [self systemsPerPage];
+    for (NSUInteger partIndex = 0; partIndex < [tracks count]; partIndex++) {
+        NSInteger track = [[tracks objectAtIndex:partIndex] integerValue];
+        CGFloat trebleTop = y + partIndex * partStride;
+        CGFloat bassTop = trebleTop + StaffGap;
+        [self drawPartNameForTrack:track x:Margin - 10.0 y:trebleTop height:[self partGrandStaffHeight]];
+        [self drawStaffFromX:left toX:right topY:trebleTop];
+        [self drawStaffFromX:left toX:right topY:bassTop];
+        [self drawBraceAtX:left - 14.0 topY:trebleTop bottomY:bassTop + 4.0 * LineSpacing];
+        [self drawClefNamed:@"treble_clef" fallback:@"G" inRect:NSMakeRect(left + 14.0, trebleTop - 10.0, ClefImageWidth, ClefImageHeight)];
+        [self drawClefNamed:@"bass_clef" fallback:@"F" inRect:NSMakeRect(left + 16.0, bassTop - 10.0, ClefImageWidth, ClefImageHeight)];
+        if (systemIndex == 0 && partIndex == 0) [self drawTempoMarkAtX:musicLeft y:trebleTop - 30.0];
+        if (systemIndex % perPage == 0) [self drawTimeSignatureAtX:left + 58.0 trebleY:trebleTop bassY:bassTop];
+        ScoreMeasure *openingMeasure = [_document measureContainingTick:startTick];
+        if (openingMeasure && [openingMeasure keySignatureFifths] != 0)
+            [self drawKeySignature:[openingMeasure keySignatureFifths] atX:left + 39.0 trebleY:trebleTop bassY:bassTop];
+        [self drawMeasureLinesFromX:musicLeft toX:musicRight topY:trebleTop systemStart:startTick systemEnd:endTick];
+        [self drawNotesFromX:musicLeft toX:musicRight trebleY:trebleTop bassY:bassTop
+                 systemStart:startTick systemEnd:endTick track:track];
     }
-    if (systemIndex % SystemsPerPage == 0) {
-        [self drawTimeSignatureAtX:left + 58.0 trebleY:trebleTop bassY:bassTop];
-    }
-    ScoreMeasure *openingMeasure = [_document measureContainingTick:startTick];
-    if (openingMeasure && [openingMeasure keySignatureFifths] != 0) {
-        [self drawKeySignature:[openingMeasure keySignatureFifths]
-                            atX:left + 39.0 trebleY:trebleTop bassY:bassTop];
-    }
-
-    [self drawMeasureLinesFromX:musicLeft toX:musicRight topY:trebleTop systemStart:startTick systemEnd:endTick];
-    [self drawNotesFromX:musicLeft toX:musicRight trebleY:trebleTop bassY:bassTop systemStart:startTick systemEnd:endTick];
 }
 
 - (void)drawKeySignature:(NSInteger)fifths atX:(CGFloat)x trebleY:(CGFloat)trebleY bassY:(CGFloat)bassY
@@ -452,38 +485,22 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     [fallback drawAtPoint:NSMakePoint(rect.origin.x - 4.0, rect.origin.y - 4.0) withAttributes:clefAttrs];
 }
 
-- (void)drawPartNamesForSystemStart:(NSUInteger)systemStart
-                           systemEnd:(NSUInteger)systemEnd
-                                   x:(CGFloat)x
-                                   y:(CGFloat)y
-                              height:(CGFloat)height
+- (void)drawPartNameForTrack:(NSInteger)track
+                           x:(CGFloat)x
+                           y:(CGFloat)y
+                      height:(CGFloat)height
 {
-    NSMutableArray *tracks = [NSMutableArray array];
-    NSEnumerator *noteEnumerator = [[_document notes] objectEnumerator];
-    ScoreNote *note = nil;
-    while ((note = [noteEnumerator nextObject]) != nil) {
-        if ([note startTick] >= systemEnd || [note startTick] + [note durationTicks] <= systemStart) {
-            continue;
+    NSString *name = nil;
+    if (track < 0) {
+        NSMutableArray *names = [NSMutableArray array];
+        for (NSNumber *number in [self scoreTracks]) {
+            NSString *partName = [_document nameForTrack:[number integerValue]];
+            [names addObject:[partName length] ? partName : [NSString stringWithFormat:@"Part %ld", (long)([number integerValue] + 1)]];
         }
-        NSNumber *track = [NSNumber numberWithInteger:[note track]];
-        if (![tracks containsObject:track]) {
-            [tracks addObject:track];
-        }
-    }
-    if ([tracks count] == 0) {
-        return;
-    }
-    [tracks sortUsingSelector:@selector(compare:)];
-
-    NSMutableArray *names = [NSMutableArray array];
-    NSEnumerator *trackEnumerator = [tracks objectEnumerator];
-    NSNumber *track = nil;
-    while ((track = [trackEnumerator nextObject]) != nil) {
-        NSString *name = [_document nameForTrack:[track integerValue]];
-        if ([name length] == 0) {
-            name = [NSString stringWithFormat:@"Part %ld", (long)([track integerValue] + 1)];
-        }
-        [names addObject:name];
+        name = [names componentsJoinedByString:@"\n"];
+    } else {
+        name = [_document nameForTrack:track];
+        if ([name length] == 0) name = [NSString stringWithFormat:@"Part %ld", (long)(track + 1)];
     }
 
     NSMutableParagraphStyle *style = [[[NSMutableParagraphStyle alloc] init] autorelease];
@@ -501,9 +518,8 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
                            [NSColor colorWithCalibratedWhite:0.2 alpha:1.0], NSForegroundColorAttributeName,
                            style, NSParagraphStyleAttributeName,
                            nil];
-    NSString *label = [names componentsJoinedByString:@"\n"];
     NSRect rect = NSMakeRect(x, y + height / 2.0 - 26.0, PartLabelWidth, 52.0);
-    [label drawInRect:rect withAttributes:attrs];
+    [name drawInRect:rect withAttributes:attrs];
 }
 
 - (void)drawStaffFromX:(CGFloat)left toX:(CGFloat)right topY:(CGFloat)top
@@ -597,11 +613,13 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
                  bassY:(CGFloat)bassY
            systemStart:(NSUInteger)systemStart
              systemEnd:(NSUInteger)systemEnd
+                 track:(NSInteger)track
 {
     NSMutableArray *visibleNotes = [NSMutableArray array];
     NSEnumerator *noteEnumerator = [[_document notes] objectEnumerator];
     ScoreNote *note = nil;
     while ((note = [noteEnumerator nextObject]) != nil) {
+        if (track >= 0 && [note track] != track) continue;
         if ([note startTick] >= systemEnd || [note startTick] + [note durationTicks] <= systemStart) {
             continue;
         }
@@ -1039,6 +1057,7 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
                       right:(CGFloat *)right
                     staffTop:(CGFloat *)staffTop
                       treble:(BOOL *)treble
+                       track:(NSInteger *)track
 {
     if (!_document) {
         return NO;
@@ -1046,32 +1065,31 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     NSUInteger systemCount = [self systemCount];
     CGFloat staffLeft = Margin + PartLabelWidth + 100.0;
     CGFloat staffRight = PageWidth - Margin - 18.0;
+    NSArray *tracks = _separateParts ? [self scoreTracks] : [NSArray arrayWithObject:@-1];
+    CGFloat partStride = [self partGrandStaffHeight] + PartStaffSpacing;
     for (NSUInteger system = 0; system < systemCount; system++) {
         CGFloat y = [self yForSystem:system];
-        CGFloat trebleTop = y;
-        CGFloat bassTop = y + StaffGap;
-        BOOL isTreble = NO;
-        CGFloat top = 0.0;
-        if (point.y >= trebleTop - 30.0 && point.y <= trebleTop + 4.0 * LineSpacing + 30.0) {
-            isTreble = YES;
-            top = trebleTop;
-        } else if (point.y >= bassTop - 30.0 && point.y <= bassTop + 4.0 * LineSpacing + 30.0) {
-            isTreble = NO;
-            top = bassTop;
-        } else {
-            continue;
+        for (NSUInteger partIndex = 0; partIndex < [tracks count]; partIndex++) {
+            CGFloat trebleTop = y + partIndex * partStride;
+            CGFloat bassTop = trebleTop + StaffGap;
+            BOOL isTreble = NO; CGFloat top = 0.0;
+            if (point.y >= trebleTop - 30.0 && point.y <= trebleTop + 4.0 * LineSpacing + 21.0) {
+                isTreble = YES; top = trebleTop;
+            } else if (point.y >= bassTop - 21.0 && point.y <= bassTop + 4.0 * LineSpacing + 30.0) {
+                isTreble = NO; top = bassTop;
+            } else continue;
+            if (point.x < staffLeft - 20.0 || point.x > staffRight + 20.0) continue;
+            ScoreEngravingSystem *layout = [[self systemLayouts] objectAtIndex:system];
+            if (systemStart) *systemStart = [layout startTick];
+            if (systemEnd) *systemEnd = [layout endTick];
+            if (left) *left = staffLeft;
+            if (right) *right = staffRight;
+            if (staffTop) *staffTop = top;
+            if (treble) *treble = isTreble;
+            NSInteger hitTrack = [[tracks objectAtIndex:partIndex] integerValue];
+            if (track && hitTrack >= 0) *track = hitTrack;
+            return YES;
         }
-        if (point.x < staffLeft - 20.0 || point.x > staffRight + 20.0) {
-            continue;
-        }
-        ScoreEngravingSystem *layout = [[self systemLayouts] objectAtIndex:system];
-        if (systemStart) *systemStart = [layout startTick];
-        if (systemEnd) *systemEnd = [layout endTick];
-        if (left) *left = staffLeft;
-        if (right) *right = staffRight;
-        if (staffTop) *staffTop = top;
-        if (treble) *treble = isTreble;
-        return YES;
     }
     return NO;
 }
@@ -1148,7 +1166,8 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     CGFloat right = 0.0;
     CGFloat staffTop = 0.0;
     BOOL treble = YES;
-    if (![self scoreLayoutForPoint:point systemStart:&systemStart systemEnd:&systemEnd left:&left right:&right staffTop:&staffTop treble:&treble]) {
+    NSInteger targetTrack = track;
+    if (![self scoreLayoutForPoint:point systemStart:&systemStart systemEnd:&systemEnd left:&left right:&right staffTop:&staffTop treble:&treble track:&targetTrack]) {
         return NO;
     }
 
@@ -1159,8 +1178,8 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     if (!rest && pitch >= 0) {
         [note setPitch:pitch];
     }
-    [note setChannel:MAX((NSInteger)0, track) % 16];
-    [note setTrack:MAX((NSInteger)0, track)];
+    [note setChannel:MAX((NSInteger)0, targetTrack) % 16];
+    [note setTrack:MAX((NSInteger)0, targetTrack)];
     [note setStartTick:[self tickForPoint:point systemStart:systemStart systemEnd:systemEnd left:left right:right]];
     [note setDurationTicks:MAX((NSUInteger)1, durationTicks)];
     [[_document notes] addObject:note];
@@ -1205,6 +1224,9 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
             }
         }
         CGFloat y = [self yForSystem:system];
+        NSUInteger partIndex = _separateParts ? [[self scoreTracks] indexOfObject:[NSNumber numberWithInteger:[note track]]] : 0;
+        if (partIndex == NSNotFound) continue;
+        y += partIndex * ([self partGrandStaffHeight] + PartStaffSpacing);
         BOOL treble = [note pitch] >= 60;
         CGFloat staffTop = treble ? y : y + StaffGap;
         CGFloat x = [note isRest] ? [self noteXForTick:[note startTick] start:systemStart end:systemEnd left:left right:right] :
@@ -1261,7 +1283,7 @@ NSString * const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
         return NSDragOperationNone;
     }
     NSPoint point = [self convertPoint:[sender draggingLocation] fromView:nil];
-    return [self scoreLayoutForPoint:point systemStart:NULL systemEnd:NULL left:NULL right:NULL staffTop:NULL treble:NULL] ? NSDragOperationCopy : NSDragOperationNone;
+    return [self scoreLayoutForPoint:point systemStart:NULL systemEnd:NULL left:NULL right:NULL staffTop:NULL treble:NULL track:NULL] ? NSDragOperationCopy : NSDragOperationNone;
 }
 
 - (NSDragOperation)draggingUpdated:(id <NSDraggingInfo>)sender

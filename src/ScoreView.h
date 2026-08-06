@@ -13,6 +13,7 @@ extern NSString * const ScorePalettePasteboardType;
     NSUInteger _playbackTick;
     BOOL _showPlayback;
     ScoreEngravingLayout *_engravingLayout;
+    BOOL _separateParts;
 }
 - (ScoreDocument *)document;
 - (void)setDocument:(ScoreDocument *)document;
@@ -22,5 +23,7 @@ extern NSString * const ScorePalettePasteboardType;
 - (void)clearPlayback;
 - (void)scrollPlaybackTickToVisible:(NSUInteger)tick;
 - (NSSize)printedPageContentSize;
+- (BOOL)separateParts;
+- (void)setSeparateParts:(BOOL)separate;
 - (BOOL)insertPaletteItem:(NSString *)item atPoint:(NSPoint)point pitch:(NSInteger)pitch durationTicks:(NSUInteger)durationTicks track:(NSInteger)track;
 @end

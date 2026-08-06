@@ -10,6 +10,9 @@
     id _target;
     SEL _action;
     NSMutableDictionary *_liveNotes;
+    NSInteger _selectedTrack;
+    NSMutableSet *_pinnedTracks;
+    BOOL _rackVisible;
 }
 - (void)setDocument:(ScoreDocument *)document;
 - (void)setPlaybackTick:(NSUInteger)tick;
@@ -22,4 +25,5 @@
 - (void)liveNoteOn:(NSInteger)pitch voice:(NSInteger)voice velocity:(NSUInteger)velocity;
 - (void)liveNoteOff:(NSInteger)pitch;
 - (void)clearLiveNotes;
+- (void)setSelectedTrack:(NSInteger)track;
 @end

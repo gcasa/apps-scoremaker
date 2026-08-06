@@ -29,6 +29,7 @@
     NSPopUpButton *_partPopUp;
     NSPopUpButton *_instrumentPopUp;
     NSButton *_addPartButton;
+    NSButton *_separatePartsButton;
     NSButton *_addNoteButton;
     NSPopUpButton *_keySignaturePopUp;
     NSButton *_repeatStartButton;

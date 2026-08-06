@@ -1,4 +1,5 @@
 #import "PlaybackMonitorView.h"
+#import "MidiParser.h"
 #import <math.h>
 
 static BOOL IsBlackKey(NSInteger pitch)
@@ -6,6 +7,15 @@ static BOOL IsBlackKey(NSInteger pitch)
     NSInteger pitchClass = pitch % 12;
     return pitchClass == 1 || pitchClass == 3 || pitchClass == 6 ||
            pitchClass == 8 || pitchClass == 10;
+}
+
+static NSColor *VoiceColor(NSInteger voice, BOOL blackKey)
+{
+    static CGFloat hues[] = {0.57, 0.36, 0.08, 0.78, 0.96, 0.48};
+    NSUInteger index = (NSUInteger)labs(MAX((NSInteger)1, voice) - 1) % 6;
+    return [NSColor colorWithCalibratedHue:hues[index]
+                                saturation:blackKey ? 0.78 : 0.62
+                                brightness:blackKey ? 0.78 : 0.94 alpha:1.0];
 }
 
 @implementation PlaybackMonitorView
@@ -16,8 +26,30 @@ static BOOL IsBlackKey(NSInteger pitch)
     if (self) {
         _inputPitch = -1;
         _liveNotes = [[NSMutableDictionary alloc] init];
+        _pinnedTracks = [[NSMutableSet alloc] init];
     }
     return self;
+}
+
+- (void)setSelectedTrack:(NSInteger)track
+{
+    if (_selectedTrack == track) return;
+    _selectedTrack = track;
+    [self setNeedsDisplay:YES];
+}
+
+- (NSString *)nameForTrack:(NSInteger)track
+{
+    NSString *name = [_document nameForTrack:track];
+    return [name length] ? name : [NSString stringWithFormat:@"Part %ld", (long)(track + 1)];
+}
+
+- (NSString *)instrumentForTrack:(NSInteger)track
+{
+    NSNumber *program = [_document programForTrack:track];
+    NSArray *names = [MidiParser generalMidiProgramNames];
+    NSInteger index = program ? [program integerValue] : 0;
+    return index >= 0 && index < (NSInteger)[names count] ? [names objectAtIndex:index] : @"Acoustic Grand Piano";
 }
 
 - (BOOL)isFlipped { return YES; }
@@ -96,14 +128,26 @@ static BOOL IsBlackKey(NSInteger pitch)
     return notes;
 }
 
-- (void)drawKeyboardInRect:(NSRect)rect activeNotes:(NSArray *)activeNotes
+- (NSArray *)activeNotesForTrack:(NSInteger)track
+{
+    NSMutableArray *result = [NSMutableArray array];
+    for (ScoreNote *note in [self activeNotes])
+        if ([note track] == track) [result addObject:note];
+    return result;
+}
+
+- (void)drawKeyboardInRect:(NSRect)rect activeNotes:(NSArray *)activeNotes track:(NSInteger)track
 {
     NSMutableSet *activePitches = [NSMutableSet set];
-    for (ScoreNote *note in activeNotes)
+    NSMutableDictionary *voicesByPitch = [NSMutableDictionary dictionary];
+    for (ScoreNote *note in activeNotes) {
         [activePitches addObject:[NSNumber numberWithInteger:[note pitch]]];
+        [voicesByPitch setObject:[NSNumber numberWithInteger:[note voice]]
+                         forKey:[NSNumber numberWithInteger:[note pitch]]];
+    }
     if (_inputPitch >= 21 && _inputPitch <= 108)
         [activePitches addObject:[NSNumber numberWithInteger:_inputPitch]];
-    [activePitches addObjectsFromArray:[_liveNotes allKeys]];
+    if (track == _selectedTrack) [activePitches addObjectsFromArray:[_liveNotes allKeys]];
 
     NSInteger firstPitch = 21; // A0
     NSInteger lastPitch = 108; // C8
@@ -121,7 +165,8 @@ static BOOL IsBlackKey(NSInteger pitch)
                           forKey:[NSNumber numberWithInteger:pitch]];
         NSRect key = NSMakeRect(x, NSMinY(rect), whiteWidth, NSHeight(rect));
         BOOL active = [activePitches containsObject:[NSNumber numberWithInteger:pitch]];
-        [(active ? [NSColor colorWithCalibratedRed:0.25 green:0.65 blue:1.0 alpha:1.0] : [NSColor whiteColor]) setFill];
+        NSNumber *voice = [voicesByPitch objectForKey:[NSNumber numberWithInteger:pitch]];
+        [(active ? VoiceColor(voice ? [voice integerValue] : 1, NO) : [NSColor whiteColor]) setFill];
         NSRectFill(key);
         if (pitch == 60) {
             NSMutableParagraphStyle *centered = [[[NSMutableParagraphStyle alloc] init] autorelease];
@@ -152,7 +197,8 @@ static BOOL IsBlackKey(NSInteger pitch)
         CGFloat x = [previousX doubleValue] + whiteWidth - blackWidth / 2.0;
         NSRect key = NSMakeRect(x, NSMinY(rect), blackWidth, blackHeight);
         BOOL active = [activePitches containsObject:[NSNumber numberWithInteger:pitch]];
-        [(active ? [NSColor colorWithCalibratedRed:0.15 green:0.55 blue:1.0 alpha:1.0] : [NSColor colorWithCalibratedWhite:0.08 alpha:1.0]) setFill];
+        NSNumber *voice = [voicesByPitch objectForKey:[NSNumber numberWithInteger:pitch]];
+        [(active ? VoiceColor(voice ? [voice integerValue] : 1, YES) : [NSColor colorWithCalibratedWhite:0.08 alpha:1.0]) setFill];
         NSRectFill(key);
         [[NSColor blackColor] setStroke];
         NSFrameRect(key);
@@ -193,7 +239,18 @@ static BOOL IsBlackKey(NSInteger pitch)
 {
     NSPoint point = [self convertPoint:[event locationInWindow] fromView:nil];
     CGFloat split = floor(NSWidth([self bounds]) * 0.7);
-    NSRect keyboard = NSMakeRect(12.0, 28.0, split - 24.0, NSHeight([self bounds]) - 38.0);
+    NSRect rackButton = NSMakeRect(split - 82.0, 5.0, 72.0, 18.0);
+    NSRect pinButton = NSMakeRect(split - 158.0, 5.0, 70.0, 18.0);
+    if (NSPointInRect(point, rackButton)) { _rackVisible = !_rackVisible; [self setNeedsDisplay:YES]; return; }
+    if (NSPointInRect(point, pinButton)) {
+        NSNumber *track = [NSNumber numberWithInteger:_selectedTrack];
+        if ([_pinnedTracks containsObject:track]) [_pinnedTracks removeObject:track];
+        else [_pinnedTracks addObject:track];
+        [self setNeedsDisplay:YES]; return;
+    }
+    CGFloat availableHeight = NSHeight([self bounds]) - 38.0;
+    CGFloat primaryHeight = _rackVisible ? MAX((CGFloat)34.0, floor(availableHeight * 0.48)) : availableHeight;
+    NSRect keyboard = NSMakeRect(12.0, 28.0, split - 24.0, primaryHeight);
     NSInteger pitch = [self pitchAtPoint:point inKeyboardRect:keyboard];
     if (pitch < 0) {
         [super mouseDown:event];
@@ -207,7 +264,7 @@ static BOOL IsBlackKey(NSInteger pitch)
 {
     NSMutableSet *voiceSet = [NSMutableSet set];
     for (ScoreNote *note in [_document notes])
-        [voiceSet addObject:[NSNumber numberWithInteger:[note voice]]];
+        if ([note track] == _selectedTrack) [voiceSet addObject:[NSNumber numberWithInteger:[note voice]]];
     for (NSDictionary *live in [_liveNotes allValues])
         [voiceSet addObject:[live objectForKey:@"voice"]];
     if ([voiceSet count] == 0) [voiceSet addObject:[NSNumber numberWithInteger:1]];
@@ -239,6 +296,39 @@ static BOOL IsBlackKey(NSInteger pitch)
     }
 }
 
+- (void)drawButtonTitle:(NSString *)title rect:(NSRect)rect active:(BOOL)active
+{
+    [(active ? [NSColor selectedControlColor] : [NSColor controlBackgroundColor]) setFill];
+    [[NSBezierPath bezierPathWithRoundedRect:rect xRadius:4.0 yRadius:4.0] fill];
+    NSMutableParagraphStyle *centered = [[[NSMutableParagraphStyle alloc] init] autorelease];
+    [centered setAlignment:NSTextAlignmentCenter];
+    NSDictionary *attrs = [NSDictionary dictionaryWithObjectsAndKeys:[NSFont systemFontOfSize:10.0], NSFontAttributeName,
+        (active ? [NSColor whiteColor] : [NSColor controlTextColor]), NSForegroundColorAttributeName,
+        centered, NSParagraphStyleAttributeName, nil];
+    [title drawInRect:NSInsetRect(rect, 2.0, 2.0) withAttributes:attrs];
+}
+
+- (void)drawKeyboardRackInRect:(NSRect)rect
+{
+    NSArray *tracks = [[_pinnedTracks allObjects] sortedArrayUsingSelector:@selector(compare:)];
+    if ([tracks count] == 0) {
+        NSDictionary *attrs = [NSDictionary dictionaryWithObjectsAndKeys:[NSFont systemFontOfSize:11.0], NSFontAttributeName,
+            [NSColor secondaryLabelColor], NSForegroundColorAttributeName, nil];
+        [@"Pin selected parts to compare their playback." drawAtPoint:NSMakePoint(NSMinX(rect), NSMinY(rect) + 8.0) withAttributes:attrs];
+        return;
+    }
+    CGFloat rowHeight = MIN((CGFloat)42.0, NSHeight(rect) / (CGFloat)[tracks count]);
+    NSDictionary *attrs = [NSDictionary dictionaryWithObjectsAndKeys:[NSFont systemFontOfSize:9.0], NSFontAttributeName,
+        [NSColor controlTextColor], NSForegroundColorAttributeName, nil];
+    for (NSUInteger index = 0; index < [tracks count]; index++) {
+        NSInteger track = [[tracks objectAtIndex:index] integerValue];
+        CGFloat y = NSMinY(rect) + index * rowHeight;
+        [[self nameForTrack:track] drawInRect:NSMakeRect(NSMinX(rect), y + 3.0, 82.0, rowHeight - 4.0) withAttributes:attrs];
+        [self drawKeyboardInRect:NSMakeRect(NSMinX(rect) + 86.0, y, NSWidth(rect) - 86.0, rowHeight - 4.0)
+                     activeNotes:[self activeNotesForTrack:track] track:track];
+    }
+}
+
 - (void)drawRect:(NSRect)dirtyRect
 {
     (void)dirtyRect;
@@ -250,12 +340,22 @@ static BOOL IsBlackKey(NSInteger pitch)
     NSDictionary *headingAttributes = [NSDictionary dictionaryWithObjectsAndKeys:
         [NSFont boldSystemFontOfSize:11.0], NSFontAttributeName,
         [NSColor controlTextColor], NSForegroundColorAttributeName, nil];
-    [@"Piano" drawAtPoint:NSMakePoint(12.0, 8.0) withAttributes:headingAttributes];
     CGFloat split = floor(NSWidth([self bounds]) * 0.7);
+    NSString *heading = [NSString stringWithFormat:@"%@ — %@", [self nameForTrack:_selectedTrack], [self instrumentForTrack:_selectedTrack]];
+    [heading drawInRect:NSMakeRect(12.0, 7.0, MAX((CGFloat)80.0, split - 178.0), 17.0) withAttributes:headingAttributes];
+    NSNumber *selected = [NSNumber numberWithInteger:_selectedTrack];
+    [self drawButtonTitle:[_pinnedTracks containsObject:selected] ? @"Unpin Part" : @"Pin Part"
+                     rect:NSMakeRect(split - 158.0, 5.0, 70.0, 18.0) active:[_pinnedTracks containsObject:selected]];
+    [self drawButtonTitle:_rackVisible ? @"Hide Rack" : @"Show Rack"
+                     rect:NSMakeRect(split - 82.0, 5.0, 72.0, 18.0) active:_rackVisible];
     [@"Voices / MIDI velocity" drawAtPoint:NSMakePoint(split + 14.0, 8.0) withAttributes:headingAttributes];
-    NSArray *activeNotes = [self activeNotes];
-    [self drawKeyboardInRect:NSMakeRect(12.0, 28.0, split - 24.0, NSHeight([self bounds]) - 38.0)
-                 activeNotes:activeNotes];
+    NSArray *activeNotes = [self activeNotesForTrack:_selectedTrack];
+    CGFloat availableHeight = NSHeight([self bounds]) - 38.0;
+    CGFloat primaryHeight = _rackVisible ? MAX((CGFloat)34.0, floor(availableHeight * 0.48)) : availableHeight;
+    [self drawKeyboardInRect:NSMakeRect(12.0, 28.0, split - 24.0, primaryHeight)
+                 activeNotes:activeNotes track:_selectedTrack];
+    if (_rackVisible)
+        [self drawKeyboardRackInRect:NSMakeRect(12.0, 32.0 + primaryHeight, split - 24.0, availableHeight - primaryHeight - 4.0)];
     [self drawVoiceMetersInRect:NSMakeRect(split + 14.0, 28.0, NSWidth([self bounds]) - split - 26.0,
                                            NSHeight([self bounds]) - 38.0)
                     activeNotes:activeNotes];
@@ -265,6 +365,7 @@ static BOOL IsBlackKey(NSInteger pitch)
 {
     [_document release];
     [_liveNotes release];
+    [_pinnedTracks release];
     [super dealloc];
 }
 

@@ -438,6 +438,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [_partPopUp release];
     [_instrumentPopUp release];
     [_addPartButton release];
+    [_separatePartsButton release];
     [_addNoteButton release];
     [_keySignaturePopUp release];
     [_repeatStartButton release];
@@ -762,6 +763,15 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [_instrumentPopUp setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:_instrumentPopUp];
 
+    _separatePartsButton = [[NSButton alloc] initWithFrame:NSMakeRect(InspectorPadding + 132.0, frame.size.height - 364.0, 132.0, 20.0)];
+    [_separatePartsButton setTitle:@"Separate Part Staves"];
+    [_separatePartsButton setButtonType:NSSwitchButton];
+    [_separatePartsButton setState:NSOnState];
+    [_separatePartsButton setTarget:self];
+    [_separatePartsButton setAction:@selector(scoreDisplayModeDidChange:)];
+    [_separatePartsButton setAutoresizingMask:NSViewMinYMargin];
+    [[self inspectorView] addSubview:_separatePartsButton];
+
     NSTextField *midiInputLabel = [self labelWithString:@"MIDI Input" frame:NSMakeRect(InspectorPadding, frame.size.height - 424.0, 120.0, 18.0)];
     [midiInputLabel setAutoresizingMask:NSViewMinYMargin];
     [[self inspectorView] addSubview:midiInputLabel];
@@ -920,6 +930,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [_partPopUp setEnabled:hasDocument];
     [_instrumentPopUp setEnabled:hasDocument];
     [_addPartButton setEnabled:hasDocument];
+    [_separatePartsButton setEnabled:hasDocument];
     [_noteTypePopUp setEnabled:hasDocument];
     [_noteValuePopUp setEnabled:hasDocument];
     [_addNoteButton setEnabled:hasDocument];
@@ -1001,6 +1012,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     }
     NSNumber *program = [document programForTrack:selectedPart];
     [_instrumentPopUp selectItemAtIndex:program ? [program integerValue] : 0];
+    [_playbackMonitorView setSelectedTrack:selectedPart];
 
     if (selectedNote) {
         NSUInteger ticksPerQuarter = MAX((NSUInteger)1, [document ticksPerQuarter]);
@@ -1094,8 +1106,10 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     (void)sender;
     ScoreNote *note = [[self scoreView] selectedNote];
     if (!note) {
-        NSNumber *program = [[self scoreDocument] programForTrack:[self selectedPartNumber]];
+        NSInteger part = [self selectedPartNumber];
+        NSNumber *program = [[self scoreDocument] programForTrack:part];
         [_instrumentPopUp selectItemAtIndex:program ? [program integerValue] : 0];
+        [_playbackMonitorView setSelectedTrack:part];
         return;
     }
     NSInteger part = [self selectedPartNumber];
@@ -1108,6 +1122,12 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [self commitUndoBaseline];
 }
 
+- (void)scoreDisplayModeDidChange:(id)sender
+{
+    (void)sender;
+    [[self scoreView] setSeparateParts:[_separatePartsButton state] == NSOnState];
+}
+
 - (void)instrumentDidChange:(id)sender
 {
     (void)sender;
@@ -1116,6 +1136,7 @@ static void ScoreMakerSendAllNotesOff(MIDIEndpointRef endpoint)
     [self registerUndoSnapshotWithName:@"Change Instrument"];
     [document setProgram:[NSNumber numberWithInteger:[_instrumentPopUp indexOfSelectedItem]]
                 forTrack:[self selectedPartNumber]];
+    [_playbackMonitorView setNeedsDisplay:YES];
     [self updateChangeCount:NSChangeDone];
     [self commitUndoBaseline];
 }

@@ -28,7 +28,7 @@ static void CompareNotes(ScoreDocument *left, ScoreDocument *right)
 int main(void)
 {
     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-    NSArray *examples = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:@"examples" error:NULL];
+    NSDirectoryEnumerator *examples = [[NSFileManager defaultManager] enumeratorAtPath:@"examples"];
     for (NSString *name in examples) {
         if (![[name pathExtension] isEqualToString:@"score"]) continue;
         NSError *error = nil;
@@ -42,7 +42,7 @@ int main(void)
         NSString *text = [[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] autorelease];
         Require([text rangeOfString:@"ScoreMaker Metadata V1"].location != NSNotFound, @"V1 metadata was removed");
         Require([text rangeOfString:@"ScoreMaker Structure V2"].location != NSNotFound, @"V2 structure metadata is missing");
-        NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:name];
+        NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:[name lastPathComponent]];
         Require([data writeToFile:path atomically:YES], @"could not write temporary score");
         ScoreDocument *roundTrip = [ScorefileParser parseFileAtPath:path error:&error];
         Require(roundTrip != nil, [NSString stringWithFormat:@"could not reparse %@: %@", name, error]);
