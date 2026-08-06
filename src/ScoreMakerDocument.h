@@ -97,8 +97,6 @@
   ScoreRealtimeDSP *_realtimeDSP;
   BOOL _useRealtimeDSP;
   NSInteger _realtimeDSPPitch;
-  NSArray *_dspPlaybackEvents;
-  NSUInteger _dspPlaybackEventIndex;
   NSInteger _audioUnitPartTrack;
 #if defined(__APPLE__)
   MIDIEndpointRef _midiOutputEndpoint;
@@ -136,4 +134,5 @@
 - (void)chooseMIDIOutput:(id)sender;
 - (void)toggleRealtimeDSP:(id)sender;
 - (void)chooseAudioUnitInstrument:(id)sender;
+- (void)renderOfflineAudio:(id)sender;
 @end

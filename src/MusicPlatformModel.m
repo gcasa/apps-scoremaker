@@ -122,6 +122,7 @@ ScoreNewIdentifier (void)
 @synthesize identifier = _identifier, name = _name, abbreviatedName = _abbreviatedName;
 @synthesize legacyTrack = _legacyTrack, visible = _visible, instrument = _instrument,
             staves = _staves;
+@synthesize synthesisGraph = _synthesisGraph;
 - (id)init
 {
   if ((self = [super init]))
@@ -129,6 +130,7 @@ ScoreNewIdentifier (void)
       _identifier = [ScoreNewIdentifier () copy];
       _visible = YES;
       _staves = [[NSMutableArray alloc] init];
+      _synthesisGraph = [[ScoreSynthesisGraph alloc] init];
     }
   return self;
 }
@@ -142,6 +144,7 @@ ScoreNewIdentifier (void)
   copy.visible = _visible;
   copy.instrument = [[_instrument copy] autorelease];
   copy.staves = [[[NSMutableArray alloc] initWithArray:_staves copyItems:YES] autorelease];
+  copy.synthesisGraph = [[_synthesisGraph copy] autorelease];
   return copy;
 }
 - (void)dealloc
@@ -151,6 +154,7 @@ ScoreNewIdentifier (void)
   [_abbreviatedName release];
   [_instrument release];
   [_staves release];
+  [_synthesisGraph release];
   [super dealloc];
 }
 @end

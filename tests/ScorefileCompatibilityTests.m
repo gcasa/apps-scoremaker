@@ -18,6 +18,7 @@
  */
 
 #import <Foundation/Foundation.h>
+#import <AVFoundation/AVFoundation.h>
 #import "ScorefileParser.h"
 #import "ScoreProjectSerializer.h"
 #import "MusicXMLParser.h"
@@ -25,6 +26,7 @@
 #import "EngravingLayout.h"
 #import "MusicEngine.h"
 #import "MusicPlatformModel.h"
+#import "RealtimeDSP.h"
 
 static void
 Require (BOOL condition, NSString *message)
@@ -106,9 +108,10 @@ main (void)
                                            inDocument:platform
                                                 error:&platformError],
            @"pattern composition evaluation failed");
-  Require ([[platform notes] count] == 4 && [[[platform notes] objectAtIndex:0] pitch] == 72 &&
-             [[[platform notes] objectAtIndex:0] velocity] == 100 &&
-             [[[[platform notes] objectAtIndex:0] provenance] hasPrefix:@"composition:pattern"],
+  ScoreNote *patternNote = [[platform notes] objectAtIndex:0];
+  Require ([[platform notes] count] == 4 && [patternNote pitch] == 72 &&
+             [patternNote velocity] == 100 &&
+             [[patternNote provenance] hasPrefix:@"composition:pattern"],
            @"pattern repetition, transformation, velocity, or provenance failed");
   ScoreScheduler *scheduler = [[[ScoreScheduler alloc] initWithDocument:platform] autorelease];
   Require (fabs ([scheduler timeForTick:480] - 0.5) < 0.0001,
@@ -118,6 +121,9 @@ main (void)
 
   ScoreInstrumentDefinition *persistentInstrument =
     [[[[platform parts] objectAtIndex:0] instrument] retain];
+  ScoreSynthesisNode *partOscillator = [[[ScoreSynthesisNode alloc] init] autorelease];
+  [partOscillator setTypeIdentifier:@"oscillator"];
+  [[[[platform parts] objectAtIndex:0] synthesisGraph].nodes addObject:partOscillator];
   [persistentInstrument setBackendIdentifier:@"audio-unit:1635085685:1935764848:1634758764"];
   NSData *pluginState = [@"opaque plugin state" dataUsingEncoding:NSUTF8StringEncoding];
   [[persistentInstrument parameters] setObject:pluginState forKey:@"stateData"];
@@ -131,6 +137,8 @@ main (void)
       isEqualToString:@"audio-unit:1635085685:1935764848:1634758764"]
       && [[[restoredInstrument parameters] objectForKey:@"stateData"] isEqualToData:pluginState],
     @"native project persistence lost Audio Unit identity or opaque state");
+  Require ([[[[[projectRoundTrip parts] objectAtIndex:0] synthesisGraph] nodes] count] == 1,
+           @"native project persistence lost a per-part synthesis graph");
   NSMutableDictionary *legacyProject =
     [[NSJSONSerialization JSONObjectWithData:projectData
                                      options:NSJSONReadingMutableContainers
@@ -166,6 +174,54 @@ main (void)
     [[[ScoreScheduler alloc] initWithDocument:stressDocument] autorelease];
   Require ([[stressScheduler eventsFromTick:0 throughTick:200000] count] == 4000,
            @"large-score scheduler lost events under stress");
+
+  ScoreRealtimeDSP *offlineDSP = [[[ScoreRealtimeDSP alloc] init] autorelease];
+  NSString *renderPath =
+    [NSTemporaryDirectory () stringByAppendingPathComponent:@"scoremaker-offline-render.caf"];
+  Require ([offlineDSP renderPitches:[NSArray arrayWithObjects:@60, @64, @67, nil]
+                            duration:0.05
+                               toURL:[NSURL fileURLWithPath:renderPath]
+                               error:&platformError],
+           [NSString stringWithFormat:@"offline rendering failed: %@", platformError]);
+  NSDictionary *renderAttributes =
+    [[NSFileManager defaultManager] attributesOfItemAtPath:renderPath error:&platformError];
+  Require ([[renderAttributes objectForKey:NSFileSize] unsignedLongLongValue] > 1024,
+           @"offline rendering produced an empty audio file");
+  [[NSFileManager defaultManager] removeItemAtPath:renderPath error:NULL];
+
+  NSString *timingPath =
+    [NSTemporaryDirectory () stringByAppendingPathComponent:@"scoremaker-sample-timing.caf"];
+  NSArray *timedEvents = @[
+    @{@"time" : @0.05,
+      @"pitch" : @69,
+      @"velocity" : @127,
+      @"on" : @YES},
+    @{@"time" : @0.10,
+      @"pitch" : @69,
+      @"velocity" : @0,
+      @"on" : @NO}
+  ];
+  Require ([offlineDSP renderEvents:timedEvents
+                           duration:0.15
+                              toURL:[NSURL fileURLWithPath:timingPath]
+                              error:&platformError],
+           @"sample-timing render failed");
+  AVAudioFile *timingFile = [[[AVAudioFile alloc] initForReading:[NSURL fileURLWithPath:timingPath]
+                                                           error:&platformError] autorelease];
+  AVAudioPCMBuffer *timingBuffer = [[[AVAudioPCMBuffer alloc]
+    initWithPCMFormat:[timingFile processingFormat]
+        frameCapacity:(AVAudioFrameCount)[timingFile length]] autorelease];
+  Require ([timingFile readIntoBuffer:timingBuffer error:&platformError],
+           @"could not inspect sample-timing render");
+  float *samples = [timingBuffer floatChannelData][0];
+  float preOnsetPeak = 0.0f, soundingPeak = 0.0f;
+  for (NSUInteger frame = 0; frame < 2400; frame++)
+    preOnsetPeak = MAX (preOnsetPeak, fabsf (samples[frame]));
+  for (NSUInteger frame = 2401; frame < 4800; frame++)
+    soundingPeak = MAX (soundingPeak, fabsf (samples[frame]));
+  Require (preOnsetPeak == 0.0f && soundingPeak > 0.01f,
+           @"offline DSP events were not applied at the requested sample frame");
+  [[NSFileManager defaultManager] removeItemAtPath:timingPath error:NULL];
 
   ScoreSynthesisNode *oscillator = [[[ScoreSynthesisNode alloc] init] autorelease];
   [oscillator setTypeIdentifier:@"oscillator"];
@@ -236,11 +292,11 @@ main (void)
   Require ([voiceData writeToFile:voicePath atomically:YES], @"could not write voice test score");
   ScoreDocument *voiceRoundTrip = [ScorefileParser parseFileAtPath:voicePath error:&error];
   Require ([[voiceRoundTrip measures] count] == 2, @"explicit measures did not round trip");
-  Require ([[[voiceRoundTrip notes] objectAtIndex:0] voice] == 1 &&
-             [[[voiceRoundTrip notes] objectAtIndex:1] voice] == 2,
+  ScoreNote *firstVoiceNote = [[voiceRoundTrip notes] objectAtIndex:0];
+  ScoreNote *secondVoiceNote = [[voiceRoundTrip notes] objectAtIndex:1];
+  Require ([firstVoiceNote voice] == 1 && [secondVoiceNote voice] == 2,
            @"voices did not round trip");
-  Require ([[[voiceRoundTrip notes] objectAtIndex:0] velocity] == 96 &&
-             [[[voiceRoundTrip notes] objectAtIndex:1] velocity] == 48,
+  Require ([firstVoiceNote velocity] == 96 && [secondVoiceNote velocity] == 48,
            @"velocities did not round trip");
   Require ([[voiceRoundTrip measures][0] keySignatureFifths] == 2 &&
              [[voiceRoundTrip measures][0] repeatStart] && [[voiceRoundTrip measures][1] repeatEnd],
@@ -258,8 +314,9 @@ main (void)
   ScoreDocument *xmlRoundTrip = [MusicXMLParser parseFileAtPath:xmlPath error:&error];
   Require ([[xmlRoundTrip measures] count] == 2, @"MusicXML measures did not round trip");
   Require ([[xmlRoundTrip notes] count] == 2, @"MusicXML notes did not round trip");
-  Require ([[[xmlRoundTrip notes] objectAtIndex:0] voice] == 1 &&
-             [[[xmlRoundTrip notes] objectAtIndex:1] voice] == 2,
+  ScoreNote *firstXMLNote = [[xmlRoundTrip notes] objectAtIndex:0];
+  ScoreNote *secondXMLNote = [[xmlRoundTrip notes] objectAtIndex:1];
+  Require ([firstXMLNote voice] == 1 && [secondXMLNote voice] == 2,
            @"MusicXML voices did not round trip");
   Require ([[xmlRoundTrip measures][0] keySignatureFifths] == 2 &&
              [[xmlRoundTrip measures][0] repeatStart] && [[xmlRoundTrip measures][1] repeatEnd],
@@ -271,10 +328,11 @@ main (void)
            @"MusicXML note notation did not round trip");
 
   ScoreDocument *snapshot = [voices copy];
-  [[[voices notes] objectAtIndex:0] setPitch:84];
+  ScoreNote *editedNote = [[voices notes] objectAtIndex:0];
+  [editedNote setPitch:84];
   [[voices measures] removeLastObject];
-  Require ([[[snapshot notes] objectAtIndex:0] pitch] == 72,
-           @"undo snapshot did not deeply copy notes");
+  ScoreNote *snapshotNote = [[snapshot notes] objectAtIndex:0];
+  Require ([snapshotNote pitch] == 72, @"undo snapshot did not deeply copy notes");
   Require ([[snapshot measures] count] == 2, @"undo snapshot did not deeply copy measures");
   [snapshot release];
 

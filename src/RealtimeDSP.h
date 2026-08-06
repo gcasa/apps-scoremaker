@@ -24,6 +24,11 @@ typedef id ScoreAudioUnitLoadCompletion;
 - (void)noteOn:(NSInteger)pitch velocity:(NSUInteger)velocity;
 - (void)noteOff:(NSInteger)pitch;
 - (void)allNotesOff;
+- (BOOL)scheduleEvents:(NSArray *)events error:(NSError **)error;
+- (BOOL)renderEvents:(NSArray *)events
+            duration:(NSTimeInterval)duration
+               toURL:(NSURL *)url
+               error:(NSError **)error;
 - (BOOL)renderPitches:(NSArray *)pitches
              duration:(NSTimeInterval)duration
                 toURL:(NSURL *)url

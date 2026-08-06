@@ -518,7 +518,6 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_scoreDocument release];
   [_realtimeDSP stop];
   [_realtimeDSP release];
-  [_dspPlaybackEvents release];
   [_scrollView release];
   [_scoreView release];
   [_inspectorScrollView release];
@@ -1835,22 +1834,36 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_midiPlayer release];
   _midiPlayer = nil;
   [_realtimeDSP allNotesOff];
-  [_dspPlaybackEvents release];
-  _dspPlaybackEvents = nil;
-  _dspPlaybackEventIndex = 0;
+  if (_useRealtimeDSP)
+    [_realtimeDSP stop];
 }
 
 - (BOOL)prepareDSPPlaybackAtTick:(NSUInteger)tick error:(NSError **)error
 {
-  if (![_realtimeDSP isRunning] && ![_realtimeDSP startWithError:error])
-    return NO;
   ScoreScheduler *scheduler =
     [[[ScoreScheduler alloc] initWithDocument:[self scoreDocument]] autorelease];
-  [_dspPlaybackEvents release];
-  _dspPlaybackEvents = [[scheduler eventsFromTick:tick
-                                      throughTick:[[self scoreDocument] totalTicks]] retain];
-  _dspPlaybackEventIndex = 0;
-  return YES;
+  NSTimeInterval origin = [scheduler timeForTick:tick];
+  NSMutableArray *timeline = [NSMutableArray array];
+  for (ScoreNote *note in [[self scoreDocument] notes])
+    if (![note isRest] && [note startTick]<tick && [note startTick] + [note durationTicks]> tick)
+      [timeline addObject:@{
+        @"time" : @0,
+        @"pitch" : [NSNumber numberWithInteger:[note pitch]],
+        @"velocity" : [NSNumber numberWithUnsignedInteger:[note velocity]],
+        @"on" : @YES
+      }];
+  for (ScoreScheduledEvent *event in [scheduler eventsFromTick:tick
+                                                   throughTick:[[self scoreDocument] totalTicks]])
+    {
+      ScoreNote *note = [event note];
+      [timeline addObject:@{
+        @"time" : [NSNumber numberWithDouble:MAX (0.0, [event time] - origin)],
+        @"pitch" : [NSNumber numberWithInteger:[note pitch]],
+        @"velocity" : [NSNumber numberWithUnsignedInteger:[note velocity]],
+        @"on" : [NSNumber numberWithBool:![event noteOff]]
+      }];
+    }
+  return [_realtimeDSP scheduleEvents:timeline error:error];
 }
 
 - (BOOL)restartPlaybackAtTick:(NSUInteger)tick
@@ -1988,19 +2001,6 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   ScoreScheduler *scheduler = [[[ScoreScheduler alloc] initWithDocument:document] autorelease];
   NSUInteger tick = [scheduler tickForTime:elapsed];
 
-  while (_dspPlaybackEventIndex < [_dspPlaybackEvents count])
-    {
-      ScoreScheduledEvent *event = [_dspPlaybackEvents objectAtIndex:_dspPlaybackEventIndex];
-      if ([event time] > elapsed)
-        break;
-      ScoreNote *note = [event note];
-      if ([event noteOff])
-        [_realtimeDSP noteOff:[note pitch]];
-      else
-        [_realtimeDSP noteOn:[note pitch] velocity:[note velocity]];
-      _dspPlaybackEventIndex++;
-    }
-
   if (tick >= [document totalTicks])
     {
       [_playbackTimer invalidate];
@@ -2011,8 +2011,6 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [_pauseButton setTitle:@"Pause"];
       [_pauseButton setEnabled:NO];
       [_realtimeDSP allNotesOff];
-      [_dspPlaybackEvents release];
-      _dspPlaybackEvents = nil;
       return;
     }
 
@@ -2062,7 +2060,10 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
         }
       [_playbackSound pause];
       if (_useRealtimeDSP)
-        [_realtimeDSP allNotesOff];
+        {
+          [_realtimeDSP allNotesOff];
+          [_realtimeDSP stop];
+        }
       _playbackPaused = YES;
       [_pauseButton setTitle:@"Resume"];
     }
@@ -2413,6 +2414,15 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     return;
   if (_useRealtimeDSP)
     {
+      if (![_realtimeDSP isRunning])
+        {
+          NSError *error = nil;
+          if (![_realtimeDSP startWithError:&error])
+            {
+              [[NSDocumentController sharedDocumentController] presentError:error];
+              return;
+            }
+        }
       [self stopAudition];
       [_realtimeDSP noteOn:pitch velocity:100];
       _realtimeDSPPitch = pitch;
@@ -2628,6 +2638,61 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
         [[part instrument] setParameters:parameters];
         break;
       }
+}
+
+- (void)renderOfflineAudio:(id)sender
+{
+  (void)sender;
+  ScoreDocument *document = [self scoreDocument];
+  if (!document)
+    return;
+  NSPopUpButton *scope = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (0, 0, 340, 26)
+                                                     pullsDown:NO] autorelease];
+  [scope addItemWithTitle:@"Full Mix"];
+  [scope addItemWithTitle:@"Current Part Stem"];
+  NSAlert *scopeAlert = [[[NSAlert alloc] init] autorelease];
+  [scopeAlert setMessageText:@"Offline Audio Render"];
+  [scopeAlert setInformativeText:
+                @"Render the complete score or the currently selected part as a separate stem."];
+  [scopeAlert setAccessoryView:scope];
+  [scopeAlert addButtonWithTitle:@"Continue"];
+  [scopeAlert addButtonWithTitle:@"Cancel"];
+  if ([scopeAlert runModal] != NSAlertFirstButtonReturn)
+    return;
+  BOOL renderCurrentPart = [scope indexOfSelectedItem] == 1;
+  NSInteger renderedTrack = [self selectedPartNumber];
+  NSSavePanel *panel = [NSSavePanel savePanel];
+  [panel setNameFieldStringValue:renderCurrentPart ? @"ScoreMaker Part Stem.caf"
+                                                   : @"ScoreMaker Render.caf"];
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+  [panel setAllowedFileTypes:[NSArray arrayWithObject:@"caf"]];
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+  if ([panel runModal] != NSModalResponseOK)
+    return;
+
+  ScoreScheduler *scheduler = [[[ScoreScheduler alloc] initWithDocument:document] autorelease];
+  NSMutableArray *timeline = [NSMutableArray array];
+  for (ScoreScheduledEvent *event in [scheduler eventsFromTick:0 throughTick:[document totalTicks]])
+    {
+      ScoreNote *note = [event note];
+      if (renderCurrentPart && [note track] != renderedTrack)
+        continue;
+      [timeline addObject:@{
+        @"time" : [NSNumber numberWithDouble:[event time]],
+        @"pitch" : [NSNumber numberWithInteger:[note pitch]],
+        @"velocity" : [NSNumber numberWithUnsignedInteger:[note velocity]],
+        @"on" : [NSNumber numberWithBool:![event noteOff]]
+      }];
+    }
+  NSError *error = nil;
+  NSTimeInterval duration = [scheduler timeForTick:[document totalTicks]] + 1.0;
+  if (![_realtimeDSP renderEvents:timeline duration:duration toURL:[panel URL] error:&error])
+    [[NSDocumentController sharedDocumentController] presentError:error];
 }
 
 - (void)auditionPitch:(NSInteger)pitch

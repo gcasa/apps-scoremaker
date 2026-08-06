@@ -19,6 +19,8 @@
 
 #import <Foundation/Foundation.h>
 
+@class ScoreSynthesisGraph;
+
 typedef NS_ENUM (NSInteger, ScoreStaffClef) {
   ScoreStaffClefTreble,
   ScoreStaffClefBass,
@@ -79,6 +81,7 @@ typedef NS_ENUM (NSInteger, ScoreStaffClef) {
   BOOL _visible;
   ScoreInstrumentDefinition *_instrument;
   NSMutableArray *_staves;
+  ScoreSynthesisGraph *_synthesisGraph;
 }
 @property (nonatomic, copy) NSString *identifier;
 @property (nonatomic, copy) NSString *name;
@@ -87,6 +90,7 @@ typedef NS_ENUM (NSInteger, ScoreStaffClef) {
 @property (nonatomic) BOOL visible;
 @property (nonatomic, retain) ScoreInstrumentDefinition *instrument;
 @property (nonatomic, retain) NSMutableArray *staves;
+@property (nonatomic, retain) ScoreSynthesisGraph *synthesisGraph;
 @end
 
 @interface ScoreTempoEvent : NSObject <NSCopying>

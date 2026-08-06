@@ -16,6 +16,7 @@ typedef struct
   int pitch;
   float velocity;
   BOOL on;
+  uint64_t sampleFrame;
 } ScoreDSPEvent;
 typedef struct
 {
@@ -33,6 +34,10 @@ typedef struct
   atomic_uint readIndex;
   atomic_uint writeIndex;
   double sampleRate;
+  ScoreDSPEvent *scheduledEvents;
+  NSUInteger scheduledEventCount;
+  NSUInteger scheduledEventIndex;
+  uint64_t renderedFrames;
 } ScoreDSPState;
 
 static void
@@ -42,11 +47,32 @@ ScoreDSPPush (ScoreDSPState *s, int pitch, float velocity, BOOL on)
   unsigned next = (write + 1) % SCORE_DSP_EVENTS;
   if (next == atomic_load_explicit (&s->readIndex, memory_order_acquire))
     return;
-  s->events[write] = (ScoreDSPEvent){ pitch, velocity, on };
+  s->events[write] = (ScoreDSPEvent){ pitch, velocity, on, 0 };
   atomic_store_explicit (&s->writeIndex, next, memory_order_release);
 }
 static void
-ScoreDSPApplyEvents (ScoreDSPState *s)
+ScoreDSPApplyEvent (ScoreDSPState *s, ScoreDSPEvent e)
+{
+  if (e.on)
+    {
+      ScoreDSPVoice *v = NULL;
+      for (int i = 0; i < SCORE_DSP_VOICES; i++)
+        if (!s->voices[i].active)
+          {
+            v = &s->voices[i];
+            break;
+          }
+      if (!v)
+        v = &s->voices[0];
+      *v = (ScoreDSPVoice){ e.pitch, 0, 0, e.velocity, YES, NO };
+    }
+  else
+    for (int i = 0; i < SCORE_DSP_VOICES; i++)
+      if (s->voices[i].active && s->voices[i].pitch == e.pitch)
+        s->voices[i].releasing = YES;
+}
+static void
+ScoreDSPApplyImmediateEvents (ScoreDSPState *s)
 {
   unsigned read = atomic_load_explicit (&s->readIndex, memory_order_relaxed);
   unsigned write = atomic_load_explicit (&s->writeIndex, memory_order_acquire);
@@ -54,32 +80,19 @@ ScoreDSPApplyEvents (ScoreDSPState *s)
     {
       ScoreDSPEvent e = s->events[read];
       read = (read + 1) % SCORE_DSP_EVENTS;
-      if (e.on)
-        {
-          ScoreDSPVoice *v = NULL;
-          for (int i = 0; i < SCORE_DSP_VOICES; i++)
-            if (!s->voices[i].active)
-              {
-                v = &s->voices[i];
-                break;
-              }
-          if (!v)
-            v = &s->voices[0];
-          *v = (ScoreDSPVoice){ e.pitch, 0, 0, e.velocity, YES, NO };
-        }
-      else
-        for (int i = 0; i < SCORE_DSP_VOICES; i++)
-          if (s->voices[i].active && s->voices[i].pitch == e.pitch)
-            s->voices[i].releasing = YES;
+      ScoreDSPApplyEvent (s, e);
     }
   atomic_store_explicit (&s->readIndex, read, memory_order_release);
 }
 static void
 ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
 {
-  ScoreDSPApplyEvents (s);
+  ScoreDSPApplyImmediateEvents (s);
   for (NSUInteger f = 0; f < frames; f++)
     {
+      while (s->scheduledEventIndex < s->scheduledEventCount
+             && s->scheduledEvents[s->scheduledEventIndex].sampleFrame <= s->renderedFrames)
+        ScoreDSPApplyEvent (s, s->scheduledEvents[s->scheduledEventIndex++]);
       double mix = 0;
       for (int i = 0; i < SCORE_DSP_VOICES; i++)
         {
@@ -103,6 +116,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
       float sample = (float)tanh (mix * 0.22);
       left[f] = sample;
       right[f] = sample;
+      s->renderedFrames++;
     }
 }
 
@@ -325,12 +339,140 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   for (NSInteger pitch = 0; pitch < 128; pitch++)
     [self noteOff:pitch];
 }
+- (BOOL)scheduleEvents:(NSArray *)events error:(NSError **)error
+{
+#if defined(__APPLE__)
+  [self stop];
+  free (_dsp->scheduledEvents);
+  _dsp->scheduledEvents = NULL;
+  _dsp->scheduledEventCount = [events count];
+  _dsp->scheduledEventIndex = 0;
+  _dsp->renderedFrames = 0;
+  memset (_dsp->voices, 0, sizeof (_dsp->voices));
+  if ([events count])
+    _dsp->scheduledEvents = calloc ([events count], sizeof (ScoreDSPEvent));
+  for (NSUInteger index = 0; index < [events count]; index++)
+    {
+      NSDictionary *item = [events objectAtIndex:index];
+      _dsp->scheduledEvents[index] = (ScoreDSPEvent){
+        [[item objectForKey:@"pitch"] intValue],
+        [[item objectForKey:@"velocity"] floatValue] / 127.0f,
+        [[item objectForKey:@"on"] boolValue],
+        (uint64_t)llround ([[item objectForKey:@"time"] doubleValue] * _dsp->sampleRate)
+      };
+    }
+  if (![self startWithError:error])
+    return NO;
+  if (_instrument)
+    {
+      AUScheduleMIDIEventBlock schedule = [[_instrument AUAudioUnit] scheduleMIDIEventBlock];
+      if (!schedule)
+        {
+          if (error)
+            *error =
+              [NSError errorWithDomain:@"ScoreMakerDSP"
+                                  code:3
+                              userInfo:@{
+                                NSLocalizedDescriptionKey :
+                                  @"The Audio Unit does not expose timestamped MIDI scheduling."
+                              }];
+          return NO;
+        }
+      for (NSUInteger index = 0; index < _dsp->scheduledEventCount; index++)
+        {
+          ScoreDSPEvent event = _dsp->scheduledEvents[index];
+          uint8_t midi[3] = { event.on ? 0x90 : 0x80, (uint8_t)event.pitch,
+                              event.on ? (uint8_t)lrintf (event.velocity * 127.0f) : 0 };
+          schedule ((AUEventSampleTime)event.sampleFrame, 0, 3, midi);
+        }
+    }
+  return YES;
+#else
+  (void)events;
+  if (error)
+    *error =
+      [NSError errorWithDomain:@"ScoreMakerDSP"
+                          code:1
+                      userInfo:@{ NSLocalizedDescriptionKey : @"DSP scheduling is unavailable." }];
+  return NO;
+#endif
+}
+- (BOOL)renderEvents:(NSArray *)events
+            duration:(NSTimeInterval)duration
+               toURL:(NSURL *)url
+               error:(NSError **)error
+{
+#if defined(__APPLE__)
+  const double sampleRate = 48000.0;
+  AVAudioFormat *format = [[[AVAudioFormat alloc] initStandardFormatWithSampleRate:sampleRate
+                                                                          channels:2] autorelease];
+  NSMutableDictionary *fileSettings =
+    [NSMutableDictionary dictionaryWithDictionary:[format settings]];
+  [fileSettings removeObjectForKey:AVLinearPCMIsNonInterleavedKey];
+  AVAudioFile *file = [[[AVAudioFile alloc] initForWriting:url settings:fileSettings
+                                                     error:error] autorelease];
+  if (!file)
+    return NO;
+  ScoreDSPState state = { 0 };
+  state.sampleRate = sampleRate;
+  state.scheduledEventCount = [events count];
+  state.scheduledEvents = calloc (MAX ((NSUInteger)1, [events count]), sizeof (ScoreDSPEvent));
+  for (NSUInteger index = 0; index < [events count]; index++)
+    {
+      NSDictionary *item = [events objectAtIndex:index];
+      state.scheduledEvents[index] = (ScoreDSPEvent){
+        [[item objectForKey:@"pitch"] intValue],
+        [[item objectForKey:@"velocity"] floatValue] / 127.0f,
+        [[item objectForKey:@"on"] boolValue],
+        (uint64_t)llround ([[item objectForKey:@"time"] doubleValue] * sampleRate)
+      };
+    }
+  uint64_t framesRemaining = (uint64_t)ceil (MAX (0.0, duration) * sampleRate);
+  while (framesRemaining)
+    {
+      AVAudioFrameCount count = (AVAudioFrameCount)MIN ((uint64_t)4096, framesRemaining);
+      AVAudioPCMBuffer *buffer = [[[AVAudioPCMBuffer alloc] initWithPCMFormat:format
+                                                                frameCapacity:count] autorelease];
+      [buffer setFrameLength:count];
+      ScoreDSPRender (&state, [buffer floatChannelData][0], [buffer floatChannelData][1], count);
+      if (![file writeFromBuffer:buffer error:error])
+        {
+          free (state.scheduledEvents);
+          return NO;
+        }
+      framesRemaining -= count;
+    }
+  free (state.scheduledEvents);
+  return YES;
+#else
+  (void)events;
+  (void)duration;
+  (void)url;
+  if (error)
+    *error = [NSError
+      errorWithDomain:@"ScoreMakerDSP"
+                 code:1
+             userInfo:@{ NSLocalizedDescriptionKey : @"Offline rendering is unavailable." }];
+  return NO;
+#endif
+}
 - (BOOL)renderPitches:(NSArray *)pitches
              duration:(NSTimeInterval)duration
                 toURL:(NSURL *)url
                 error:(NSError **)error
 {
-  return NO;
+  NSMutableArray *events = [NSMutableArray array];
+  for (NSNumber *pitch in pitches)
+    {
+      [events addObject:@{ @"time" : @0, @"pitch" : pitch, @"velocity" : @96, @"on" : @YES }];
+      [events addObject:@{
+        @"time" : [NSNumber numberWithDouble:duration],
+        @"pitch" : pitch,
+        @"velocity" : @0,
+        @"on" : @NO
+      }];
+    }
+  return [self renderEvents:events duration:duration + 0.5 toURL:url error:error];
 }
 - (void)dealloc
 {
@@ -339,6 +481,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   [_instrument release];
   [_instrumentDescription release];
 #endif
+  free (_dsp->scheduledEvents);
   free (_dsp);
   [super dealloc];
 }
