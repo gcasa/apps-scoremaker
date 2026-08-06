@@ -226,6 +226,18 @@ DefaultAccidentalForPitch (NSInteger pitch)
 {
   _velocity = MIN ((NSUInteger)127, velocity);
 }
+- (NSString *)provenance
+{
+  return _provenance;
+}
+- (void)setProvenance:(NSString *)provenance
+{
+  if (_provenance != provenance)
+    {
+      [_provenance release];
+      _provenance = [provenance copy];
+    }
+}
 
 - (NSComparisonResult)compareScoreNote:(ScoreNote *)other
 {
@@ -269,6 +281,7 @@ DefaultAccidentalForPitch (NSInteger pitch)
   [copy setVoice:_voice];
   [copy setMeasureIndex:_measureIndex];
   [copy setVelocity:_velocity];
+  [copy setProvenance:_provenance];
   return copy;
 }
 
@@ -276,6 +289,7 @@ DefaultAccidentalForPitch (NSInteger pitch)
 {
   [_dynamic release];
   [_articulation release];
+  [_provenance release];
   [super dealloc];
 }
 

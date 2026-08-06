@@ -100,10 +100,20 @@ main (void)
            [NSString stringWithFormat:@"composition evaluation failed: %@", platformError]);
   Require ([[platform notes] count] == 3 && [[platform parts] count] == 1,
            @"composition evaluation did not generate a structured part");
+  [program setSource:@"pattern motif\nnote 60 120\nnote 64 120\nend\n"
+                     @"velocity 100\nplay motif 2 12\n"];
+  Require ([ScoreCompositionEvaluator evaluateProgram:program
+                                           inDocument:platform
+                                                error:&platformError],
+           @"pattern composition evaluation failed");
+  Require ([[platform notes] count] == 4 && [[[platform notes] objectAtIndex:0] pitch] == 72 &&
+             [[[platform notes] objectAtIndex:0] velocity] == 100 &&
+             [[[[platform notes] objectAtIndex:0] provenance] hasPrefix:@"composition:pattern"],
+           @"pattern repetition, transformation, velocity, or provenance failed");
   ScoreScheduler *scheduler = [[[ScoreScheduler alloc] initWithDocument:platform] autorelease];
   Require (fabs ([scheduler timeForTick:480] - 0.5) < 0.0001,
            @"scheduler produced an incorrect tick time");
-  Require ([[scheduler eventsFromTick:0 throughTick:1200] count] == 4,
+  Require ([[scheduler eventsFromTick:0 throughTick:1200] count] == 8,
            @"scheduler did not produce note-on and note-off events");
 
   ScoreInstrumentDefinition *persistentInstrument =
@@ -121,7 +131,41 @@ main (void)
       isEqualToString:@"audio-unit:1635085685:1935764848:1634758764"]
       && [[[restoredInstrument parameters] objectForKey:@"stateData"] isEqualToData:pluginState],
     @"native project persistence lost Audio Unit identity or opaque state");
+  NSMutableDictionary *legacyProject =
+    [[NSJSONSerialization JSONObjectWithData:projectData
+                                     options:NSJSONReadingMutableContainers
+                                       error:&platformError] mutableCopy];
+  [legacyProject setObject:@1 forKey:@"version"];
+  [legacyProject removeObjectForKey:@"scorefileLength"];
+  NSData *legacyData = [NSJSONSerialization dataWithJSONObject:legacyProject
+                                                       options:0
+                                                         error:&platformError];
+  Require ([ScoreProjectSerializer documentFromData:legacyData error:&platformError] != nil,
+           @"version 1 native project migration failed");
+  [legacyProject setObject:@2 forKey:@"version"];
+  [legacyProject setObject:@1 forKey:@"scorefileLength"];
+  NSData *damagedData = [NSJSONSerialization dataWithJSONObject:legacyProject
+                                                        options:0
+                                                          error:&platformError];
+  Require ([ScoreProjectSerializer documentFromData:damagedData error:NULL] == nil,
+           @"damaged native project data was not rejected");
+  [legacyProject release];
   [persistentInstrument release];
+
+  ScoreDocument *stressDocument = [[[ScoreDocument alloc] init] autorelease];
+  [stressDocument setTotalTicks:200000];
+  for (NSUInteger index = 0; index < 2000; index++)
+    {
+      ScoreNote *note = [[[ScoreNote alloc] init] autorelease];
+      [note setPitch:48 + index % 36];
+      [note setStartTick:index * 100];
+      [note setDurationTicks:80];
+      [[stressDocument notes] addObject:note];
+    }
+  ScoreScheduler *stressScheduler =
+    [[[ScoreScheduler alloc] initWithDocument:stressDocument] autorelease];
+  Require ([[stressScheduler eventsFromTick:0 throughTick:200000] count] == 4000,
+           @"large-score scheduler lost events under stress");
 
   ScoreSynthesisNode *oscillator = [[[ScoreSynthesisNode alloc] init] autorelease];
   [oscillator setTypeIdentifier:@"oscillator"];

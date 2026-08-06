@@ -153,16 +153,19 @@ ScoreProjectDecode (id encoded)
                                  ScoreProjectEncode ([document compositionProgram]),
                                  @"compositionProgram", nil];
   NSDictionary *project = [NSDictionary
-    dictionaryWithObjectsAndKeys:@1, @"version", [scoreData base64EncodedStringWithOptions:0],
-                                 @"scorefile", platform, @"platform", nil];
+    dictionaryWithObjectsAndKeys:@2, @"version", [scoreData base64EncodedStringWithOptions:0],
+                                 @"scorefile",
+                                 [NSNumber numberWithUnsignedInteger:[scoreData length]],
+                                 @"scorefileLength", platform, @"platform", nil];
   return [NSJSONSerialization dataWithJSONObject:project options:0 error:error];
 }
 
 + (ScoreDocument *)documentFromData:(NSData *)data error:(NSError **)error
 {
   NSDictionary *project = [NSJSONSerialization JSONObjectWithData:data options:0 error:error];
-  if (![project isKindOfClass:[NSDictionary class]] ||
-      [[project objectForKey:@"version"] integerValue] != 1)
+  NSInteger version = [[project objectForKey:@"version"] integerValue];
+  if (![project isKindOfClass:[NSDictionary class]] || version < 1 || version > 2
+      || ![[project objectForKey:@"scorefile"] isKindOfClass:[NSString class]])
     {
       if (error)
         *error = [NSError
@@ -174,6 +177,17 @@ ScoreProjectDecode (id encoded)
   NSData *scoreData =
     [[[NSData alloc] initWithBase64EncodedString:[project objectForKey:@"scorefile"]
                                          options:0] autorelease];
+  if (!scoreData
+      || (version >= 2 &&
+          [scoreData length] != [[project objectForKey:@"scorefileLength"] unsignedIntegerValue]))
+    {
+      if (error)
+        *error = [NSError
+          errorWithDomain:ScoreProjectErrorDomain
+                     code:2
+                 userInfo:@{ NSLocalizedDescriptionKey : @"The project score data is damaged." }];
+      return nil;
+    }
   NSString *path = [NSTemporaryDirectory ()
     stringByAppendingPathComponent:[[NSProcessInfo processInfo] globallyUniqueString]];
   if (![scoreData writeToFile:path options:NSDataWritingAtomic error:error])
@@ -183,12 +197,21 @@ ScoreProjectDecode (id encoded)
   if (!document)
     return nil;
   NSDictionary *platform = [project objectForKey:@"platform"];
-  [document setParts:ScoreProjectDecode ([platform objectForKey:@"parts"])];
-  [document setTempoEvents:ScoreProjectDecode ([platform objectForKey:@"tempoEvents"])];
-  [document setMidiRoutes:ScoreProjectDecode ([platform objectForKey:@"midiRoutes"])];
-  [document setSynthesisGraph:ScoreProjectDecode ([platform objectForKey:@"synthesisGraph"])];
-  [document
-    setCompositionProgram:ScoreProjectDecode ([platform objectForKey:@"compositionProgram"])];
+  id value = ScoreProjectDecode ([platform objectForKey:@"parts"]);
+  if (value)
+    [document setParts:value];
+  value = ScoreProjectDecode ([platform objectForKey:@"tempoEvents"]);
+  if (value)
+    [document setTempoEvents:value];
+  value = ScoreProjectDecode ([platform objectForKey:@"midiRoutes"]);
+  if (value)
+    [document setMidiRoutes:value];
+  value = ScoreProjectDecode ([platform objectForKey:@"synthesisGraph"]);
+  if (value)
+    [document setSynthesisGraph:value];
+  value = ScoreProjectDecode ([platform objectForKey:@"compositionProgram"]);
+  if (value)
+    [document setCompositionProgram:value];
   return document;
 }
 @end

@@ -45,6 +45,7 @@
   NSInteger _voice;
   NSInteger _measureIndex;
   NSUInteger _velocity;
+  NSString *_provenance;
 }
 - (NSInteger)pitch;
 - (void)setPitch:(NSInteger)pitch;
@@ -82,6 +83,8 @@
 - (void)setMeasureIndex:(NSInteger)measureIndex;
 - (NSUInteger)velocity;
 - (void)setVelocity:(NSUInteger)velocity;
+- (NSString *)provenance;
+- (void)setProvenance:(NSString *)provenance;
 - (NSComparisonResult)compareScoreNote:(ScoreNote *)other;
 @end
 

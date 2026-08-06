@@ -369,6 +369,11 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 
 @implementation ScoreMakerDocument
 
++ (BOOL)autosavesInPlace
+{
+  return YES;
+}
+
 - (id)init
 {
   self = [super init];

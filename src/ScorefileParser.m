@@ -132,6 +132,8 @@ ScoreMakerStructureComment (ScoreDocument *document, NSError **error)
         [detail setObject:[note dynamic] forKey:@"dynamic"];
       if ([[note articulation] length])
         [detail setObject:[note articulation] forKey:@"articulation"];
+      if ([[note provenance] length])
+        [detail setObject:[note provenance] forKey:@"provenance"];
       [noteDetails addObject:detail];
     }
   NSDictionary *structure =
@@ -221,6 +223,7 @@ ApplyScoreMakerStructure (ScoreDocument *document, NSDictionary *structure)
       [note setTupletNormal:[[item objectForKey:@"tupletNormal"] unsignedIntegerValue]];
       [note setDynamic:[item objectForKey:@"dynamic"]];
       [note setArticulation:[item objectForKey:@"articulation"]];
+      [note setProvenance:[item objectForKey:@"provenance"]];
     }
   [[document notes] sortUsingSelector:@selector (compareScoreNote:)];
 }

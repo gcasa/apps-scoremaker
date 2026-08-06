@@ -255,14 +255,63 @@
   [[program diagnostics] removeAllObjects];
   NSArray *lines =
     [[program source] componentsSeparatedByCharactersInSet:[NSCharacterSet newlineCharacterSet]];
-  NSInteger track = 0, voice = 1;
-  NSUInteger tick = 0;
+  NSMutableDictionary *patterns = [NSMutableDictionary dictionary];
+  NSMutableArray *work = [NSMutableArray array];
+  NSMutableArray *patternBody = nil;
+  NSString *patternName = nil;
   for (NSUInteger index = 0; index < [lines count]; index++)
     {
       NSString *line = [[lines objectAtIndex:index]
         stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
       if (![line length] || [line hasPrefix:@"#"])
         continue;
+      NSArray *tokens =
+        [line componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+      NSMutableArray *words = [NSMutableArray array];
+      for (NSString *token in tokens)
+        if ([token length])
+          [words addObject:token];
+      if ([[words objectAtIndex:0] isEqualToString:@"pattern"] && [words count] == 2
+          && !patternBody)
+        {
+          patternName = [words objectAtIndex:1];
+          patternBody = [NSMutableArray array];
+          [patterns setObject:patternBody forKey:patternName];
+          continue;
+        }
+      if ([[words objectAtIndex:0] isEqualToString:@"end"] && patternBody)
+        {
+          patternBody = nil;
+          patternName = nil;
+          continue;
+        }
+      NSDictionary *item = [NSDictionary
+        dictionaryWithObjectsAndKeys:line, @"text", [NSNumber numberWithUnsignedInteger:index + 1],
+                                     @"line", patternName ? patternName : @"", @"pattern", @0,
+                                     @"transpose", nil];
+      [(patternBody ? patternBody : work) addObject:item];
+    }
+  if (patternBody)
+    [[program diagnostics]
+      addObject:[NSString stringWithFormat:@"Pattern %@ is missing end.", patternName]];
+
+  NSIndexSet *generated = [[document notes]
+    indexesOfObjectsPassingTest:^BOOL (ScoreNote *note, NSUInteger index, BOOL *stop) {
+      (void)index;
+      (void)stop;
+      return [[note provenance] hasPrefix:@"composition:"];
+    }];
+  [[document notes] removeObjectsAtIndexes:generated];
+
+  NSInteger track = 0, voice = 1, transpose = 0;
+  NSUInteger velocity = 64;
+  NSUInteger tick = 0;
+  NSUInteger expansionBudget = 100000;
+  for (NSUInteger index = 0; index < [work count] && expansionBudget > 0;
+       index++, expansionBudget--)
+    {
+      NSDictionary *item = [work objectAtIndex:index];
+      NSString *line = [item objectForKey:@"text"];
       NSArray *words =
         [line componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
       NSMutableArray *tokens = [NSMutableArray array];
@@ -270,6 +319,8 @@
         if ([word length])
           [tokens addObject:word];
       NSString *command = [tokens objectAtIndex:0];
+      NSUInteger sourceLine = [[item objectForKey:@"line"] unsignedIntegerValue];
+      NSInteger itemTranspose = [[item objectForKey:@"transpose"] integerValue];
       if ([command isEqualToString:@"part"] && [tokens count] >= 3)
         {
           track = [[tokens objectAtIndex:1] integerValue];
@@ -277,6 +328,42 @@
         }
       else if ([command isEqualToString:@"voice"] && [tokens count] == 2)
         voice = MAX ((NSInteger)1, [[tokens objectAtIndex:1] integerValue]);
+      else if ([command isEqualToString:@"velocity"] && [tokens count] == 2)
+        velocity = MIN ((NSUInteger)127,
+                        MAX ((NSUInteger)1, (NSUInteger)[[tokens objectAtIndex:1] integerValue]));
+      else if ([command isEqualToString:@"transpose"] && [tokens count] == 2)
+        transpose = [[tokens objectAtIndex:1] integerValue];
+      else if ([command isEqualToString:@"tempo"] && [tokens count] == 2)
+        {
+          NSUInteger bpm = MAX ((NSUInteger)1, (NSUInteger)[[tokens objectAtIndex:1] integerValue]);
+          [document setTempoMicrosecondsPerQuarter:60000000 / bpm];
+        }
+      else if ([command isEqualToString:@"play"] && [tokens count] >= 2)
+        {
+          NSArray *body = [patterns objectForKey:[tokens objectAtIndex:1]];
+          NSUInteger repetitions =
+            [tokens count] >= 3 ? (NSUInteger)[[tokens objectAtIndex:2] integerValue] : 1;
+          NSInteger playTranspose =
+            [tokens count] >= 4 ? [[tokens objectAtIndex:3] integerValue] : 0;
+          if (!body || repetitions == 0 || repetitions > 1024 ||
+              [body count] * repetitions > expansionBudget)
+            {
+              [[program diagnostics]
+                addObject:[NSString stringWithFormat:@"Line %lu: invalid pattern expansion.",
+                                                     (unsigned long)sourceLine]];
+              continue;
+            }
+          NSUInteger insertion = index + 1;
+          for (NSUInteger repetition = 0; repetition < repetitions; repetition++)
+            for (NSDictionary *bodyItem in body)
+              {
+                NSMutableDictionary *expanded =
+                  [NSMutableDictionary dictionaryWithDictionary:bodyItem];
+                [expanded setObject:[NSNumber numberWithInteger:itemTranspose + playTranspose]
+                             forKey:@"transpose"];
+                [work insertObject:expanded atIndex:insertion++];
+              }
+        }
       else if (([command isEqualToString:@"note"] || [command isEqualToString:@"rest"]) &&
                [tokens count] >= 3)
         {
@@ -286,9 +373,18 @@
           [note setVoice:voice];
           [note setStartTick:tick];
           [note setRest:[command isEqualToString:@"rest"]];
-          [note setPitch:[note isRest] ? 60 : [[tokens objectAtIndex:1] integerValue]];
+          NSInteger pitch = [[tokens objectAtIndex:1] integerValue] + transpose + itemTranspose;
+          [note setPitch:[note isRest] ? 60 : MIN ((NSInteger)127, MAX ((NSInteger)0, pitch))];
           NSUInteger duration = (NSUInteger)[[tokens objectAtIndex:2] integerValue];
           [note setDurationTicks:duration];
+          [note setVelocity:velocity];
+          NSString *origin =
+            [[item objectForKey:@"pattern"] length]
+              ? [NSString stringWithFormat:@"composition:pattern %@ line %lu",
+                                           [item objectForKey:@"pattern"],
+                                           (unsigned long)sourceLine]
+              : [NSString stringWithFormat:@"composition:line %lu", (unsigned long)sourceLine];
+          [note setProvenance:origin];
           [[document notes] addObject:note];
           tick += duration;
           [document setTotalTicks:MAX ([document totalTicks], tick)];
@@ -296,10 +392,12 @@
       else
         {
           NSString *message = [NSString
-            stringWithFormat:@"Line %lu: invalid composition command.", (unsigned long)(index + 1)];
+            stringWithFormat:@"Line %lu: invalid composition command.", (unsigned long)sourceLine];
           [[program diagnostics] addObject:message];
         }
     }
+  if (expansionBudget == 0)
+    [[program diagnostics] addObject:@"Composition expansion exceeded 100000 commands."];
   if ([[program diagnostics] count])
     {
       if (error)
