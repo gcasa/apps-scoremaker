@@ -363,6 +363,32 @@ main (void)
   Require ([layoutSystem fractionForTick:[layoutSystem startTick]] == 0.0,
            @"engraving system tick mapping is invalid");
 
+  ScoreDocument *denseScore = [[[ScoreDocument alloc] init] autorelease];
+  ScoreMeasure *denseMeasure = [[[ScoreMeasure alloc] init] autorelease];
+  [denseMeasure setStartTick:0];
+  [denseMeasure setDurationTicks:1920];
+  [[denseScore measures] addObject:denseMeasure];
+  for (NSUInteger onset = 0; onset < 6; onset++)
+    for (NSUInteger chordTone = 0; chordTone < 6; chordTone++)
+      {
+        ScoreNote *note = [[[ScoreNote alloc] init] autorelease];
+        [note setStartTick:onset * 240];
+        [note setDurationTicks:240];
+        [note setPitch:60 + chordTone];
+        [note setAccidental:(chordTone % 2) ? 1 : -1];
+        [note setVoice:1 + chordTone % 2];
+        if (onset == 0)
+          {
+            [note setDynamic:@"fortissimo"];
+            [note setArticulation:@"accent"];
+          }
+        [[denseScore notes] addObject:note];
+      }
+  CGFloat sparseWidth = [engraver widthForMeasure:pickup document:voices minimum:40.0];
+  CGFloat denseWidth = [engraver widthForMeasure:denseMeasure document:denseScore minimum:40.0];
+  Require (denseWidth > sparseWidth * 2.0,
+           @"collision-aware engraving did not reserve space for dense chords and annotations");
+
   NSLog (@"PASS: .score compatibility and V2 structure round trips");
   [pool drain];
   return 0;

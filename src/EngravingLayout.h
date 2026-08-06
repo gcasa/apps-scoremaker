@@ -44,6 +44,9 @@
 @end
 
 @interface ScoreEngraver : NSObject
+- (CGFloat)widthForMeasure:(ScoreMeasure *)measure
+                  document:(ScoreDocument *)document
+                   minimum:(CGFloat)minimum;
 - (ScoreEngravingLayout *)layoutDocument:(ScoreDocument *)document
                               musicWidth:(CGFloat)musicWidth
                      minimumMeasureWidth:(CGFloat)minimumMeasureWidth;

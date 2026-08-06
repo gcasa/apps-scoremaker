@@ -72,16 +72,36 @@
                   document:(ScoreDocument *)document
                    minimum:(CGFloat)minimum
 {
-  NSMutableSet *onsets = [NSMutableSet set];
-  NSUInteger symbols = 0;
+  NSMutableDictionary *notesByOnset = [NSMutableDictionary dictionary];
   NSUInteger end = [measure startTick] + [measure durationTicks];
   for (ScoreNote *note in [document notes])
     if ([note startTick] >= [measure startTick] && [note startTick] < end)
       {
-        [onsets addObject:[NSNumber numberWithUnsignedInteger:[note startTick]]];
-        symbols++;
+        NSNumber *onset = [NSNumber numberWithUnsignedInteger:[note startTick]];
+        NSMutableArray *notes = [notesByOnset objectForKey:onset];
+        if (!notes)
+          {
+            notes = [NSMutableArray array];
+            [notesByOnset setObject:notes forKey:onset];
+          }
+        [notes addObject:note];
       }
-  return MAX (minimum, 42.0 + [onsets count] * 17.0 + symbols * 3.5);
+  CGFloat contentWidth = 42.0;
+  for (NSArray *notes in [notesByOnset allValues])
+    {
+      NSUInteger accidentals = 0;
+      CGFloat annotationWidth = 0.0;
+      for (ScoreNote *note in notes)
+        {
+          if ([note accidental])
+            accidentals++;
+          annotationWidth = MAX (annotationWidth, (CGFloat)[[note dynamic] length] * 7.0);
+        }
+      CGFloat chordWidth = 17.0 + MAX ((CGFloat)0.0, ((CGFloat)[notes count] - 1.0) * 4.5);
+      CGFloat accidentalWidth = accidentals ? 10.0 + (CGFloat)(accidentals - 1) * 8.0 : 0.0;
+      contentWidth += MAX (chordWidth + accidentalWidth, annotationWidth + 8.0);
+    }
+  return MAX (minimum, contentWidth);
 }
 - (ScoreEngravingSystem *)systemForDocument:(ScoreDocument *)document
                                       first:(NSUInteger)first

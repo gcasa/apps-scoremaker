@@ -45,6 +45,27 @@ NSString *const ScoreViewSelectionDidChangeNotification
   = @"ScoreViewSelectionDidChangeNotification";
 NSString *const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
 
+static BOOL
+ScoreRectCollides (NSRect rect, NSArray *occupied)
+{
+  NSRect padded = NSInsetRect (rect, -2.0, -2.0);
+  for (NSValue *value in occupied)
+    if (NSIntersectsRect (padded, [value rectValue]))
+      return YES;
+  return NO;
+}
+
+static NSRect
+ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
+{
+  NSRect placed = desired;
+  NSUInteger attempts = 0;
+  while (ScoreRectCollides (placed, occupied) && attempts++ < 12)
+    placed.origin.y += step;
+  [occupied addObject:[NSValue valueWithRect:placed]];
+  return placed;
+}
+
 @implementation ScoreView
 
 - (id)initWithFrame:(NSRect)frame
@@ -956,6 +977,21 @@ NSString *const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
   NSDictionary *small = [NSDictionary
     dictionaryWithObjectsAndKeys:[NSFont systemFontOfSize:11.0], NSFontAttributeName,
                                  [NSColor blackColor], NSForegroundColorAttributeName, nil];
+  NSMutableArray *occupied = [NSMutableArray array];
+  for (ScoreNote *note in notes)
+    {
+      if ([note isRest])
+        continue;
+      BOOL treble = [note pitch] >= 60;
+      CGFloat staff = treble ? trebleY : bassY;
+      CGFloat x = [self engravedXForNote:note
+                                   start:systemStart
+                                     end:systemEnd
+                                    left:left
+                                   right:right];
+      CGFloat y = [self yForNote:note treble:treble staffTop:staff];
+      [occupied addObject:[NSValue valueWithRect:NSMakeRect (x - 7.0, y - 6.0, 14.0, 12.0)]];
+    }
   for (NSUInteger i = 0; i < [notes count]; i++)
     {
       ScoreNote *note = [notes objectAtIndex:i];
@@ -968,19 +1004,31 @@ NSString *const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
                                    right:right];
       CGFloat y = [self yForNote:note treble:treble staffTop:staff];
       if ([[note dynamic] length])
-        [[note dynamic] drawAtPoint:NSMakePoint (x - 5.0, staff + 48.0) withAttributes:small];
+        {
+          NSSize size = [[note dynamic] sizeWithAttributes:small];
+          NSRect rect = ScorePlaceRect (
+            NSMakeRect (x - size.width / 2.0, staff + 48.0, size.width, size.height), occupied,
+            13.0);
+          [[note dynamic] drawAtPoint:rect.origin withAttributes:small];
+        }
       if ([[note articulation] length])
         {
           NSString *mark = [[note articulation] isEqualToString:@"staccato"]
                              ? @"•"
                              : ([[note articulation] isEqualToString:@"tenuto"] ? @"—" : @">");
-          [mark drawAtPoint:NSMakePoint (x - 3.0, y - 22.0) withAttributes:small];
+          NSSize size = [mark sizeWithAttributes:small];
+          NSRect rect = ScorePlaceRect (
+            NSMakeRect (x - size.width / 2.0, y - 22.0, size.width, size.height), occupied, -12.0);
+          [mark drawAtPoint:rect.origin withAttributes:small];
         }
-      if ([note tupletActual]
-          > 0)[[NSString stringWithFormat:@"%lu", (unsigned long)[note tupletActual]]
-           drawAtPoint:NSMakePoint (x - 3.0, y - 43.0)
-        withAttributes:small]
-        ;
+      if ([note tupletActual] > 0)
+        {
+          NSString *number = [NSString stringWithFormat:@"%lu", (unsigned long)[note tupletActual]];
+          NSSize size = [number sizeWithAttributes:small];
+          NSRect rect = ScorePlaceRect (
+            NSMakeRect (x - size.width / 2.0, y - 40.0, size.width, size.height), occupied, -12.0);
+          [number drawAtPoint:rect.origin withAttributes:small];
+        }
       if (![note tieStart])
         continue;
       ScoreNote *endNote = nil;
@@ -1081,18 +1129,37 @@ NSString *const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
     }
   [chord sortUsingSelector:@selector (compareScoreNote:)];
   NSUInteger index = [chord indexOfObjectIdenticalTo:note];
-  if (index == NSNotFound || index + 1 >= [chord count])
-    return 0.0;
-  ScoreNote *lower = [chord objectAtIndex:index + 1];
-  NSInteger lowerSteps = [self diatonicStepsFromPitch:0
-                                              toPitch:[lower pitch]
-                                           accidental:[lower accidental]];
+  CGFloat offset = 0.0;
+  if (index != NSNotFound && index + 1 < [chord count])
+    {
+      ScoreNote *lower = [chord objectAtIndex:index + 1];
+      NSInteger lowerSteps = [self diatonicStepsFromPitch:0
+                                                  toPitch:[lower pitch]
+                                               accidental:[lower accidental]];
+      NSInteger noteSteps = [self diatonicStepsFromPitch:0
+                                                 toPitch:[note pitch]
+                                              accidental:[note accidental]];
+      if (noteSteps - lowerSteps <= 1)
+        offset = (index % 2 == 0) ? 6.5 : 0.0;
+    }
   NSInteger noteSteps = [self diatonicStepsFromPitch:0
                                              toPitch:[note pitch]
                                           accidental:[note accidental]];
-  if (noteSteps - lowerSteps <= 1)
-    return (index % 2 == 0) ? 6.5 : 0.0;
-  return 0.0;
+  for (ScoreNote *candidate in [_document notes])
+    if (candidate != note && ![candidate isRest] && [candidate startTick] == [note startTick] &&
+        [candidate track] == [note track] && [candidate voice] != [note voice]
+        && (([candidate pitch] >= 60) == treble))
+      {
+        NSInteger candidateSteps = [self diatonicStepsFromPitch:0
+                                                        toPitch:[candidate pitch]
+                                                     accidental:[candidate accidental]];
+        if (labs (candidateSteps - noteSteps) <= 1)
+          {
+            offset += ([note voice] % 2) ? 6.5 : -6.5;
+            break;
+          }
+      }
+  return offset;
 }
 
 - (CGFloat)engravedXForNote:(ScoreNote *)note
@@ -1102,7 +1169,7 @@ NSString *const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
                       right:(CGFloat)right
 {
   CGFloat base = [self noteXForTick:[note startTick] start:start end:end left:left right:right];
-  return MIN (right - 1.0, base + [self chordOffsetForNote:note]);
+  return MIN (right - 1.0, MAX (left + 1.0, base + [self chordOffsetForNote:note]));
 }
 
 - (CGFloat)accidentalColumnOffsetForNote:(ScoreNote *)note
@@ -1114,8 +1181,8 @@ NSString *const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
   for (ScoreNote *candidate in [_document notes])
     {
       if ([candidate isRest] || [candidate accidental] == 0 ||
-          [candidate startTick] != [note startTick] || [candidate track] != [note track] ||
-          [candidate voice] != [note voice] || (([candidate pitch] >= 60) != treble))
+          [candidate startTick] != [note startTick] || [candidate track] != [note track]
+          || (([candidate pitch] >= 60) != treble))
         continue;
       [accidentals addObject:candidate];
     }
