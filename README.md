@@ -21,6 +21,14 @@ The renderer is intentionally lightweight. It focuses on extracting timing, pitc
 - Print the rendered score from the standard print panel.
 - Support common MusicKit scorefile timing, variable, `freq`, `keyNum`, `noteOn`, `noteOff`, `noteUpdate`, and duration-note patterns.
 - Map common scorefile instrument, patch, sound, preset, and program declarations to General MIDI sounds for playback.
+- Host AUv2 and AUv3 music devices out of process, with vendor and generic editors, user presets,
+  missing-unit relinking, substitution tracking, validation timeouts, recovery, and blacklisting.
+- Run opt-in compatibility validation for every installed Audio Unit instrument with
+  `make test-plugins`; results are written to `build/tests/audio-unit-compatibility.json`.
+
+The native macOS plug-in format is currently sufficient for the supported macOS host. VST3 is
+therefore not enabled by default; it requires the Steinberg VST3 SDK and a separate host adapter
+before ScoreMaker targets systems or vendors that do not supply Audio Units.
 - Preserve independent note voices and explicit measure boundaries, including pickup measures and per-measure time signatures.
 - Reflow measures across systems and printed pages according to notation density, with collision-aware onset spacing, displaced seconds in chords, and staggered accidental columns.
 - Import, export, preserve, and render key signatures, ties, tuplets, dynamics, common articulations, and repeat barlines.

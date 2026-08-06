@@ -98,6 +98,8 @@
   BOOL _useRealtimeDSP;
   NSInteger _realtimeDSPPitch;
   NSInteger _audioUnitPartTrack;
+  NSWindow *_audioUnitEditorWindow;
+  NSMutableDictionary *_audioUnitParameterAddresses;
 #if defined(__APPLE__)
   MIDIEndpointRef _midiOutputEndpoint;
   NSString *_midiOutputName;
@@ -134,5 +136,9 @@
 - (void)chooseMIDIOutput:(id)sender;
 - (void)toggleRealtimeDSP:(id)sender;
 - (void)chooseAudioUnitInstrument:(id)sender;
+- (void)showAudioUnitEditor:(id)sender;
+- (void)manageAudioUnitPresets:(id)sender;
+- (void)relinkAudioUnitInstrument:(id)sender;
+- (void)showAudioUnitCompatibilityReport:(id)sender;
 - (void)renderOfflineAudio:(id)sender;
 @end

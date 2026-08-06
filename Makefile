@@ -26,11 +26,11 @@ UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
 CC := clang
 CFLAGS := -Wall -Wextra -fobjc-exceptions -fconstant-string-class=NSConstantString
-LDFLAGS := -framework Cocoa -framework AVFoundation -framework AudioToolbox -framework CoreMIDI
+LDFLAGS := -framework Cocoa -framework AVFoundation -framework AudioToolbox -framework CoreAudioKit -framework CoreMIDI
 APP_DIR := $(BUILD_DIR)/macos/$(APP_NAME).app
 APP_BIN := $(APP_DIR)/Contents/MacOS/$(APP_NAME)
 
-.PHONY: all clean run release test
+.PHONY: all clean run release test test-plugins
 all: $(APP_BIN)
 
 $(APP_BIN): $(SOURCES) Info.plist $(RESOURCE_FILES)
@@ -48,8 +48,12 @@ release:
 
 test: $(APP_BIN)
 	mkdir -p "$(BUILD_DIR)/tests"
-	$(CC) $(CFLAGS) -Isrc tests/ScorefileCompatibilityTests.m src/RealtimeDSP.m src/ScorefileParser.m src/ScoreProjectSerializer.m src/MusicXMLParser.m src/ScoreModel.m src/MusicPlatformModel.m src/MusicEngine.m src/NotationModel.m src/EngravingLayout.m -framework Foundation -framework AppKit -framework AVFoundation -framework AudioToolbox -o "$(BUILD_DIR)/tests/scorefile-tests"
+	$(CC) $(CFLAGS) -Isrc tests/ScorefileCompatibilityTests.m src/RealtimeDSP.m src/ScorefileParser.m src/ScoreProjectSerializer.m src/MusicXMLParser.m src/ScoreModel.m src/MusicPlatformModel.m src/MusicEngine.m src/NotationModel.m src/EngravingLayout.m -framework Foundation -framework AppKit -framework AVFoundation -framework AudioToolbox -framework CoreAudioKit -o "$(BUILD_DIR)/tests/scorefile-tests"
 	"$(BUILD_DIR)/tests/scorefile-tests"
+
+test-plugins:
+	mkdir -p "$(BUILD_DIR)/tests"
+	python3 tools/test-audio-units.py > "$(BUILD_DIR)/tests/audio-unit-compatibility.json"
 
 else
 CC := clang

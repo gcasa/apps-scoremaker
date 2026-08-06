@@ -137,6 +137,14 @@ main (void)
       isEqualToString:@"audio-unit:1635085685:1935764848:1634758764"]
       && [[[restoredInstrument parameters] objectForKey:@"stateData"] isEqualToData:pluginState],
     @"native project persistence lost Audio Unit identity or opaque state");
+  NSDictionary *componentIdentity = @{
+    @"type" : @1635085685,
+    @"subtype" : @1935764848,
+    @"manufacturerCode" : @1634758764
+  };
+  Require ([[ScoreRealtimeDSP identifierForAudioUnitDescription:componentIdentity]
+             isEqualToString:@"61756d75-73616d70-6170706c"],
+           @"Audio Unit identity is not stable enough for relinking and preset storage");
   Require ([[[[[projectRoundTrip parts] objectAtIndex:0] synthesisGraph] nodes] count] == 1,
            @"native project persistence lost a per-part synthesis graph");
   NSMutableDictionary *legacyProject =

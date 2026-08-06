@@ -117,6 +117,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (void)commitUndoBaseline;
 - (void)restoreAudioUnitInstrument;
 - (void)captureAudioUnitState;
+- (void)showGenericAudioUnitEditor;
+- (void)audioUnitParameterChanged:(id)sender;
 - (BOOL)prepareDSPPlaybackAtTick:(NSUInteger)tick error:(NSError **)error;
 @end
 
@@ -518,6 +520,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_scoreDocument release];
   [_realtimeDSP stop];
   [_realtimeDSP release];
+  [_audioUnitEditorWindow close];
+  [_audioUnitEditorWindow release];
+  [_audioUnitParameterAddresses release];
   [_scrollView release];
   [_scoreView release];
   [_inspectorScrollView release];
@@ -2512,10 +2517,14 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [[popUp lastItem] setRepresentedObject:[NSNull null]];
   for (NSDictionary *instrument in instruments)
     {
-      NSString *title = [NSString stringWithFormat:@"%@ — %@", [instrument objectForKey:@"name"],
-                                                   [instrument objectForKey:@"manufacturer"]];
+      BOOL blacklisted = [ScoreRealtimeDSP isAudioUnitBlacklisted:instrument];
+      NSString *title = [NSString
+        stringWithFormat:@"%@ — %@%@", [instrument objectForKey:@"name"],
+                         [instrument objectForKey:@"manufacturer"],
+                         blacklisted ? @" (blacklisted)" : @""];
       [popUp addItemWithTitle:title];
       [[popUp lastItem] setRepresentedObject:instrument];
+      [[popUp lastItem] setEnabled:!blacklisted];
     }
   [alert setAccessoryView:popUp];
   if ([alert runModal] != NSAlertFirstButtonReturn)
@@ -2586,6 +2595,245 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
                     }];
   [[NSDocumentController sharedDocumentController] presentError:error];
 #endif
+}
+
+- (void)showAudioUnitEditor:(id)sender
+{
+  (void)sender;
+#if defined(__APPLE__)
+  [_realtimeDSP requestAudioUnitViewController:^(NSViewController *controller, NSError *error) {
+    if (error)
+      {
+        [[NSDocumentController sharedDocumentController] presentError:error];
+        return;
+      }
+    if (!controller)
+      {
+        [self showGenericAudioUnitEditor];
+        return;
+      }
+    [_audioUnitEditorWindow close];
+    [_audioUnitEditorWindow release];
+    NSSize size = [[controller view] fittingSize];
+    if (size.width < 420.0 || size.height < 260.0)
+      size = NSMakeSize (MAX (420.0, size.width), MAX (260.0, size.height));
+    _audioUnitEditorWindow = [[NSWindow alloc]
+      initWithContentRect:NSMakeRect (0, 0, size.width, size.height)
+                styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
+                           | NSWindowStyleMaskResizable)
+                  backing:NSBackingStoreBuffered
+                    defer:NO];
+    [_audioUnitEditorWindow setTitle:@"Audio Unit Editor"];
+    [_audioUnitEditorWindow setContentViewController:controller];
+    [_audioUnitEditorWindow center];
+    [_audioUnitEditorWindow makeKeyAndOrderFront:self];
+  }];
+#else
+  [self showGenericAudioUnitEditor];
+#endif
+}
+
+- (void)showGenericAudioUnitEditor
+{
+  NSArray *parameters = [_realtimeDSP audioUnitParameters];
+  if (![parameters count])
+    {
+      NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+      [alert setMessageText:@"No Editable Parameters"];
+      [alert setInformativeText:@"The loaded instrument exposes neither a vendor interface nor an editable parameter tree."];
+      [alert runModal];
+      return;
+    }
+  [_audioUnitEditorWindow close];
+  [_audioUnitEditorWindow release];
+  [_audioUnitParameterAddresses release];
+  _audioUnitParameterAddresses = [[NSMutableDictionary alloc] init];
+  CGFloat height = MAX (300.0, 42.0 * [parameters count] + 20.0);
+  NSView *documentView = [[[NSView alloc] initWithFrame:NSMakeRect (0, 0, 560, height)] autorelease];
+  for (NSUInteger index = 0; index < [parameters count]; index++)
+    {
+      NSDictionary *parameter = [parameters objectAtIndex:index];
+      CGFloat y = height - 38.0 - 42.0 * index;
+      NSTextField *label = [[[NSTextField alloc] initWithFrame:NSMakeRect (12, y, 205, 22)] autorelease];
+      [label setStringValue:[parameter objectForKey:@"name"]];
+      [label setEditable:NO];
+      [label setBordered:NO];
+      [label setDrawsBackground:NO];
+      [documentView addSubview:label];
+      NSSlider *slider = [[[NSSlider alloc] initWithFrame:NSMakeRect (220, y, 325, 22)] autorelease];
+      [slider setMinValue:[[parameter objectForKey:@"minimum"] doubleValue]];
+      [slider setMaxValue:[[parameter objectForKey:@"maximum"] doubleValue]];
+      [slider setDoubleValue:[[parameter objectForKey:@"value"] doubleValue]];
+      [slider setTag:(NSInteger)index + 1];
+      [slider setTarget:self];
+      [slider setAction:@selector (audioUnitParameterChanged:)];
+      [_audioUnitParameterAddresses setObject:[parameter objectForKey:@"address"]
+                                       forKey:[NSNumber numberWithInteger:(NSInteger)index + 1]];
+      [documentView addSubview:slider];
+    }
+  NSScrollView *scroll = [[[NSScrollView alloc] initWithFrame:NSMakeRect (0, 0, 560, 420)] autorelease];
+  [scroll setHasVerticalScroller:YES];
+  [scroll setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
+  [scroll setDocumentView:documentView];
+  _audioUnitEditorWindow = [[NSWindow alloc]
+    initWithContentRect:NSMakeRect (0, 0, 560, 420)
+              styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
+                         | NSWindowStyleMaskResizable)
+                backing:NSBackingStoreBuffered
+                  defer:NO];
+  [_audioUnitEditorWindow setTitle:@"Audio Unit Parameters"];
+  [_audioUnitEditorWindow setContentView:scroll];
+  [_audioUnitEditorWindow center];
+  [_audioUnitEditorWindow makeKeyAndOrderFront:self];
+}
+
+- (void)audioUnitParameterChanged:(id)sender
+{
+  NSNumber *address = [_audioUnitParameterAddresses
+    objectForKey:[NSNumber numberWithInteger:[sender tag]]];
+  NSError *error = nil;
+  if (address && ![_realtimeDSP setAudioUnitParameter:[address unsignedLongLongValue]
+                                                value:[sender doubleValue]
+                                                error:&error])
+    [[NSDocumentController sharedDocumentController] presentError:error];
+}
+
+- (void)manageAudioUnitPresets:(id)sender
+{
+  (void)sender;
+  NSDictionary *description = [_realtimeDSP audioUnitInstrumentDescription];
+  if (!description)
+    return;
+  NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+  [alert setMessageText:@"Audio Unit Presets"];
+  [alert setInformativeText:@"Save the current state, or load or delete a user preset."];
+  [alert addButtonWithTitle:@"Save"];
+  [alert addButtonWithTitle:@"Load"];
+  [alert addButtonWithTitle:@"Delete"];
+  [alert addButtonWithTitle:@"Cancel"];
+  NSView *accessory = [[[NSView alloc] initWithFrame:NSMakeRect (0, 0, 380, 62)] autorelease];
+  NSTextField *name = [[[NSTextField alloc] initWithFrame:NSMakeRect (0, 36, 380, 24)] autorelease];
+  [name setPlaceholderString:@"New preset name"];
+  [accessory addSubview:name];
+  NSPopUpButton *presets = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (0, 2, 380, 26)
+                                                       pullsDown:NO] autorelease];
+  [presets addItemsWithTitles:[ScoreRealtimeDSP userPresetsForAudioUnit:description]];
+  [accessory addSubview:presets];
+  [alert setAccessoryView:accessory];
+  NSInteger result = [alert runModal];
+  NSError *error = nil;
+  BOOL success = YES;
+  if (result == NSAlertFirstButtonReturn)
+    success = [_realtimeDSP saveUserPreset:[name stringValue] error:&error];
+  else if (result == NSAlertSecondButtonReturn)
+    success = [_realtimeDSP loadUserPreset:[presets titleOfSelectedItem] error:&error];
+  else if (result == NSAlertThirdButtonReturn)
+    success = [ScoreRealtimeDSP removeUserPreset:[presets titleOfSelectedItem]
+                                    forAudioUnit:description
+                                           error:&error];
+  if (!success && error)
+    [[NSDocumentController sharedDocumentController] presentError:error];
+}
+
+- (void)relinkAudioUnitInstrument:(id)sender
+{
+  (void)sender;
+  ScorePartDefinition *selectedPart = nil;
+  for (ScorePartDefinition *part in [[self scoreDocument] parts])
+    if ([part legacyTrack] == [self selectedPartNumber])
+      {
+        selectedPart = part;
+        break;
+      }
+  NSDictionary *missing = [[selectedPart instrument] parameters];
+  if (![missing objectForKey:@"type"])
+    return;
+  NSArray *recommended = [ScoreRealtimeDSP relinkCandidatesForAudioUnit:missing];
+  NSArray *installed = [ScoreRealtimeDSP availableAudioUnitInstruments];
+  NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+  [alert setMessageText:@"Relink or Substitute Audio Unit"];
+  [alert setInformativeText:@"Recommended matches preserve vendor and product identity. Any installed instrument may be selected as an intentional substitution."];
+  [alert addButtonWithTitle:@"Relink"];
+  [alert addButtonWithTitle:@"Cancel"];
+  NSPopUpButton *choices = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (0, 0, 420, 26)
+                                                      pullsDown:NO] autorelease];
+  NSMutableSet *added = [NSMutableSet set];
+  for (NSDictionary *candidate in recommended)
+    {
+      NSString *identifier = [ScoreRealtimeDSP identifierForAudioUnitDescription:candidate];
+      [choices addItemWithTitle:[NSString stringWithFormat:@"Recommended: %@ — %@",
+                                                          [candidate objectForKey:@"name"],
+                                                          [candidate objectForKey:@"manufacturer"]]];
+      [[choices lastItem] setRepresentedObject:candidate];
+      [added addObject:identifier];
+    }
+  for (NSDictionary *candidate in installed)
+    {
+      NSString *identifier = [ScoreRealtimeDSP identifierForAudioUnitDescription:candidate];
+      if ([added containsObject:identifier])
+        continue;
+      [choices addItemWithTitle:[NSString stringWithFormat:@"Substitute: %@ — %@",
+                                                          [candidate objectForKey:@"name"],
+                                                          [candidate objectForKey:@"manufacturer"]]];
+      [[choices lastItem] setRepresentedObject:candidate];
+    }
+  [alert setAccessoryView:choices];
+  if (![installed count] || [alert runModal] != NSAlertFirstButtonReturn)
+    return;
+  NSDictionary *selection = [[choices selectedItem] representedObject];
+  [_realtimeDSP
+    loadAudioUnitInstrument:selection
+                 completion:^(BOOL success, NSError *error) {
+                   if (!success)
+                     {
+                       [[NSDocumentController sharedDocumentController] presentError:error];
+                       return;
+                     }
+                   [self registerUndoSnapshotWithName:@"Relink Audio Unit Instrument"];
+                   _audioUnitPartTrack = [selectedPart legacyTrack];
+                   _useRealtimeDSP = YES;
+                   ScoreInstrumentDefinition *instrument = [selectedPart instrument];
+                   [instrument
+                     setBackendIdentifier:
+                       [NSString stringWithFormat:@"audio-unit:%u:%u:%u",
+                                                  [[selection objectForKey:@"type"] unsignedIntValue],
+                                                  [[selection objectForKey:@"subtype"] unsignedIntValue],
+                                                  [[selection objectForKey:@"manufacturerCode"] unsignedIntValue]]];
+                   NSMutableDictionary *parameters =
+                     [NSMutableDictionary dictionaryWithDictionary:selection];
+                   [parameters setObject:[NSNumber numberWithBool:YES] forKey:@"intentionalSubstitution"];
+                   [instrument setParameters:parameters];
+                   [self updateChangeCount:NSChangeDone];
+                 }];
+}
+
+- (void)showAudioUnitCompatibilityReport:(id)sender
+{
+  (void)sender;
+  NSArray *report = [ScoreRealtimeDSP audioUnitCompatibilityReport];
+  NSMutableString *text = [NSMutableString string];
+  for (NSDictionary *entry in report)
+    [text appendFormat:@"%@ — %@\n  %@ %@ · %@ · %@\n\n", [entry objectForKey:@"name"],
+                       [entry objectForKey:@"manufacturer"], [entry objectForKey:@"format"],
+                       [entry objectForKey:@"version"], [entry objectForKey:@"status"],
+                       [[entry objectForKey:@"hasCustomView"] boolValue] ? @"vendor editor"
+                                                                         : @"generic editor"];
+  if (![text length])
+    [text appendString:@"No Audio Unit music devices are installed."];
+  NSTextView *view = [[[NSTextView alloc] initWithFrame:NSMakeRect (0, 0, 560, 330)] autorelease];
+  [view setString:text];
+  [view setEditable:NO];
+  NSScrollView *scroll = [[[NSScrollView alloc] initWithFrame:NSMakeRect (0, 0, 560, 330)] autorelease];
+  [scroll setHasVerticalScroller:YES];
+  [scroll setDocumentView:view];
+  NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+  [alert setMessageText:@"Audio Unit Compatibility Report"];
+  [alert setInformativeText:@"Apple validation status and host compatibility for installed music devices. Runtime failures are isolated and three consecutive failures trigger blacklisting."];
+  [alert setAccessoryView:scroll];
+  [alert addButtonWithTitle:@"Done"];
+  [alert addButtonWithTitle:@"Clear Blacklist"];
+  if ([alert runModal] == NSAlertSecondButtonReturn)
+    [ScoreRealtimeDSP clearAudioUnitBlacklist];
 }
 
 - (void)restoreAudioUnitInstrument

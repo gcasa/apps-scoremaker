@@ -268,6 +268,18 @@
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Choose Audio Unit Instrument..."
                                                  action:@selector (chooseAudioUnitInstrument:)
                                           keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Show Audio Unit Editor..."
+                                                 action:@selector (showAudioUnitEditor:)
+                                          keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Audio Unit Presets..."
+                                                 action:@selector (manageAudioUnitPresets:)
+                                          keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Relink or Substitute Audio Unit..."
+                                                 action:@selector (relinkAudioUnitInstrument:)
+                                          keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Audio Unit Compatibility Report..."
+                                                 action:@selector (showAudioUnitCompatibilityReport:)
+                                          keyEquivalent:@""] autorelease]];
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Render Internal DSP Audio..."
                                                  action:@selector (renderOfflineAudio:)
                                           keyEquivalent:@""] autorelease]];

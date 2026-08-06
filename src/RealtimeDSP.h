@@ -7,12 +7,25 @@
 
 #if defined(__APPLE__)
 typedef void (^ScoreAudioUnitLoadCompletion) (BOOL success, NSError *error);
+typedef void (^ScoreAudioUnitViewCompletion) (NSViewController *controller, NSError *error);
 #else
 typedef id ScoreAudioUnitLoadCompletion;
+typedef id ScoreAudioUnitViewCompletion;
 #endif
 
 @interface ScoreRealtimeDSP : NSObject
 + (NSArray *)availableAudioUnitInstruments;
++ (NSString *)identifierForAudioUnitDescription:(NSDictionary *)description;
++ (BOOL)isAudioUnitBlacklisted:(NSDictionary *)description;
++ (void)setAudioUnit:(NSDictionary *)description blacklisted:(BOOL)blacklisted;
++ (NSArray *)blacklistedAudioUnitIdentifiers;
++ (void)clearAudioUnitBlacklist;
++ (NSArray *)audioUnitCompatibilityReport;
++ (NSArray *)relinkCandidatesForAudioUnit:(NSDictionary *)description;
++ (NSArray *)userPresetsForAudioUnit:(NSDictionary *)description;
++ (BOOL)removeUserPreset:(NSString *)name
+            forAudioUnit:(NSDictionary *)description
+                   error:(NSError **)error;
 - (BOOL)startWithError:(NSError **)error;
 - (void)stop;
 - (BOOL)isRunning;
@@ -21,6 +34,11 @@ typedef id ScoreAudioUnitLoadCompletion;
                      completion:(ScoreAudioUnitLoadCompletion)completion;
 - (NSDictionary *)audioUnitInstrumentDescription;
 - (NSDictionary *)audioUnitFullState;
+- (NSArray *)audioUnitParameters;
+- (BOOL)setAudioUnitParameter:(uint64_t)address value:(double)value error:(NSError **)error;
+- (void)requestAudioUnitViewController:(ScoreAudioUnitViewCompletion)completion;
+- (BOOL)saveUserPreset:(NSString *)name error:(NSError **)error;
+- (BOOL)loadUserPreset:(NSString *)name error:(NSError **)error;
 - (void)noteOn:(NSInteger)pitch velocity:(NSUInteger)velocity;
 - (void)noteOff:(NSInteger)pitch;
 - (void)allNotesOff;
