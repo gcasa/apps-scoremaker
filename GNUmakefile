@@ -24,6 +24,7 @@ include $(GNUSTEP_MAKEFILES)/common.make
 APP_NAME = ScoreMaker
 
 ScoreMaker_OBJC_FILES = \
+	src/RealtimeDSP.m \
 	src/main.m \
 	src/AppDelegate.m \
 	src/ScoreMakerDocumentController.m \
@@ -40,6 +41,7 @@ ScoreMaker_OBJC_FILES = \
 	src/MIDIInputManager.m
 
 ScoreMaker_HEADER_FILES = \
+	src/RealtimeDSP.h \
 	src/AppDelegate.h \
 	src/ScoreMakerDocumentController.h \
 	src/MidiParser.h \
