@@ -57,6 +57,10 @@ ScoreProjectEncode (id object)
     return [NSNull null];
   if ([object isKindOfClass:[NSString class]] || [object isKindOfClass:[NSNumber class]])
     return object;
+  if ([object isKindOfClass:[NSData class]])
+    return [NSDictionary dictionaryWithObjectsAndKeys:@"NSData", @"type",
+                                                      [object base64EncodedStringWithOptions:0],
+                                                      @"base64", nil];
   if ([object isKindOfClass:[NSArray class]])
     {
       NSMutableArray *items = [NSMutableArray array];
@@ -107,6 +111,9 @@ ScoreProjectDecode (id encoded)
   if (![encoded isKindOfClass:[NSDictionary class]])
     return nil;
   NSString *type = [encoded objectForKey:@"type"];
+  if ([type isEqualToString:@"NSData"])
+    return [[[NSData alloc] initWithBase64EncodedString:[encoded objectForKey:@"base64"]
+                                                options:0] autorelease];
   if (!type)
     {
       NSMutableDictionary *items = [NSMutableDictionary dictionary];

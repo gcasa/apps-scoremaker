@@ -19,6 +19,7 @@
 
 #import <Foundation/Foundation.h>
 #import "ScorefileParser.h"
+#import "ScoreProjectSerializer.h"
 #import "MusicXMLParser.h"
 #import "NotationModel.h"
 #import "EngravingLayout.h"
@@ -104,6 +105,23 @@ main (void)
            @"scheduler produced an incorrect tick time");
   Require ([[scheduler eventsFromTick:0 throughTick:1200] count] == 4,
            @"scheduler did not produce note-on and note-off events");
+
+  ScoreInstrumentDefinition *persistentInstrument =
+    [[[[platform parts] objectAtIndex:0] instrument] retain];
+  [persistentInstrument setBackendIdentifier:@"audio-unit:1635085685:1935764848:1634758764"];
+  NSData *pluginState = [@"opaque plugin state" dataUsingEncoding:NSUTF8StringEncoding];
+  [[persistentInstrument parameters] setObject:pluginState forKey:@"stateData"];
+  NSData *projectData = [ScoreProjectSerializer dataForDocument:platform error:&platformError];
+  ScoreDocument *projectRoundTrip = [ScoreProjectSerializer documentFromData:projectData
+                                                                       error:&platformError];
+  ScoreInstrumentDefinition *restoredInstrument =
+    [[[projectRoundTrip parts] objectAtIndex:0] instrument];
+  Require (
+    [[restoredInstrument backendIdentifier]
+      isEqualToString:@"audio-unit:1635085685:1935764848:1634758764"]
+      && [[[restoredInstrument parameters] objectForKey:@"stateData"] isEqualToData:pluginState],
+    @"native project persistence lost Audio Unit identity or opaque state");
+  [persistentInstrument release];
 
   ScoreSynthesisNode *oscillator = [[[ScoreSynthesisNode alloc] init] autorelease];
   [oscillator setTypeIdentifier:@"oscillator"];

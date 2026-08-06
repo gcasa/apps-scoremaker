@@ -176,31 +176,40 @@ ApplyScoreMakerStructure (ScoreDocument *document, NSDictionary *structure)
         [document setMeasures:measures];
     }
   NSArray *details = [structure objectForKey:@"noteDetails"];
-  NSMutableSet *assigned = [NSMutableSet set];
+  NSMutableDictionary *notesByIdentity = [NSMutableDictionary dictionary];
+  NSMutableDictionary *nextNoteByIdentity = [NSMutableDictionary dictionary];
+  for (ScoreNote *candidate in [document notes])
+    {
+      NSString *identity = [NSString
+        stringWithFormat:@"%lu:%lu:%ld:%ld:%d", (unsigned long)[candidate startTick],
+                         (unsigned long)[candidate durationTicks], (long)[candidate pitch],
+                         (long)[candidate track], [candidate isRest]];
+      NSMutableArray *matches = [notesByIdentity objectForKey:identity];
+      if (!matches)
+        {
+          matches = [NSMutableArray array];
+          [notesByIdentity setObject:matches forKey:identity];
+        }
+      [matches addObject:candidate];
+    }
   for (NSDictionary *item in details)
     {
       if (![item isKindOfClass:[NSDictionary class]])
         continue;
-      ScoreNote *note = nil;
-      for (ScoreNote *candidate in [document notes])
-        {
-          NSValue *identity = [NSValue valueWithPointer:candidate];
-          if ([assigned containsObject:identity])
-            continue;
-          if ([candidate startTick] == [[item objectForKey:@"startTick"] unsignedIntegerValue] &&
-              [candidate durationTicks] ==
-                [[item objectForKey:@"durationTicks"] unsignedIntegerValue]
-              && [candidate pitch] == [[item objectForKey:@"pitch"] integerValue] &&
-              [candidate track] == [[item objectForKey:@"track"] integerValue] &&
-              [candidate isRest] == [[item objectForKey:@"rest"] boolValue])
-            {
-              note = candidate;
-              [assigned addObject:identity];
-              break;
-            }
-        }
-      if (!note)
+      NSString *identity = [NSString
+        stringWithFormat:@"%lu:%lu:%ld:%ld:%d",
+                         (unsigned long)[[item objectForKey:@"startTick"] unsignedIntegerValue],
+                         (unsigned long)[[item objectForKey:@"durationTicks"] unsignedIntegerValue],
+                         (long)[[item objectForKey:@"pitch"] integerValue],
+                         (long)[[item objectForKey:@"track"] integerValue],
+                         [[item objectForKey:@"rest"] boolValue]];
+      NSArray *matches = [notesByIdentity objectForKey:identity];
+      NSUInteger matchIndex = [[nextNoteByIdentity objectForKey:identity] unsignedIntegerValue];
+      if (matchIndex >= [matches count])
         continue;
+      ScoreNote *note = [matches objectAtIndex:matchIndex];
+      [nextNoteByIdentity setObject:[NSNumber numberWithUnsignedInteger:matchIndex + 1]
+                             forKey:identity];
       [note setVoice:[[item objectForKey:@"voice"] integerValue]];
       [note setMeasureIndex:[[item objectForKey:@"measureIndex"] integerValue]];
       NSNumber *velocity = [item objectForKey:@"velocity"];

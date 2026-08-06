@@ -3,6 +3,8 @@
  */
 #import <Foundation/Foundation.h>
 
+@class NSViewController;
+
 #if defined(__APPLE__)
 typedef void (^ScoreAudioUnitLoadCompletion) (BOOL success, NSError *error);
 #else
@@ -18,8 +20,10 @@ typedef id ScoreAudioUnitLoadCompletion;
 - (void)loadAudioUnitInstrument:(NSDictionary *)description
                      completion:(ScoreAudioUnitLoadCompletion)completion;
 - (NSDictionary *)audioUnitInstrumentDescription;
+- (NSDictionary *)audioUnitFullState;
 - (void)noteOn:(NSInteger)pitch velocity:(NSUInteger)velocity;
 - (void)noteOff:(NSInteger)pitch;
+- (void)allNotesOff;
 - (BOOL)renderPitches:(NSArray *)pitches
              duration:(NSTimeInterval)duration
                 toURL:(NSURL *)url

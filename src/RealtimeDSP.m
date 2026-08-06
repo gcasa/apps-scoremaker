@@ -253,6 +253,9 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
                           _instrument = [(AVAudioUnitMIDIInstrument *)unit retain];
                           [_instrumentDescription release];
                           _instrumentDescription = savedDescription;
+                          NSDictionary *state = [description objectForKey:@"state"];
+                          if (state)
+                            [[_instrument AUAudioUnit] setFullState:state];
                           NSError *startError = nil;
                           BOOL success = [self startWithError:&startError];
                           if (completion)
@@ -268,6 +271,14 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
 {
 #if defined(__APPLE__)
   return _instrumentDescription;
+#else
+  return nil;
+#endif
+}
+- (NSDictionary *)audioUnitFullState
+{
+#if defined(__APPLE__)
+  return _instrument ? [[_instrument AUAudioUnit] fullState] : nil;
 #else
   return nil;
 #endif
@@ -308,6 +319,11 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
     }
 #endif
   ScoreDSPPush (_dsp, (int)pitch, 0, NO);
+}
+- (void)allNotesOff
+{
+  for (NSInteger pitch = 0; pitch < 128; pitch++)
+    [self noteOff:pitch];
 }
 - (BOOL)renderPitches:(NSArray *)pitches
              duration:(NSTimeInterval)duration

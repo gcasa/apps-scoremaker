@@ -22,6 +22,7 @@
 #import "MidiParser.h"
 #import "MusicXMLParser.h"
 #import "ScorefileParser.h"
+#import "ScoreProjectSerializer.h"
 #import <float.h>
 #import <math.h>
 #import <AVFoundation/AVFoundation.h>
@@ -115,6 +116,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (void)restoreScoreSnapshot:(ScoreDocument *)snapshot;
 - (void)commitUndoBaseline;
 - (void)restoreAudioUnitInstrument;
+- (void)captureAudioUnitState;
+- (BOOL)prepareDSPPlaybackAtTick:(NSUInteger)tick error:(NSError **)error;
 @end
 
 @implementation ScorePaletteItemView
@@ -373,6 +376,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     {
       _realtimeDSP = [[ScoreRealtimeDSP alloc] init];
       _realtimeDSPPitch = -1;
+      _audioUnitPartTrack = -1;
       ScoreDocument *document = [[[ScoreDocument alloc] init] autorelease];
       [document setTitle:@"Untitled"];
       [self setScoreDocument:document];
@@ -509,6 +513,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_scoreDocument release];
   [_realtimeDSP stop];
   [_realtimeDSP release];
+  [_dspPlaybackEvents release];
   [_scrollView release];
   [_scoreView release];
   [_inspectorScrollView release];
@@ -1824,6 +1829,23 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [(AVMIDIPlayer *)_midiPlayer stop];
   [_midiPlayer release];
   _midiPlayer = nil;
+  [_realtimeDSP allNotesOff];
+  [_dspPlaybackEvents release];
+  _dspPlaybackEvents = nil;
+  _dspPlaybackEventIndex = 0;
+}
+
+- (BOOL)prepareDSPPlaybackAtTick:(NSUInteger)tick error:(NSError **)error
+{
+  if (![_realtimeDSP isRunning] && ![_realtimeDSP startWithError:error])
+    return NO;
+  ScoreScheduler *scheduler =
+    [[[ScoreScheduler alloc] initWithDocument:[self scoreDocument]] autorelease];
+  [_dspPlaybackEvents release];
+  _dspPlaybackEvents = [[scheduler eventsFromTick:tick
+                                      throughTick:[[self scoreDocument] totalTicks]] retain];
+  _dspPlaybackEventIndex = 0;
+  return YES;
 }
 
 - (BOOL)restartPlaybackAtTick:(NSUInteger)tick
@@ -1871,6 +1893,21 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     }
 
   NSError *error = nil;
+  if (_useRealtimeDSP)
+    {
+      [self stopPlaybackAudioOnly];
+      if (![self prepareDSPPlaybackAtTick:tick error:&error])
+        {
+          [[NSDocumentController sharedDocumentController] presentError:error];
+          [self stopCurrentPlayback];
+          return NO;
+        }
+      ScoreScheduler *scheduler = [[[ScoreScheduler alloc] initWithDocument:source] autorelease];
+      NSTimeInterval adjustedElapsed = [scheduler timeForTick:tick];
+      _playbackStartTime = [NSDate timeIntervalSinceReferenceDate] - adjustedElapsed;
+      _playbackPausedElapsed = adjustedElapsed;
+      return YES;
+    }
   NSData *midiData = [MidiParser dataForDocument:remainder error:&error];
   if (!midiData)
     {
@@ -1946,6 +1983,19 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   ScoreScheduler *scheduler = [[[ScoreScheduler alloc] initWithDocument:document] autorelease];
   NSUInteger tick = [scheduler tickForTime:elapsed];
 
+  while (_dspPlaybackEventIndex < [_dspPlaybackEvents count])
+    {
+      ScoreScheduledEvent *event = [_dspPlaybackEvents objectAtIndex:_dspPlaybackEventIndex];
+      if ([event time] > elapsed)
+        break;
+      ScoreNote *note = [event note];
+      if ([event noteOff])
+        [_realtimeDSP noteOff:[note pitch]];
+      else
+        [_realtimeDSP noteOn:[note pitch] velocity:[note velocity]];
+      _dspPlaybackEventIndex++;
+    }
+
   if (tick >= [document totalTicks])
     {
       [_playbackTimer invalidate];
@@ -1955,6 +2005,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [_playbackMonitorView clearPlayback];
       [_pauseButton setTitle:@"Pause"];
       [_pauseButton setEnabled:NO];
+      [_realtimeDSP allNotesOff];
+      [_dspPlaybackEvents release];
+      _dspPlaybackEvents = nil;
       return;
     }
 
@@ -2003,6 +2056,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
           [(AVMIDIPlayer *)_midiPlayer setCurrentPosition:position];
         }
       [_playbackSound pause];
+      if (_useRealtimeDSP)
+        [_realtimeDSP allNotesOff];
       _playbackPaused = YES;
       [_pauseButton setTitle:@"Resume"];
     }
@@ -2011,6 +2066,19 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       if (_midiPlayer)
         [(AVMIDIPlayer *)_midiPlayer play:nil];
       [_playbackSound resume];
+      if (_useRealtimeDSP)
+        {
+          ScoreScheduler *scheduler =
+            [[[ScoreScheduler alloc] initWithDocument:[self scoreDocument]] autorelease];
+          NSUInteger tick = [scheduler tickForTime:_playbackPausedElapsed];
+          NSError *error = nil;
+          if (![self prepareDSPPlaybackAtTick:tick error:&error])
+            {
+              [[NSDocumentController sharedDocumentController] presentError:error];
+              [self stopCurrentPlayback];
+              return;
+            }
+        }
       _playbackStartTime = [NSDate timeIntervalSinceReferenceDate] - _playbackPausedElapsed;
       _playbackPaused = NO;
       [_pauseButton setTitle:@"Pause"];
@@ -2115,6 +2183,16 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     }
 
   NSError *error = nil;
+  if (_useRealtimeDSP)
+    {
+      if (![self prepareDSPPlaybackAtTick:0 error:&error])
+        {
+          [[NSDocumentController sharedDocumentController] presentError:error];
+          return;
+        }
+      [self startPlaybackHighlight];
+      return;
+    }
   NSData *midiData = [MidiParser dataForDocument:document error:&error];
   if (!midiData)
     {
@@ -2432,6 +2510,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   if (selection == [NSNull null])
     {
       [_realtimeDSP useInternalSynthesizer];
+      _audioUnitPartTrack = -1;
       NSError *error = nil;
       if (_useRealtimeDSP && ![_realtimeDSP startWithError:&error])
         [[NSDocumentController sharedDocumentController] presentError:error];
@@ -2463,6 +2542,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
                    if ([[document parts] count] == 0)
                      [document rebuildStructuredPartsFromLegacyTracks];
                    NSInteger track = [self selectedPartNumber];
+                   _audioUnitPartTrack = track;
                    for (ScorePartDefinition *part in [document parts])
                      if ([part legacyTrack] == track)
                        {
@@ -2496,6 +2576,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (void)restoreAudioUnitInstrument
 {
   [_realtimeDSP useInternalSynthesizer];
+  _audioUnitPartTrack = -1;
   _useRealtimeDSP = NO;
   ScoreDocument *document = [self scoreDocument];
   for (ScorePartDefinition *part in [document parts])
@@ -2503,6 +2584,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       ScoreInstrumentDefinition *instrument = [part instrument];
       if ([[instrument backendIdentifier] hasPrefix:@"audio-unit:"])
         {
+          _audioUnitPartTrack = [part legacyTrack];
           NSDictionary *description = [instrument parameters];
 #if defined(__APPLE__)
           if ([description objectForKey:@"type"] && [description objectForKey:@"subtype"] &&
@@ -2521,6 +2603,26 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
           break;
         }
     }
+}
+
+- (void)captureAudioUnitState
+{
+  NSDictionary *state = [_realtimeDSP audioUnitFullState];
+  if (!state)
+    return;
+  NSInteger track = [self selectedPartNumber];
+  if (_audioUnitPartTrack >= 0)
+    track = _audioUnitPartTrack;
+  for (ScorePartDefinition *part in [[self scoreDocument] parts])
+    if ([part legacyTrack] == track &&
+        [[[part instrument] backendIdentifier] hasPrefix:@"audio-unit:"])
+      {
+        NSMutableDictionary *parameters =
+          [NSMutableDictionary dictionaryWithDictionary:[[part instrument] parameters]];
+        [parameters setObject:state forKey:@"state"];
+        [[part instrument] setParameters:parameters];
+        break;
+      }
 }
 
 - (void)auditionPitch:(NSInteger)pitch
@@ -3078,7 +3180,12 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   NSString *path = [url path];
   NSString *extension = [[path pathExtension] lowercaseString];
   ScoreDocument *document = nil;
-  if ([extension isEqualToString:@"score"])
+  if ([extension isEqualToString:@"scoremaker"])
+    {
+      NSData *data = [NSData dataWithContentsOfURL:url options:0 error:error];
+      document = data ? [ScoreProjectSerializer documentFromData:data error:error] : nil;
+    }
+  else if ([extension isEqualToString:@"score"])
     {
       document = [ScorefileParser parseFileAtPath:path error:error];
     }
@@ -3113,9 +3220,12 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       return nil;
     }
   [self syncInspectorMetadataMarkingChange:NO];
+  [self captureAudioUnitState];
   [document setAnnotationText:[_annotationTextView string]];
 
   NSString *lowerType = [typeName lowercaseString];
+  if ([lowerType rangeOfString:@"scoremaker project"].location != NSNotFound)
+    return [ScoreProjectSerializer dataForDocument:document error:error];
   if ([lowerType rangeOfString:@"midi"].location != NSNotFound)
     {
       return [MidiParser dataForDocument:document error:error];
@@ -3143,6 +3253,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     }
 
   [self syncInspectorMetadataMarkingChange:NO];
+  [self captureAudioUnitState];
   if (_annotationTextView)
     {
       [document setAnnotationText:[_annotationTextView string]];
@@ -3151,8 +3262,13 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   NSString *lowerType = [typeName lowercaseString];
   NSString *extension = [[[url path] pathExtension] lowercaseString];
   NSData *data = nil;
-  if ([extension isEqualToString:@"musicxml"] || [extension isEqualToString:@"xml"] ||
-      [lowerType rangeOfString:@"musicxml"].location != NSNotFound)
+  if ([extension isEqualToString:@"scoremaker"] ||
+      [lowerType rangeOfString:@"scoremaker project"].location != NSNotFound)
+    {
+      data = [ScoreProjectSerializer dataForDocument:document error:error];
+    }
+  else if ([extension isEqualToString:@"musicxml"] || [extension isEqualToString:@"xml"] ||
+           [lowerType rangeOfString:@"musicxml"].location != NSNotFound)
     {
       data = [MusicXMLParser dataForDocument:document error:error];
     }
@@ -3173,13 +3289,16 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (NSArray *)writableTypesForSaveOperation:(NSSaveOperationType)saveOperation
 {
   (void)saveOperation;
-  return [NSArray arrayWithObjects:@"MusicKit Scorefile", @"MIDI File", @"MusicXML File", nil];
+  return [NSArray arrayWithObjects:@"ScoreMaker Project", @"MusicKit Scorefile", @"MIDI File",
+                                   @"MusicXML File", nil];
 }
 
 - (NSString *)fileNameExtensionForType:(NSString *)typeName
                          saveOperation:(NSSaveOperationType)saveOperation
 {
   (void)saveOperation;
+  if ([[typeName lowercaseString] rangeOfString:@"scoremaker project"].location != NSNotFound)
+    return @"scoremaker";
   if ([[typeName lowercaseString] rangeOfString:@"midi"].location != NSNotFound)
     {
       return @"mid";
@@ -3197,13 +3316,13 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #endif
-  [savePanel setAllowedFileTypes:[NSArray arrayWithObjects:@"score", @"mid", @"midi", @"musicxml",
-                                                           @"xml", nil]];
+  [savePanel setAllowedFileTypes:[NSArray arrayWithObjects:@"scoremaker", @"score", @"mid", @"midi",
+                                                           @"musicxml", @"xml", nil]];
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
   NSString *suggestedName =
-    [self fileURL] ? [[[self fileURL] path] lastPathComponent] : @"Untitled.score";
+    [self fileURL] ? [[[self fileURL] path] lastPathComponent] : @"Untitled.scoremaker";
   [savePanel setNameFieldStringValue:suggestedName];
   return [super prepareSavePanel:savePanel];
 }
