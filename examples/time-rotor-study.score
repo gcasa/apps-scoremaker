@@ -1,0 +1,165 @@
+/*
+ * Time Rotor Study
+ * An original science-fiction television-title study written for ScoreMaker.
+ * SPDX-License-Identifier: CC0-1.0
+ *
+ * This composition may be used, modified, and redistributed without restriction.
+ * It is not an arrangement of, and does not quote, the Doctor Who theme.
+ */
+
+info tempo:138 timeSignature:6/8;
+string scoreTitle = "Time Rotor Study";
+string scoreComposer = "ScoreMaker Example";
+string scoreAnnotation = "Original CC0 electronic sci-fi study. Three independent parts demonstrate compound meter, repeating bass pulses, chromatic harmony, short values, chords, dynamics through velocity, and a slurred lead gesture.";
+
+part Rotor_Bass;
+Rotor_Bass program:38;
+part Magnetic_Pad;
+Magnetic_Pad program:90;
+part Beacon_Lead;
+Beacon_Lead program:81;
+
+BEGIN;
+
+/* Measures 1-2: asymmetric E pedal against slowly rotating harmony. */
+t 0;
+Rotor_Bass (0.5) keyNum:e2k velocity:92;
+Magnetic_Pad (3) keyNum:e3k velocity:48;
+Magnetic_Pad (3) keyNum:b3k velocity:44;
+Magnetic_Pad (3) keyNum:c4k velocity:40;
+t 0.75;
+Rotor_Bass (0.25) keyNum:b2k velocity:72;
+t 1;
+Rotor_Bass (0.5) keyNum:e3k velocity:86;
+Beacon_Lead (0.5) keyNum:g4k velocity:68 slurStart:1;
+t 1.5;
+Rotor_Bass (0.25) keyNum:d3k velocity:70;
+Beacon_Lead (0.5) keyNum:a4k velocity:72;
+t 2;
+Rotor_Bass (0.5) keyNum:e2k velocity:94;
+Beacon_Lead (0.75) keyNum:c5k velocity:78 slurStop:1;
+
+t 3;
+Rotor_Bass (0.5) keyNum:e2k velocity:92;
+Magnetic_Pad (3) keyNum:d3k velocity:46;
+Magnetic_Pad (3) keyNum:a3k velocity:42;
+Magnetic_Pad (3) keyNum:cs4k velocity:40;
+t 3.75;
+Rotor_Bass (0.25) keyNum:b2k velocity:72;
+t 4;
+Rotor_Bass (0.5) keyNum:fs3k velocity:86;
+Beacon_Lead (0.25) keyNum:b4k velocity:74;
+t 4.25;
+Beacon_Lead (0.25) keyNum:d5k velocity:78;
+t 4.5;
+Rotor_Bass (0.25) keyNum:d3k velocity:70;
+Beacon_Lead (0.5) keyNum:fs5k velocity:82;
+t 5;
+Rotor_Bass (0.5) keyNum:e2k velocity:94;
+Beacon_Lead (0.75) keyNum:e5k velocity:76;
+
+/* Measures 3-4: chromatic lift and response. */
+t 6;
+Rotor_Bass (0.5) keyNum:f2k velocity:94;
+Magnetic_Pad (3) keyNum:f3k velocity:48;
+Magnetic_Pad (3) keyNum:c4k velocity:44;
+Magnetic_Pad (3) keyNum:fs4k velocity:38;
+Beacon_Lead (0.5) keyNum:a4k velocity:70;
+t 6.75;
+Rotor_Bass (0.25) keyNum:c3k velocity:72;
+t 7;
+Rotor_Bass (0.5) keyNum:f3k velocity:86;
+Beacon_Lead (0.5) keyNum:cs5k velocity:78;
+t 7.5;
+Rotor_Bass (0.25) keyNum:ef3k velocity:70;
+Beacon_Lead (0.25) keyNum:d5k velocity:72;
+t 8;
+Rotor_Bass (0.5) keyNum:f2k velocity:94;
+Beacon_Lead (0.75) keyNum:g5k velocity:84;
+
+t 9;
+Rotor_Bass (0.5) keyNum:fs2k velocity:94;
+Magnetic_Pad (3) keyNum:fs3k velocity:48;
+Magnetic_Pad (3) keyNum:cs4k velocity:44;
+Magnetic_Pad (3) keyNum:g4k velocity:38;
+t 9.75;
+Rotor_Bass (0.25) keyNum:cs3k velocity:72;
+t 10;
+Rotor_Bass (0.5) keyNum:fs3k velocity:86;
+Beacon_Lead (0.5) keyNum:e5k velocity:76;
+t 10.5;
+Rotor_Bass (0.25) keyNum:e3k velocity:70;
+Beacon_Lead (0.5) keyNum:b4k velocity:70;
+t 11;
+Rotor_Bass (0.5) keyNum:fs2k velocity:94;
+Beacon_Lead (0.75) keyNum:cs5k velocity:80;
+
+/* Measures 5-6: return, then a wider beacon call. */
+t 12;
+Rotor_Bass (0.5) keyNum:e2k velocity:96;
+Magnetic_Pad (3) keyNum:e3k velocity:50;
+Magnetic_Pad (3) keyNum:b3k velocity:46;
+Magnetic_Pad (3) keyNum:d4k velocity:42;
+t 12.75;
+Rotor_Bass (0.25) keyNum:b2k velocity:74;
+t 13;
+Rotor_Bass (0.5) keyNum:e3k velocity:88;
+Beacon_Lead (0.25) keyNum:e5k velocity:76 slurStart:1;
+t 13.25;
+Beacon_Lead (0.25) keyNum:g5k velocity:80;
+t 13.5;
+Rotor_Bass (0.25) keyNum:d3k velocity:72;
+Beacon_Lead (0.5) keyNum:b5k velocity:88;
+t 14;
+Rotor_Bass (0.5) keyNum:e2k velocity:96;
+Beacon_Lead (0.75) keyNum:a5k velocity:82 slurStop:1;
+
+t 15;
+Rotor_Bass (0.5) keyNum:c2k velocity:92;
+Magnetic_Pad (3) keyNum:c3k velocity:48;
+Magnetic_Pad (3) keyNum:g3k velocity:44;
+Magnetic_Pad (3) keyNum:fs4k velocity:42;
+t 15.75;
+Rotor_Bass (0.25) keyNum:g2k velocity:72;
+t 16;
+Rotor_Bass (0.5) keyNum:c3k velocity:86;
+Beacon_Lead (0.5) keyNum:g5k velocity:80;
+t 16.5;
+Rotor_Bass (0.25) keyNum:b2k velocity:70;
+Beacon_Lead (0.5) keyNum:fs5k velocity:76;
+t 17;
+Rotor_Bass (0.5) keyNum:c2k velocity:94;
+Beacon_Lead (0.75) keyNum:d5k velocity:72;
+
+/* Measures 7-8: suspended turnaround and open ending. */
+t 18;
+Rotor_Bass (0.5) keyNum:d2k velocity:94;
+Magnetic_Pad (3) keyNum:d3k velocity:48;
+Magnetic_Pad (3) keyNum:a3k velocity:44;
+Magnetic_Pad (3) keyNum:e4k velocity:42;
+t 18.75;
+Rotor_Bass (0.25) keyNum:a2k velocity:72;
+t 19;
+Rotor_Bass (0.5) keyNum:d3k velocity:86;
+Beacon_Lead (0.25) keyNum:a4k velocity:70;
+t 19.25;
+Beacon_Lead (0.25) keyNum:d5k velocity:76;
+t 19.5;
+Rotor_Bass (0.25) keyNum:c3k velocity:70;
+Beacon_Lead (0.5) keyNum:e5k velocity:80;
+t 20;
+Rotor_Bass (0.5) keyNum:d2k velocity:94;
+Beacon_Lead (0.75) keyNum:b4k velocity:74;
+
+t 21;
+Rotor_Bass (3) keyNum:e2k velocity:88;
+Magnetic_Pad (3) keyNum:e3k velocity:52;
+Magnetic_Pad (3) keyNum:b3k velocity:48;
+Magnetic_Pad (3) keyNum:fs4k velocity:44;
+Beacon_Lead (1) keyNum:g5k velocity:82 slurStart:1;
+t 22;
+Beacon_Lead (1) keyNum:fs5k velocity:76;
+t 23;
+Beacon_Lead (1) keyNum:e5k velocity:68 slurStop:1;
+
+END;
