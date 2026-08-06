@@ -18,6 +18,7 @@
  */
 
 #import "ScoreModel.h"
+#import "MusicPlatformModel.h"
 
 @implementation ScoreNote
 
@@ -568,6 +569,8 @@ DefaultAccidentalForPitch (NSInteger pitch)
 - (void)setTempoMicrosecondsPerQuarter:(NSUInteger)tempoMicrosecondsPerQuarter
 {
   _tempoMicrosecondsPerQuarter = tempoMicrosecondsPerQuarter;
+  if ([_tempoEvents count] > 0)
+    [[_tempoEvents objectAtIndex:0] setMicrosecondsPerQuarter:tempoMicrosecondsPerQuarter];
 }
 
 - (NSUInteger)timeSignatureNumerator
@@ -616,6 +619,11 @@ DefaultAccidentalForPitch (NSInteger pitch)
       _timeSignatureNumerator = 4;
       _timeSignatureDenominator = 4;
       _totalTicks = 0;
+      _parts = [[NSMutableArray alloc] init];
+      _tempoEvents = [[NSMutableArray alloc] init];
+      _midiRoutes = [[NSMutableArray alloc] init];
+      _synthesisGraph = [[ScoreSynthesisGraph alloc] init];
+      _compositionProgram = [[ScoreCompositionProgram alloc] init];
     }
   return self;
 }
@@ -630,6 +638,11 @@ DefaultAccidentalForPitch (NSInteger pitch)
   [_partNames release];
   [_trackPrograms release];
   [_annotationText release];
+  [_parts release];
+  [_tempoEvents release];
+  [_midiRoutes release];
+  [_synthesisGraph release];
+  [_compositionProgram release];
   [super dealloc];
 }
 
@@ -672,6 +685,137 @@ DefaultAccidentalForPitch (NSInteger pitch)
   [_trackPrograms setObject:[NSNumber numberWithInteger:value] forKey:trackNumber];
 }
 
+- (NSMutableArray *)parts
+{
+  return _parts;
+}
+- (void)setParts:(NSMutableArray *)parts
+{
+  if (_parts != parts)
+    {
+      [_parts release];
+      _parts = [parts retain];
+    }
+}
+- (NSMutableArray *)tempoEvents
+{
+  return _tempoEvents;
+}
+- (void)setTempoEvents:(NSMutableArray *)events
+{
+  if (_tempoEvents != events)
+    {
+      [_tempoEvents release];
+      _tempoEvents = [events retain];
+    }
+}
+- (NSMutableArray *)midiRoutes
+{
+  return _midiRoutes;
+}
+- (void)setMidiRoutes:(NSMutableArray *)routes
+{
+  if (_midiRoutes != routes)
+    {
+      [_midiRoutes release];
+      _midiRoutes = [routes retain];
+    }
+}
+- (ScoreSynthesisGraph *)synthesisGraph
+{
+  return _synthesisGraph;
+}
+- (void)setSynthesisGraph:(ScoreSynthesisGraph *)graph
+{
+  if (_synthesisGraph != graph)
+    {
+      [_synthesisGraph release];
+      _synthesisGraph = [graph retain];
+    }
+}
+- (ScoreCompositionProgram *)compositionProgram
+{
+  return _compositionProgram;
+}
+- (void)setCompositionProgram:(ScoreCompositionProgram *)program
+{
+  if (_compositionProgram != program)
+    {
+      [_compositionProgram release];
+      _compositionProgram = [program retain];
+    }
+}
+
+- (void)rebuildStructuredPartsFromLegacyTracks
+{
+  NSMutableSet *trackSet = [NSMutableSet setWithArray:[_partNames allKeys]];
+  [trackSet addObjectsFromArray:[_trackPrograms allKeys]];
+  for (ScoreNote *note in _notes)
+    [trackSet addObject:[NSNumber numberWithInteger:[note track]]];
+  if ([trackSet count] == 0)
+    [trackSet addObject:[NSNumber numberWithInteger:0]];
+  NSArray *tracks = [[trackSet allObjects] sortedArrayUsingSelector:@selector (compare:)];
+  [_parts removeAllObjects];
+  [_midiRoutes removeAllObjects];
+  for (NSNumber *trackNumber in tracks)
+    {
+      NSInteger track = [trackNumber integerValue];
+      ScorePartDefinition *part = [[[ScorePartDefinition alloc] init] autorelease];
+      [part setLegacyTrack:track];
+      NSString *name = [self nameForTrack:track];
+      [part
+        setName:[name length] ? name : [NSString stringWithFormat:@"Part %ld", (long)(track + 1)]];
+      [part setAbbreviatedName:[part name]];
+      ScoreInstrumentDefinition *instrument =
+        [[[ScoreInstrumentDefinition alloc] init] autorelease];
+      [instrument setName:[part name]];
+      [instrument setProgram:[[self programForTrack:track] integerValue]];
+      [part setInstrument:instrument];
+
+      NSInteger minimumPitch = 127, maximumPitch = 0;
+      NSMutableSet *voiceNumbers = [NSMutableSet set];
+      for (ScoreNote *note in _notes)
+        if ([note track] == track && ![note isRest])
+          {
+            minimumPitch = MIN (minimumPitch, [note pitch]);
+            maximumPitch = MAX (maximumPitch, [note pitch]);
+            [voiceNumbers addObject:[NSNumber numberWithInteger:[note voice]]];
+          }
+      if ([voiceNumbers count] == 0)
+        [voiceNumbers addObject:[NSNumber numberWithInteger:1]];
+      BOOL grandStaff = minimumPitch < 55 && maximumPitch >= 67;
+      NSUInteger staffCount = grandStaff ? 2 : 1;
+      for (NSUInteger staffIndex = 0; staffIndex < staffCount; staffIndex++)
+        {
+          ScoreStaffDefinition *staff = [[[ScoreStaffDefinition alloc] init] autorelease];
+          [staff setClef:(staffCount == 2 && staffIndex == 1) || maximumPitch < 60
+                           ? ScoreStaffClefBass
+                           : ScoreStaffClefTreble];
+          for (NSNumber *voiceNumber in
+               [[voiceNumbers allObjects] sortedArrayUsingSelector:@selector (compare:)])
+            {
+              ScoreVoiceDefinition *voice = [[[ScoreVoiceDefinition alloc] init] autorelease];
+              [voice setNumber:[voiceNumber integerValue]];
+              [voice setPreferredStemDirection:[voice number] == 1 ? 1 : -1];
+              [[staff voices] addObject:voice];
+            }
+          [[part staves] addObject:staff];
+        }
+      [_parts addObject:part];
+      ScoreMIDIRoute *route = [[[ScoreMIDIRoute alloc] init] autorelease];
+      [route setSourceIdentifier:@"default-midi-input"];
+      [route setSourceChannel:track % 16];
+      [route setDestinationPartIdentifier:[part identifier]];
+      [route setDestinationChannel:track % 16];
+      [_midiRoutes addObject:route];
+    }
+  [_tempoEvents removeAllObjects];
+  ScoreTempoEvent *tempo = [[[ScoreTempoEvent alloc] init] autorelease];
+  [tempo setTick:0];
+  [tempo setMicrosecondsPerQuarter:_tempoMicrosecondsPerQuarter];
+  [_tempoEvents addObject:tempo];
+}
+
 - (id)copyWithZone:(NSZone *)zone
 {
   ScoreDocument *copy = [[ScoreDocument allocWithZone:zone] init];
@@ -696,6 +840,13 @@ DefaultAccidentalForPitch (NSInteger pitch)
                                                             copyItems:YES] autorelease]];
   [copy setTrackPrograms:[[[NSMutableDictionary alloc] initWithDictionary:_trackPrograms
                                                                 copyItems:YES] autorelease]];
+  [copy setParts:[[[NSMutableArray alloc] initWithArray:_parts copyItems:YES] autorelease]];
+  [copy setTempoEvents:[[[NSMutableArray alloc] initWithArray:_tempoEvents
+                                                    copyItems:YES] autorelease]];
+  [copy setMidiRoutes:[[[NSMutableArray alloc] initWithArray:_midiRoutes
+                                                   copyItems:YES] autorelease]];
+  [copy setSynthesisGraph:[[_synthesisGraph copy] autorelease]];
+  [copy setCompositionProgram:[[_compositionProgram copy] autorelease]];
   return copy;
 }
 

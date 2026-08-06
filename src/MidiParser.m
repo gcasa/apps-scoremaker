@@ -363,6 +363,7 @@ GeneralMidiProgramName (unsigned char program)
   [[document notes] sortUsingSelector:@selector (compareScoreNote:)];
   [document buildDefaultMeasures];
 
+  [document rebuildStructuredPartsFromLegacyTracks];
   return document;
 }
 

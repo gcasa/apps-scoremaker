@@ -18,6 +18,7 @@
  */
 
 #import "ScoreMakerDocument.h"
+#import "MusicEngine.h"
 #import "MidiParser.h"
 #import "MusicXMLParser.h"
 #import "ScorefileParser.h"
@@ -1726,10 +1727,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       NSTimeInterval elapsed = _playbackPaused
                                  ? _playbackPausedElapsed
                                  : ([NSDate timeIntervalSinceReferenceDate] - _playbackStartTime);
-      double secondsPerQuarter
-        = (double)[[self scoreDocument] tempoMicrosecondsPerQuarter] / 1000000.0;
-      NSUInteger tick = (NSUInteger)floor ((elapsed / MAX (secondsPerQuarter, 0.001))
-                                           * (double)[[self scoreDocument] ticksPerQuarter]);
+      ScoreScheduler *scheduler =
+        [[[ScoreScheduler alloc] initWithDocument:[self scoreDocument]] autorelease];
+      NSUInteger tick = [scheduler tickForTime:elapsed];
       [self restartPlaybackAtTick:tick];
     }
 }
@@ -1870,9 +1870,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       return NO;
     }
 
-  double secondsPerQuarter = (double)[source tempoMicrosecondsPerQuarter] / 1000000.0;
-  NSTimeInterval adjustedElapsed
-    = ((double)tick / (double)MAX ((NSUInteger)1, [source ticksPerQuarter])) * secondsPerQuarter;
+  ScoreScheduler *scheduler = [[[ScoreScheduler alloc] initWithDocument:source] autorelease];
+  NSTimeInterval adjustedElapsed = [scheduler timeForTick:tick];
   _playbackStartTime = [NSDate timeIntervalSinceReferenceDate] - adjustedElapsed;
   _playbackPausedElapsed = adjustedElapsed;
 
@@ -1927,11 +1926,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     }
 
   NSTimeInterval elapsed = [NSDate timeIntervalSinceReferenceDate] - _playbackStartTime;
-  double secondsPerQuarter = (double)[document tempoMicrosecondsPerQuarter] / 1000000.0;
-  if (secondsPerQuarter <= 0.0)
-    secondsPerQuarter = 0.5;
-  NSUInteger tick
-    = (NSUInteger)floor ((elapsed / secondsPerQuarter) * (double)[document ticksPerQuarter]);
+  ScoreScheduler *scheduler = [[[ScoreScheduler alloc] initWithDocument:document] autorelease];
+  NSUInteger tick = [scheduler tickForTime:elapsed];
 
   if (tick >= [document totalTicks])
     {
@@ -1953,9 +1949,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (void)startPlaybackHighlightAtTick:(NSUInteger)tick
 {
   ScoreDocument *document = [self scoreDocument];
-  double secondsPerQuarter = (double)[document tempoMicrosecondsPerQuarter] / 1000000.0;
-  NSTimeInterval elapsed = ((double)tick / (double)MAX ((NSUInteger)1, [document ticksPerQuarter]))
-                           * MAX (secondsPerQuarter, 0.001);
+  ScoreScheduler *scheduler = [[[ScoreScheduler alloc] initWithDocument:document] autorelease];
+  NSTimeInterval elapsed = [scheduler timeForTick:tick];
   _playbackStartTime = [NSDate timeIntervalSinceReferenceDate] - elapsed;
   [[self scoreView] setPlaybackTick:tick];
   [[self scoreView] scrollPlaybackTickToVisible:tick];

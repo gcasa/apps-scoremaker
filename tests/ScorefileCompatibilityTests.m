@@ -22,6 +22,8 @@
 #import "MusicXMLParser.h"
 #import "NotationModel.h"
 #import "EngravingLayout.h"
+#import "MusicEngine.h"
+#import "MusicPlatformModel.h"
 
 static void
 Require (BOOL condition, NSString *message)
@@ -64,6 +66,8 @@ main (void)
       Require (document != nil, [NSString stringWithFormat:@"could not parse %@: %@", name, error]);
       Require ([[document measures] count] > 0,
                [NSString stringWithFormat:@"%@ has no synthesized measures", name]);
+      Require ([[document parts] count] > 0,
+               [NSString stringWithFormat:@"%@ has no structured parts", name]);
       for (ScoreNote *note in [document notes])
         Require ([note voice] >= 1, @"example note has an invalid voice number");
       NSData *data = [ScorefileParser dataForDocument:document error:&error];
@@ -84,6 +88,39 @@ main (void)
       Require ([[document measures] count] == [[roundTrip measures] count],
                @"measure count changed after round trip");
     }
+
+  ScoreDocument *platform = [[[ScoreDocument alloc] init] autorelease];
+  ScoreCompositionProgram *program = [platform compositionProgram];
+  [program setSource:@"part 0 Lead\nvoice 1\nnote 60 480\nnote 64 480\nrest 0 240\n"];
+  NSError *platformError = nil;
+  Require ([ScoreCompositionEvaluator evaluateProgram:program
+                                           inDocument:platform
+                                                error:&platformError],
+           [NSString stringWithFormat:@"composition evaluation failed: %@", platformError]);
+  Require ([[platform notes] count] == 3 && [[platform parts] count] == 1,
+           @"composition evaluation did not generate a structured part");
+  ScoreScheduler *scheduler = [[[ScoreScheduler alloc] initWithDocument:platform] autorelease];
+  Require (fabs ([scheduler timeForTick:480] - 0.5) < 0.0001,
+           @"scheduler produced an incorrect tick time");
+  Require ([[scheduler eventsFromTick:0 throughTick:1200] count] == 4,
+           @"scheduler did not produce note-on and note-off events");
+
+  ScoreSynthesisNode *oscillator = [[[ScoreSynthesisNode alloc] init] autorelease];
+  [oscillator setTypeIdentifier:@"oscillator"];
+  ScoreSynthesisNode *output = [[[ScoreSynthesisNode alloc] init] autorelease];
+  [output setTypeIdentifier:@"output"];
+  [[[platform synthesisGraph] nodes]
+    addObjectsFromArray:[NSArray arrayWithObjects:oscillator, output, nil]];
+  ScoreSynthesisConnection *connection = [[[ScoreSynthesisConnection alloc] init] autorelease];
+  [connection setSourceNodeIdentifier:[oscillator identifier]];
+  [connection setSourcePort:@"audio"];
+  [connection setDestinationNodeIdentifier:[output identifier]];
+  [connection setDestinationPort:@"audio"];
+  [[[platform synthesisGraph] connections] addObject:connection];
+  Require ([[ScoreSynthesisCompiler processingOrderForGraph:[platform synthesisGraph]
+                                                      error:&platformError] count]
+             == 2,
+           @"synthesis graph compilation failed");
 
   ScoreDocument *voices = [[[ScoreDocument alloc] init] autorelease];
   [voices setTotalTicks:1440];

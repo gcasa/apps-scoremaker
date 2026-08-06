@@ -31,6 +31,8 @@ ScoreMaker_OBJC_FILES = \
 	src/MusicXMLParser.m \
 	src/ScorefileParser.m \
 	src/ScoreModel.m \
+	src/MusicPlatformModel.m \
+	src/MusicEngine.m \
 	src/ScoreMakerDocument.m \
 	src/ScoreView.m \
 	src/PlaybackMonitorView.m \
@@ -43,6 +45,8 @@ ScoreMaker_HEADER_FILES = \
 	src/MusicXMLParser.h \
 	src/ScorefileParser.h \
 	src/ScoreModel.h \
+	src/MusicPlatformModel.h \
+	src/MusicEngine.h \
 	src/ScoreMakerDocument.h \
 	src/ScoreView.h \
 	src/PlaybackMonitorView.h \

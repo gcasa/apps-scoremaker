@@ -542,6 +542,7 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
         *error = [parser parserError];
       return nil;
     }
+  [[delegate document] rebuildStructuredPartsFromLegacyTracks];
   return [delegate document];
 }
 

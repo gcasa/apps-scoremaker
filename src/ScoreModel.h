@@ -19,6 +19,12 @@
 
 #import <Foundation/Foundation.h>
 
+@class ScorePartDefinition;
+@class ScoreTempoEvent;
+@class ScoreMIDIRoute;
+@class ScoreSynthesisGraph;
+@class ScoreCompositionProgram;
+
 @interface ScoreNote : NSObject <NSCopying>
 {
   NSInteger _pitch;
@@ -126,6 +132,11 @@
   NSUInteger _timeSignatureNumerator;
   NSUInteger _timeSignatureDenominator;
   NSUInteger _totalTicks;
+  NSMutableArray *_parts;
+  NSMutableArray *_tempoEvents;
+  NSMutableArray *_midiRoutes;
+  ScoreSynthesisGraph *_synthesisGraph;
+  ScoreCompositionProgram *_compositionProgram;
 }
 - (NSString *)title;
 - (void)setTitle:(NSString *)title;
@@ -160,4 +171,15 @@
 - (void)setName:(NSString *)name forTrack:(NSInteger)track;
 - (NSNumber *)programForTrack:(NSInteger)track;
 - (void)setProgram:(NSNumber *)program forTrack:(NSInteger)track;
+- (NSMutableArray *)parts;
+- (void)setParts:(NSMutableArray *)parts;
+- (NSMutableArray *)tempoEvents;
+- (void)setTempoEvents:(NSMutableArray *)events;
+- (NSMutableArray *)midiRoutes;
+- (void)setMidiRoutes:(NSMutableArray *)routes;
+- (ScoreSynthesisGraph *)synthesisGraph;
+- (void)setSynthesisGraph:(ScoreSynthesisGraph *)graph;
+- (ScoreCompositionProgram *)compositionProgram;
+- (void)setCompositionProgram:(ScoreCompositionProgram *)program;
+- (void)rebuildStructuredPartsFromLegacyTracks;
 @end

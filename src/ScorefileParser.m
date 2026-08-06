@@ -1403,6 +1403,7 @@ ScorefileIdentifierForPartName (NSString *name)
     {
       [document buildDefaultMeasures];
     }
+  [document rebuildStructuredPartsFromLegacyTracks];
   return document;
 }
 
