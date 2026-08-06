@@ -260,6 +260,11 @@
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"MIDI Output..."
                                                  action:@selector (chooseMIDIOutput:)
                                           keyEquivalent:@""] autorelease]];
+  NSMenuItem *dspItem = [[[NSMenuItem alloc] initWithTitle:@"Use Real-Time DSP"
+                                                    action:@selector (toggleRealtimeDSP:)
+                                             keyEquivalent:@""] autorelease];
+  [dspItem setTarget:nil];
+  [scoreMenu addItem:dspItem];
   [scoreMenu addItem:[NSMenuItem separatorItem]];
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Edit Title..."
                                                  action:@selector (editScoreTitle:)

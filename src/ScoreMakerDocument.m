@@ -370,6 +370,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   self = [super init];
   if (self)
     {
+      _realtimeDSP = [[ScoreRealtimeDSP alloc] init];
+      _realtimeDSPPitch = -1;
       ScoreDocument *document = [[[ScoreDocument alloc] init] autorelease];
       [document setTitle:@"Untitled"];
       [self setScoreDocument:document];
@@ -503,6 +505,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_midiInputManager disconnect];
   [_midiInputManager setTarget:nil];
   [_scoreDocument release];
+  [_realtimeDSP stop];
+  [_realtimeDSP release];
   [_scrollView release];
   [_scoreView release];
   [_inspectorScrollView release];
@@ -2321,7 +2325,19 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   NSInteger pitch = [(PlaybackMonitorView *)sender inputPitch];
   if (pitch < 0 || pitch > 127 || ![self scoreDocument] || _playbackTimer || _playbackPaused)
     return;
-  [self auditionPitch:pitch];
+  if (_useRealtimeDSP)
+    {
+      [self stopAudition];
+      [_realtimeDSP noteOn:pitch velocity:100];
+      _realtimeDSPPitch = pitch;
+      _auditionResetTimer = [[NSTimer scheduledTimerWithTimeInterval:0.5
+                                                              target:self
+                                                            selector:@selector (finishAudition:)
+                                                            userInfo:nil
+                                                             repeats:NO] retain];
+    }
+  else
+    [self auditionPitch:pitch];
   [_noteTypePopUp selectItemWithTitle:@"Note"];
   static NSString *pitchNames[]
     = { @"C", @"C#", @"D", @"D#", @"E", @"F", @"F#", @"G", @"G#", @"A", @"A#", @"B" };
@@ -2334,6 +2350,11 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 
 - (void)stopAudition
 {
+  if (_realtimeDSPPitch >= 0)
+    {
+      [_realtimeDSP noteOff:_realtimeDSPPitch];
+      _realtimeDSPPitch = -1;
+    }
   [_auditionResetTimer invalidate];
   [_auditionResetTimer release];
   _auditionResetTimer = nil;
@@ -2344,6 +2365,35 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_auditionSound release];
   _auditionSound = nil;
   [_playbackMonitorView resetInputPitch];
+}
+
+- (void)toggleRealtimeDSP:(id)sender
+{
+  if (!_useRealtimeDSP)
+    {
+      NSError *error = nil;
+      if (![_realtimeDSP startWithError:&error])
+        {
+          [[NSDocumentController sharedDocumentController] presentError:error];
+          return;
+        }
+      _useRealtimeDSP = YES;
+    }
+  else
+    {
+      [self stopAudition];
+      [_realtimeDSP stop];
+      _useRealtimeDSP = NO;
+    }
+  if ([sender respondsToSelector:@selector (setState:)])
+    [sender setState:_useRealtimeDSP ? NSOnState : NSOffState];
+}
+
+- (BOOL)validateMenuItem:(NSMenuItem *)menuItem
+{
+  if ([menuItem action] == @selector (toggleRealtimeDSP:))
+    [menuItem setState:_useRealtimeDSP ? NSOnState : NSOffState];
+  return YES;
 }
 
 - (void)auditionPitch:(NSInteger)pitch

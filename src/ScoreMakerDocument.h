@@ -21,6 +21,7 @@
 #import "ScoreView.h"
 #import "PlaybackMonitorView.h"
 #import "MIDIInputManager.h"
+#import "RealtimeDSP.h"
 #if defined(__APPLE__)
 #import <AudioToolbox/AudioToolbox.h>
 #import <CoreMIDI/CoreMIDI.h>
@@ -93,6 +94,9 @@
   NSTimeInterval _playbackPausedElapsed;
   BOOL _playbackPaused;
   BOOL _updatingInspector;
+  ScoreRealtimeDSP *_realtimeDSP;
+  BOOL _useRealtimeDSP;
+  NSInteger _realtimeDSPPitch;
 #if defined(__APPLE__)
   MIDIEndpointRef _midiOutputEndpoint;
   NSString *_midiOutputName;
@@ -127,4 +131,5 @@
 - (void)chooseTitleFont:(id)sender;
 - (void)changeFont:(id)sender;
 - (void)chooseMIDIOutput:(id)sender;
+- (void)toggleRealtimeDSP:(id)sender;
 @end
