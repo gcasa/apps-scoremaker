@@ -132,4 +132,5 @@
 - (void)changeFont:(id)sender;
 - (void)chooseMIDIOutput:(id)sender;
 - (void)toggleRealtimeDSP:(id)sender;
+- (void)chooseAudioUnitInstrument:(id)sender;
 @end

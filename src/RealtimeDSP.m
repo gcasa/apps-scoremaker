@@ -6,6 +6,7 @@
 #import <stdatomic.h>
 #if defined(__APPLE__)
 #import <AVFoundation/AVFoundation.h>
+#import <AudioToolbox/AudioToolbox.h>
 #endif
 
 #define SCORE_DSP_VOICES 64
@@ -111,8 +112,40 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
 #if defined(__APPLE__)
   AVAudioEngine *_engine;
   AVAudioSourceNode *_source;
+  AVAudioUnitMIDIInstrument *_instrument;
+  NSDictionary *_instrumentDescription;
 #endif
   BOOL _running;
+}
++ (NSArray *)availableAudioUnitInstruments
+{
+#if defined(__APPLE__)
+  NSMutableArray *instruments = [NSMutableArray array];
+  NSArray *components = [[AVAudioUnitComponentManager sharedAudioUnitComponentManager]
+    componentsPassingTest:^BOOL (AVAudioUnitComponent *component, BOOL *stop) {
+      (void)stop;
+      return [component audioComponentDescription].componentType == kAudioUnitType_MusicDevice;
+    }];
+  for (AVAudioUnitComponent *component in components)
+    {
+      AudioComponentDescription description = [component audioComponentDescription];
+      [instruments
+        addObject:[NSDictionary
+                    dictionaryWithObjectsAndKeys:
+                      [component name], @"name", [component manufacturerName], @"manufacturer",
+                      [NSNumber numberWithUnsignedInt:description.componentType], @"type",
+                      [NSNumber numberWithUnsignedInt:description.componentSubType], @"subtype",
+                      [NSNumber numberWithUnsignedInt:description.componentManufacturer],
+                      @"manufacturerCode", nil]];
+    }
+  return [instruments
+    sortedArrayUsingComparator:^NSComparisonResult (NSDictionary *left, NSDictionary *right) {
+      return
+        [[left objectForKey:@"name"] localizedCaseInsensitiveCompare:[right objectForKey:@"name"]];
+    }];
+#else
+  return [NSArray array];
+#endif
 }
 - (id)init
 {
@@ -128,6 +161,20 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
 #if defined(__APPLE__)
   if (_running)
     return YES;
+  if (_instrument)
+    {
+      _engine = [[AVAudioEngine alloc] init];
+      [_engine attachNode:_instrument];
+      [_engine connect:_instrument to:[_engine mainMixerNode] format:nil];
+      if (![_engine startAndReturnError:error])
+        {
+          [_engine release];
+          _engine = nil;
+          return NO;
+        }
+      _running = YES;
+      return YES;
+    }
   _engine = [[AVAudioEngine alloc] init];
   AVAudioFormat *format = [[[AVAudioFormat alloc] initStandardFormatWithSampleRate:48000
                                                                           channels:2] autorelease];
@@ -159,6 +206,72 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   return NO;
 #endif
 }
+- (void)useInternalSynthesizer
+{
+#if defined(__APPLE__)
+  [self stop];
+  [_instrument release];
+  _instrument = nil;
+  [_instrumentDescription release];
+  _instrumentDescription = nil;
+#endif
+}
+- (void)loadAudioUnitInstrument:(NSDictionary *)description
+                     completion:(ScoreAudioUnitLoadCompletion)completion
+{
+#if defined(__APPLE__)
+  AudioComponentDescription component
+    = { [[description objectForKey:@"type"] unsignedIntValue],
+        [[description objectForKey:@"subtype"] unsignedIntValue],
+        [[description objectForKey:@"manufacturerCode"] unsignedIntValue],
+        0,
+        0 };
+  NSDictionary *savedDescription = [description copy];
+  [AVAudioUnit
+    instantiateWithComponentDescription:component
+                                options:kAudioComponentInstantiation_LoadOutOfProcess
+                      completionHandler:^(AVAudioUnit *unit, NSError *error) {
+                        dispatch_async (dispatch_get_main_queue (), ^{
+                          if (!unit || ![unit isKindOfClass:[AVAudioUnitMIDIInstrument class]])
+                            {
+                              NSError *loadError = error;
+                              if (!loadError)
+                                loadError = [NSError
+                                  errorWithDomain:@"ScoreMakerDSP"
+                                             code:2
+                                         userInfo:@{
+                                           NSLocalizedDescriptionKey :
+                                             @"The selected Audio Unit is not a MIDI instrument."
+                                         }];
+                              [savedDescription release];
+                              if (completion)
+                                completion (NO, loadError);
+                              return;
+                            }
+                          [self stop];
+                          [_instrument release];
+                          _instrument = [(AVAudioUnitMIDIInstrument *)unit retain];
+                          [_instrumentDescription release];
+                          _instrumentDescription = savedDescription;
+                          NSError *startError = nil;
+                          BOOL success = [self startWithError:&startError];
+                          if (completion)
+                            completion (success, startError);
+                        });
+                      }];
+#else
+  (void)description;
+  (void)completion;
+#endif
+}
+- (NSDictionary *)audioUnitInstrumentDescription
+{
+#if defined(__APPLE__)
+  return _instrumentDescription;
+#else
+  return nil;
+#endif
+}
 - (void)stop
 {
 #if defined(__APPLE__)
@@ -176,10 +289,24 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
 }
 - (void)noteOn:(NSInteger)pitch velocity:(NSUInteger)velocity
 {
+#if defined(__APPLE__)
+  if (_instrument)
+    {
+      [_instrument sendMIDIEvent:0x90 data1:(UInt8)pitch data2:(UInt8)MIN (127, velocity)];
+      return;
+    }
+#endif
   ScoreDSPPush (_dsp, (int)pitch, (float)MIN ((NSUInteger)127, velocity) / 127.0f, YES);
 }
 - (void)noteOff:(NSInteger)pitch
 {
+#if defined(__APPLE__)
+  if (_instrument)
+    {
+      [_instrument sendMIDIEvent:0x80 data1:(UInt8)pitch data2:0];
+      return;
+    }
+#endif
   ScoreDSPPush (_dsp, (int)pitch, 0, NO);
 }
 - (BOOL)renderPitches:(NSArray *)pitches
@@ -192,6 +319,10 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
 - (void)dealloc
 {
   [self stop];
+#if defined(__APPLE__)
+  [_instrument release];
+  [_instrumentDescription release];
+#endif
   free (_dsp);
   [super dealloc];
 }

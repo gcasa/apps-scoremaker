@@ -3,10 +3,21 @@
  */
 #import <Foundation/Foundation.h>
 
+#if defined(__APPLE__)
+typedef void (^ScoreAudioUnitLoadCompletion) (BOOL success, NSError *error);
+#else
+typedef id ScoreAudioUnitLoadCompletion;
+#endif
+
 @interface ScoreRealtimeDSP : NSObject
++ (NSArray *)availableAudioUnitInstruments;
 - (BOOL)startWithError:(NSError **)error;
 - (void)stop;
 - (BOOL)isRunning;
+- (void)useInternalSynthesizer;
+- (void)loadAudioUnitInstrument:(NSDictionary *)description
+                     completion:(ScoreAudioUnitLoadCompletion)completion;
+- (NSDictionary *)audioUnitInstrumentDescription;
 - (void)noteOn:(NSInteger)pitch velocity:(NSUInteger)velocity;
 - (void)noteOff:(NSInteger)pitch;
 - (BOOL)renderPitches:(NSArray *)pitches

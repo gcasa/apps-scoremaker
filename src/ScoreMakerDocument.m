@@ -114,6 +114,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (void)registerUndoSnapshotWithName:(NSString *)name;
 - (void)restoreScoreSnapshot:(ScoreDocument *)snapshot;
 - (void)commitUndoBaseline;
+- (void)restoreAudioUnitInstrument;
 @end
 
 @implementation ScorePaletteItemView
@@ -475,6 +476,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _restoringUndo = NO;
   [[self scoreView] reloadDocument];
   [self refreshInspector];
+  [self restoreAudioUnitInstrument];
   [self commitUndoBaseline];
 }
 
@@ -639,6 +641,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_playbackMonitorView setAction:@selector (pianoKeyPressed:)];
   [[[self window] contentView] addSubview:_playbackMonitorView];
   [self refreshInspector];
+  [self restoreAudioUnitInstrument];
   [self
     setWindowController:[[[NSWindowController alloc] initWithWindow:[self window]] autorelease]];
   [self addWindowController:[self windowController]];
@@ -2394,6 +2397,130 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   if ([menuItem action] == @selector (toggleRealtimeDSP:))
     [menuItem setState:_useRealtimeDSP ? NSOnState : NSOffState];
   return YES;
+}
+
+- (void)chooseAudioUnitInstrument:(id)sender
+{
+  (void)sender;
+  NSArray *instruments = [ScoreRealtimeDSP availableAudioUnitInstruments];
+  NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+  [alert setMessageText:@"Choose Audio Unit Instrument"];
+  [alert setInformativeText:[instruments count]
+                              ? @"The instrument will receive notes from the virtual keyboard "
+                                @"through the real-time DSP engine."
+                              : @"No Audio Unit music devices are installed. The internal "
+                                @"synthesizer remains available."];
+  [alert addButtonWithTitle:@"Use Instrument"];
+  [alert addButtonWithTitle:@"Cancel"];
+
+  NSPopUpButton *popUp = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (0, 0, 380, 26)
+                                                     pullsDown:NO] autorelease];
+  [popUp addItemWithTitle:@"Internal ScoreMaker Synthesizer"];
+  [[popUp lastItem] setRepresentedObject:[NSNull null]];
+  for (NSDictionary *instrument in instruments)
+    {
+      NSString *title = [NSString stringWithFormat:@"%@ — %@", [instrument objectForKey:@"name"],
+                                                   [instrument objectForKey:@"manufacturer"]];
+      [popUp addItemWithTitle:title];
+      [[popUp lastItem] setRepresentedObject:instrument];
+    }
+  [alert setAccessoryView:popUp];
+  if ([alert runModal] != NSAlertFirstButtonReturn)
+    return;
+
+  id selection = [[popUp selectedItem] representedObject];
+  if (selection == [NSNull null])
+    {
+      [_realtimeDSP useInternalSynthesizer];
+      NSError *error = nil;
+      if (_useRealtimeDSP && ![_realtimeDSP startWithError:&error])
+        [[NSDocumentController sharedDocumentController] presentError:error];
+      ScoreDocument *document = [self scoreDocument];
+      NSInteger track = [self selectedPartNumber];
+      for (ScorePartDefinition *part in [document parts])
+        if ([part legacyTrack] == track)
+          {
+            [[part instrument] setBackendIdentifier:nil];
+            [[part instrument] setParameters:[NSMutableDictionary dictionary]];
+            [self updateChangeCount:NSChangeDone];
+            break;
+          }
+      return;
+    }
+
+#if defined(__APPLE__)
+  [_realtimeDSP
+    loadAudioUnitInstrument:selection
+                 completion:^(BOOL success, NSError *error) {
+                   if (!success)
+                     {
+                       [[NSDocumentController sharedDocumentController] presentError:error];
+                       return;
+                     }
+                   _useRealtimeDSP = YES;
+                   ScoreDocument *document = [self scoreDocument];
+                   [self registerUndoSnapshotWithName:@"Change Audio Unit Instrument"];
+                   if ([[document parts] count] == 0)
+                     [document rebuildStructuredPartsFromLegacyTracks];
+                   NSInteger track = [self selectedPartNumber];
+                   for (ScorePartDefinition *part in [document parts])
+                     if ([part legacyTrack] == track)
+                       {
+                         ScoreInstrumentDefinition *instrument = [part instrument];
+                         [instrument
+                           setBackendIdentifier:
+                             [NSString
+                               stringWithFormat:@"audio-unit:%u:%u:%u",
+                                                [[selection objectForKey:@"type"] unsignedIntValue],
+                                                [[selection objectForKey:@"subtype"]
+                                                  unsignedIntValue],
+                                                [[selection objectForKey:@"manufacturerCode"]
+                                                  unsignedIntValue]]];
+                         [instrument
+                           setParameters:[NSMutableDictionary dictionaryWithDictionary:selection]];
+                         break;
+                       }
+                   [self updateChangeCount:NSChangeDone];
+                 }];
+#else
+  NSError *error =
+    [NSError errorWithDomain:@"ScoreMakerDSP"
+                        code:1
+                    userInfo:@{
+                      NSLocalizedDescriptionKey : @"Audio Unit hosting is available only on macOS."
+                    }];
+  [[NSDocumentController sharedDocumentController] presentError:error];
+#endif
+}
+
+- (void)restoreAudioUnitInstrument
+{
+  [_realtimeDSP useInternalSynthesizer];
+  _useRealtimeDSP = NO;
+  ScoreDocument *document = [self scoreDocument];
+  for (ScorePartDefinition *part in [document parts])
+    {
+      ScoreInstrumentDefinition *instrument = [part instrument];
+      if ([[instrument backendIdentifier] hasPrefix:@"audio-unit:"])
+        {
+          NSDictionary *description = [instrument parameters];
+#if defined(__APPLE__)
+          if ([description objectForKey:@"type"] && [description objectForKey:@"subtype"] &&
+              [description objectForKey:@"manufacturerCode"])
+            [_realtimeDSP
+              loadAudioUnitInstrument:description
+                           completion:^(BOOL success, NSError *error) {
+                             if (success)
+                               _useRealtimeDSP = YES;
+                             else if (error)
+                               [[NSDocumentController sharedDocumentController] presentError:error];
+                           }];
+#else
+          (void)description;
+#endif
+          break;
+        }
+    }
 }
 
 - (void)auditionPitch:(NSInteger)pitch

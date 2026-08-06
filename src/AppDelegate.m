@@ -265,6 +265,9 @@
                                              keyEquivalent:@""] autorelease];
   [dspItem setTarget:nil];
   [scoreMenu addItem:dspItem];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Choose Audio Unit Instrument..."
+                                                 action:@selector (chooseAudioUnitInstrument:)
+                                          keyEquivalent:@""] autorelease]];
   [scoreMenu addItem:[NSMenuItem separatorItem]];
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Edit Title..."
                                                  action:@selector (editScoreTitle:)
