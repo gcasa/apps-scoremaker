@@ -1227,11 +1227,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     selectItemWithTitle:selectedNote && [[selectedNote articulation] length]
                           ? [articulationTitles objectForKey:[selectedNote articulation]]
                           : @"No articulation"];
-  NSInteger selectedPart = selectedNote
-                             ? [selectedNote track]
-                             : ([[_partPopUp selectedItem] representedObject]
-                                  ? [[[_partPopUp selectedItem] representedObject] integerValue]
-                                  : 0);
+  NSNumber *viewedPart = [[_partPopUp selectedItem] representedObject];
   NSMutableSet *partSet = [NSMutableSet setWithObject:[NSNumber numberWithInteger:0]];
   [partSet addObjectsFromArray:[[document partNames] allKeys]];
   [partSet addObjectsFromArray:[[document trackPrograms] allKeys]];
@@ -1241,6 +1237,11 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     {
       [partSet addObject:[NSNumber numberWithInteger:[partNote track]]];
     }
+  NSInteger selectedPart
+    = viewedPart ? [viewedPart integerValue] : (selectedNote ? [selectedNote track] : 0);
+  if (![partSet containsObject:[NSNumber numberWithInteger:selectedPart]])
+    selectedPart = [[[[partSet allObjects] sortedArrayUsingSelector:@selector (compare:)]
+      objectAtIndex:0] integerValue];
   NSArray *parts = [[partSet allObjects] sortedArrayUsingSelector:@selector (compare:)];
   [_partPopUp removeAllItems];
   NSEnumerator *partEnumerator = [parts objectEnumerator];
@@ -1367,23 +1368,10 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (void)partDidChange:(id)sender
 {
   (void)sender;
-  ScoreNote *note = [[self scoreView] selectedNote];
-  if (!note)
-    {
-      NSInteger part = [self selectedPartNumber];
-      NSNumber *program = [[self scoreDocument] programForTrack:part];
-      [_instrumentPopUp selectItemAtIndex:program ? [program integerValue] : 0];
-      [_playbackMonitorView setSelectedTrack:part];
-      return;
-    }
   NSInteger part = [self selectedPartNumber];
-  [self registerUndoSnapshotWithName:@"Change Part"];
-  [note setTrack:part];
-  [note setChannel:part % 16];
-  [[self scoreView] setNeedsDisplay:YES];
-  [self updateChangeCount:NSChangeDone];
-  [self refreshInspector];
-  [self commitUndoBaseline];
+  NSNumber *program = [[self scoreDocument] programForTrack:part];
+  [_instrumentPopUp selectItemAtIndex:program ? [program integerValue] : 0];
+  [_playbackMonitorView setSelectedTrack:part];
 }
 
 - (void)scoreDisplayModeDidChange:(id)sender
