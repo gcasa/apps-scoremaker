@@ -1,19 +1,38 @@
+/*
+ * Copyright (C) 2026 Gregory Casamento <greg.casamento@gmail.com>
+ *
+ * This file is part of ScoreMaker.
+ *
+ * ScoreMaker is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 2.1 of the License, or (at
+ * your option) any later version.
+ *
+ * ScoreMaker is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+ * License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with ScoreMaker.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #import <AppKit/AppKit.h>
 #import "ScoreModel.h"
 #import "EngravingLayout.h"
 
-extern NSString * const ScoreViewDidEditScoreNotification;
-extern NSString * const ScoreViewSelectionDidChangeNotification;
-extern NSString * const ScorePalettePasteboardType;
+extern NSString *const ScoreViewDidEditScoreNotification;
+extern NSString *const ScoreViewSelectionDidChangeNotification;
+extern NSString *const ScorePalettePasteboardType;
 
 @interface ScoreView : NSView
 {
-    ScoreDocument *_document;
-    ScoreNote *_selectedNote;
-    NSUInteger _playbackTick;
-    BOOL _showPlayback;
-    ScoreEngravingLayout *_engravingLayout;
-    BOOL _separateParts;
+  ScoreDocument *_document;
+  ScoreNote *_selectedNote;
+  NSUInteger _playbackTick;
+  BOOL _showPlayback;
+  ScoreEngravingLayout *_engravingLayout;
+  BOOL _separateParts;
 }
 - (ScoreDocument *)document;
 - (void)setDocument:(ScoreDocument *)document;
@@ -25,5 +44,9 @@ extern NSString * const ScorePalettePasteboardType;
 - (NSSize)printedPageContentSize;
 - (BOOL)separateParts;
 - (void)setSeparateParts:(BOOL)separate;
-- (BOOL)insertPaletteItem:(NSString *)item atPoint:(NSPoint)point pitch:(NSInteger)pitch durationTicks:(NSUInteger)durationTicks track:(NSInteger)track;
+- (BOOL)insertPaletteItem:(NSString *)item
+                  atPoint:(NSPoint)point
+                    pitch:(NSInteger)pitch
+            durationTicks:(NSUInteger)durationTicks
+                    track:(NSInteger)track;
 @end

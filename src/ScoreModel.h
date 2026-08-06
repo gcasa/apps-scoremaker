@@ -1,25 +1,44 @@
+/*
+ * Copyright (C) 2026 Gregory Casamento <greg.casamento@gmail.com>
+ *
+ * This file is part of ScoreMaker.
+ *
+ * ScoreMaker is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 2.1 of the License, or (at
+ * your option) any later version.
+ *
+ * ScoreMaker is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+ * License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with ScoreMaker.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #import <Foundation/Foundation.h>
 
 @interface ScoreNote : NSObject <NSCopying>
 {
-    NSInteger _pitch;
-    NSInteger _channel;
-    NSInteger _track;
-    NSUInteger _startTick;
-    NSUInteger _durationTicks;
-    BOOL _rest;
-    NSInteger _accidental;
-    BOOL _slurStart;
-    BOOL _slurEnd;
-    BOOL _tieStart;
-    BOOL _tieEnd;
-    NSUInteger _tupletActual;
-    NSUInteger _tupletNormal;
-    NSString *_dynamic;
-    NSString *_articulation;
-    NSInteger _voice;
-    NSInteger _measureIndex;
-    NSUInteger _velocity;
+  NSInteger _pitch;
+  NSInteger _channel;
+  NSInteger _track;
+  NSUInteger _startTick;
+  NSUInteger _durationTicks;
+  BOOL _rest;
+  NSInteger _accidental;
+  BOOL _slurStart;
+  BOOL _slurEnd;
+  BOOL _tieStart;
+  BOOL _tieEnd;
+  NSUInteger _tupletActual;
+  NSUInteger _tupletNormal;
+  NSString *_dynamic;
+  NSString *_articulation;
+  NSInteger _voice;
+  NSInteger _measureIndex;
+  NSUInteger _velocity;
 }
 - (NSInteger)pitch;
 - (void)setPitch:(NSInteger)pitch;
@@ -62,15 +81,15 @@
 
 @interface ScoreMeasure : NSObject <NSCopying>
 {
-    NSInteger _number;
-    NSUInteger _startTick;
-    NSUInteger _durationTicks;
-    NSUInteger _timeSignatureNumerator;
-    NSUInteger _timeSignatureDenominator;
-    BOOL _implicit;
-    NSInteger _keySignatureFifths;
-    BOOL _repeatStart;
-    BOOL _repeatEnd;
+  NSInteger _number;
+  NSUInteger _startTick;
+  NSUInteger _durationTicks;
+  NSUInteger _timeSignatureNumerator;
+  NSUInteger _timeSignatureDenominator;
+  BOOL _implicit;
+  NSInteger _keySignatureFifths;
+  BOOL _repeatStart;
+  BOOL _repeatEnd;
 }
 - (NSInteger)number;
 - (void)setNumber:(NSInteger)number;
@@ -94,19 +113,19 @@
 
 @interface ScoreDocument : NSObject <NSCopying>
 {
-    NSString *_title;
-    NSString *_titleFontName;
-    NSString *_composer;
-    NSMutableArray *_notes;
-    NSMutableArray *_measures;
-    NSMutableDictionary *_partNames;
-    NSMutableDictionary *_trackPrograms;
-    NSString *_annotationText;
-    NSUInteger _ticksPerQuarter;
-    NSUInteger _tempoMicrosecondsPerQuarter;
-    NSUInteger _timeSignatureNumerator;
-    NSUInteger _timeSignatureDenominator;
-    NSUInteger _totalTicks;
+  NSString *_title;
+  NSString *_titleFontName;
+  NSString *_composer;
+  NSMutableArray *_notes;
+  NSMutableArray *_measures;
+  NSMutableDictionary *_partNames;
+  NSMutableDictionary *_trackPrograms;
+  NSString *_annotationText;
+  NSUInteger _ticksPerQuarter;
+  NSUInteger _tempoMicrosecondsPerQuarter;
+  NSUInteger _timeSignatureNumerator;
+  NSUInteger _timeSignatureDenominator;
+  NSUInteger _totalTicks;
 }
 - (NSString *)title;
 - (void)setTitle:(NSString *)title;

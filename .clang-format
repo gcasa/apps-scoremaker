@@ -1,0 +1,15 @@
+---
+BasedOnStyle: GNU
+ColumnLimit: 100
+IndentWidth: 2
+ContinuationIndentWidth: 2
+TabWidth: 8
+UseTab: Never
+BreakBeforeBraces: GNU
+PointerAlignment: Right
+SortIncludes: Never
+ObjCBlockIndentWidth: 2
+ObjCBreakBeforeNestedBlockParam: true
+ObjCSpaceAfterProperty: true
+SpacesBeforeTrailingComments: 2
+...
