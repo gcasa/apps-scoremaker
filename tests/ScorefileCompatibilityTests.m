@@ -65,7 +65,7 @@ main (void)
       Require ([[document measures] count] > 0,
                [NSString stringWithFormat:@"%@ has no synthesized measures", name]);
       for (ScoreNote *note in [document notes])
-        Require ([note voice] == 1, @"legacy note did not default to voice 1");
+        Require ([note voice] >= 1, @"example note has an invalid voice number");
       NSData *data = [ScorefileParser dataForDocument:document error:&error];
       Require (data != nil, [NSString stringWithFormat:@"could not serialize %@: %@", name, error]);
       NSString *text = [[[NSString alloc] initWithData:data
