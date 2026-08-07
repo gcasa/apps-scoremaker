@@ -2,6 +2,8 @@
  * ScoreMaker is distributed under the GNU LGPL version 2.1 or later.
  */
 #import "RealtimeDSP.h"
+#import "MusicEngine.h"
+#import "MusicPlatformModel.h"
 #import <math.h>
 #import <stdatomic.h>
 #if defined(__APPLE__)
@@ -43,7 +45,105 @@ typedef struct
   NSUInteger scheduledEventCount;
   NSUInteger scheduledEventIndex;
   uint64_t renderedFrames;
+  float gain;
+  float lowpassCoefficient;
+  float lowpassLeft;
+  float lowpassRight;
+  float compressorThreshold;
+  float compressorRatio;
+  float delayMix;
+  float delayFeedback;
+  NSUInteger delayFrames;
+  NSUInteger delayIndex;
+  float *delayLeft;
+  float *delayRight;
+  NSUInteger delayCapacity;
+  float reverbMix;
+  float reverbFeedback;
+  NSUInteger reverbFrames;
+  NSUInteger reverbIndex;
+  float *reverbLeft;
+  float *reverbRight;
+  NSUInteger reverbCapacity;
 } ScoreDSPState;
+
+static void
+ScoreDSPInitializeEffects (ScoreDSPState *state, double sampleRate)
+{
+  state->sampleRate = sampleRate;
+  state->gain = 1.0f;
+  state->compressorThreshold = 1.0f;
+  state->compressorRatio = 1.0f;
+  state->delayCapacity = (NSUInteger)ceil (sampleRate * 2.0);
+  state->reverbCapacity = (NSUInteger)ceil (sampleRate * 0.75);
+  state->delayLeft = calloc (state->delayCapacity, sizeof (float));
+  state->delayRight = calloc (state->delayCapacity, sizeof (float));
+  state->reverbLeft = calloc (state->reverbCapacity, sizeof (float));
+  state->reverbRight = calloc (state->reverbCapacity, sizeof (float));
+}
+
+static void
+ScoreDSPDisposeEffects (ScoreDSPState *state)
+{
+  free (state->delayLeft);
+  free (state->delayRight);
+  free (state->reverbLeft);
+  free (state->reverbRight);
+  state->delayLeft = NULL;
+  state->delayRight = NULL;
+  state->reverbLeft = NULL;
+  state->reverbRight = NULL;
+}
+
+static float
+ScoreDSPCompress (float sample, float threshold, float ratio)
+{
+  float magnitude = fabsf (sample);
+  if (magnitude <= threshold || ratio <= 1.0f)
+    return sample;
+  float compressed = threshold + (magnitude - threshold) / ratio;
+  return copysignf (compressed, sample);
+}
+
+static void
+ScoreDSPApplyEffects (ScoreDSPState *state, float *left, float *right)
+{
+  float l = *left * state->gain;
+  float r = *right * state->gain;
+  if (state->lowpassCoefficient > 0.0f)
+    {
+      state->lowpassLeft += state->lowpassCoefficient * (l - state->lowpassLeft);
+      state->lowpassRight += state->lowpassCoefficient * (r - state->lowpassRight);
+      l = state->lowpassLeft;
+      r = state->lowpassRight;
+    }
+  l = ScoreDSPCompress (l, state->compressorThreshold, state->compressorRatio);
+  r = ScoreDSPCompress (r, state->compressorThreshold, state->compressorRatio);
+  if (state->delayFrames && state->delayLeft)
+    {
+      float delayedLeft = state->delayLeft[state->delayIndex];
+      float delayedRight = state->delayRight[state->delayIndex];
+      state->delayLeft[state->delayIndex] = l + delayedLeft * state->delayFeedback;
+      state->delayRight[state->delayIndex] = r + delayedRight * state->delayFeedback;
+      l = l * (1.0f - state->delayMix) + delayedLeft * state->delayMix;
+      r = r * (1.0f - state->delayMix) + delayedRight * state->delayMix;
+      state->delayIndex = (state->delayIndex + 1) % state->delayFrames;
+    }
+  if (state->reverbFrames && state->reverbLeft)
+    {
+      NSUInteger rightIndex = (state->reverbIndex + state->reverbFrames / 7)
+                              % state->reverbFrames;
+      float wetLeft = state->reverbLeft[state->reverbIndex];
+      float wetRight = state->reverbRight[rightIndex];
+      state->reverbLeft[state->reverbIndex] = l + wetRight * state->reverbFeedback;
+      state->reverbRight[rightIndex] = r + wetLeft * state->reverbFeedback;
+      l = l * (1.0f - state->reverbMix) + wetLeft * state->reverbMix;
+      r = r * (1.0f - state->reverbMix) + wetRight * state->reverbMix;
+      state->reverbIndex = (state->reverbIndex + 1) % state->reverbFrames;
+    }
+  *left = tanhf (l);
+  *right = tanhf (r);
+}
 
 static void
 ScoreDSPPush (ScoreDSPState *s, int pitch, float velocity, BOOL on)
@@ -118,9 +218,10 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
           if (v->phase >= 2.0 * M_PI)
             v->phase -= 2.0 * M_PI;
         }
-      float sample = (float)tanh (mix * 0.22);
+      float sample = (float)(mix * 0.22);
       left[f] = sample;
       right[f] = sample;
+      ScoreDSPApplyEffects (s, &left[f], &right[f]);
       s->renderedFrames++;
     }
 }
@@ -141,7 +242,9 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   AVAudioSourceNode *_source;
   AVAudioUnitMIDIInstrument *_instrument;
   NSDictionary *_instrumentDescription;
+  NSMutableArray *_engineEffectNodes;
 #endif
+  NSArray *_effectConfiguration;
   BOOL _running;
 }
 + (NSArray *)availableAudioUnitInstruments
@@ -232,6 +335,16 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
       [report addObject:entry];
     }
   return report;
+}
++ (NSArray *)supportedEffectTypes
+{
+  return @[
+    @{ @"identifier" : @"gain", @"name" : @"Gain" },
+    @{ @"identifier" : @"lowpass", @"name" : @"Low-Pass Filter" },
+    @{ @"identifier" : @"compressor", @"name" : @"Compressor" },
+    @{ @"identifier" : @"delay", @"name" : @"Delay" },
+    @{ @"identifier" : @"reverb", @"name" : @"Reverb" }
+  ];
 }
 + (NSArray *)relinkCandidatesForAudioUnit:(NSDictionary *)description
 {
@@ -331,7 +444,8 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   if ((self = [super init]))
     {
       _dsp = calloc (1, sizeof (*_dsp));
-      _dsp->sampleRate = 48000;
+      ScoreDSPInitializeEffects (_dsp, 48000.0);
+      _effectConfiguration = [[NSArray alloc] init];
     }
   return self;
 }
@@ -343,13 +457,65 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   if (_instrument)
     {
       _engine = [[AVAudioEngine alloc] init];
+      _engineEffectNodes = [[NSMutableArray alloc] init];
       [[NSNotificationCenter defaultCenter]
         addObserver:self
            selector:@selector (audioEngineConfigurationChanged:)
                name:AVAudioEngineConfigurationChangeNotification
              object:_engine];
       [_engine attachNode:_instrument];
-      [_engine connect:_instrument to:[_engine mainMixerNode] format:nil];
+      AVAudioNode *previous = _instrument;
+      for (NSDictionary *effect in _effectConfiguration)
+        {
+          if ([[effect objectForKey:@"bypass"] boolValue])
+            continue;
+          NSString *type = [effect objectForKey:@"type"];
+          AVAudioUnitEffect *node = nil;
+          if ([type isEqualToString:@"gain"])
+            {
+              AVAudioUnitEQ *equalizer = [[[AVAudioUnitEQ alloc] initWithNumberOfBands:0] autorelease];
+              [equalizer setGlobalGain:[[effect objectForKey:@"decibels"] floatValue]];
+              node = equalizer;
+            }
+          else if ([type isEqualToString:@"lowpass"])
+            {
+              AVAudioUnitEQ *equalizer = [[[AVAudioUnitEQ alloc] initWithNumberOfBands:1] autorelease];
+              AVAudioUnitEQFilterParameters *band = [[equalizer bands] objectAtIndex:0];
+              [band setFilterType:AVAudioUnitEQFilterTypeLowPass];
+              [band setFrequency:MAX (20.0f, MIN (20000.0f,
+                                                  [[effect objectForKey:@"cutoff"] floatValue]))];
+              [band setBypass:NO];
+              node = equalizer;
+            }
+          else if ([type isEqualToString:@"delay"])
+            {
+              AVAudioUnitDelay *delay = [[[AVAudioUnitDelay alloc] init] autorelease];
+              [delay setDelayTime:MAX (0.0, MIN (2.0, [[effect objectForKey:@"time"] doubleValue]))];
+              [delay setFeedback:MAX (0.0f, MIN (95.0f,
+                                                 [[effect objectForKey:@"feedback"] floatValue]
+                                                   * 100.0f))];
+              [delay setWetDryMix:MAX (0.0f, MIN (100.0f,
+                                                  [[effect objectForKey:@"mix"] floatValue]
+                                                    * 100.0f))];
+              node = delay;
+            }
+          else if ([type isEqualToString:@"reverb"])
+            {
+              AVAudioUnitReverb *reverb = [[[AVAudioUnitReverb alloc] init] autorelease];
+              [reverb loadFactoryPreset:AVAudioUnitReverbPresetMediumHall];
+              [reverb setWetDryMix:MAX (0.0f, MIN (100.0f,
+                                                   [[effect objectForKey:@"mix"] floatValue]
+                                                     * 100.0f))];
+              node = reverb;
+            }
+          if (!node)
+            continue;
+          [_engineEffectNodes addObject:node];
+          [_engine attachNode:node];
+          [_engine connect:previous to:node format:nil];
+          previous = node;
+        }
+      [_engine connect:previous to:[_engine mainMixerNode] format:nil];
       if (![_engine startAndReturnError:error])
         {
           [_engine release];
@@ -685,6 +851,116 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   return NO;
 #endif
 }
+- (BOOL)configureEffects:(NSArray *)effects error:(NSError **)error
+{
+  NSSet *supported = [NSSet setWithObjects:@"gain", @"lowpass", @"compressor", @"delay",
+                                           @"reverb", nil];
+  for (NSDictionary *effect in effects)
+    if (![supported containsObject:[effect objectForKey:@"type"]])
+      {
+        if (error)
+          *error = [NSError
+            errorWithDomain:@"ScoreMakerDSP"
+                       code:11
+                   userInfo:@{
+                     NSLocalizedDescriptionKey :
+                       [NSString stringWithFormat:@"Unsupported effect type: %@",
+                                                  [effect objectForKey:@"type"] ?: @"(missing)"]
+                   }];
+        return NO;
+      }
+  BOOL restart = _running;
+  if (restart)
+    [self stop];
+  [_effectConfiguration release];
+  _effectConfiguration = [[NSArray alloc] initWithArray:effects copyItems:YES];
+  _dsp->gain = 1.0f;
+  _dsp->lowpassCoefficient = 0.0f;
+  _dsp->compressorThreshold = 1.0f;
+  _dsp->compressorRatio = 1.0f;
+  _dsp->delayFrames = 0;
+  _dsp->delayMix = 0.0f;
+  _dsp->delayFeedback = 0.0f;
+  _dsp->reverbFrames = 0;
+  _dsp->reverbMix = 0.0f;
+  _dsp->reverbFeedback = 0.0f;
+  for (NSDictionary *effect in effects)
+    {
+      if ([[effect objectForKey:@"bypass"] boolValue])
+        continue;
+      NSString *type = [effect objectForKey:@"type"];
+      if ([type isEqualToString:@"gain"])
+        _dsp->gain = powf (10.0f, [[effect objectForKey:@"decibels"] floatValue] / 20.0f);
+      else if ([type isEqualToString:@"lowpass"])
+        {
+          float cutoff = MAX (20.0f, MIN (20000.0f,
+                                          [[effect objectForKey:@"cutoff"] floatValue] ?: 12000.0f));
+          _dsp->lowpassCoefficient = 1.0f - expf (-2.0f * (float)M_PI * cutoff
+                                                  / (float)_dsp->sampleRate);
+        }
+      else if ([type isEqualToString:@"compressor"])
+        {
+          float thresholdDB = [[effect objectForKey:@"threshold"] floatValue];
+          _dsp->compressorThreshold = powf (10.0f, thresholdDB / 20.0f);
+          _dsp->compressorRatio = MAX (1.0f, [[effect objectForKey:@"ratio"] floatValue]);
+        }
+      else if ([type isEqualToString:@"delay"])
+        {
+          double seconds = MAX (0.001, MIN (2.0, [[effect objectForKey:@"time"] doubleValue]));
+          _dsp->delayFrames = MIN (_dsp->delayCapacity,
+                                  MAX ((NSUInteger)1,
+                                       (NSUInteger)llround (seconds * _dsp->sampleRate)));
+          _dsp->delayMix = MAX (0.0f, MIN (1.0f, [[effect objectForKey:@"mix"] floatValue]));
+          _dsp->delayFeedback =
+            MAX (0.0f, MIN (0.95f, [[effect objectForKey:@"feedback"] floatValue]));
+        }
+      else if ([type isEqualToString:@"reverb"])
+        {
+          double room = MAX (0.05, MIN (0.75, [[effect objectForKey:@"roomSize"] doubleValue]));
+          _dsp->reverbFrames = MIN (_dsp->reverbCapacity,
+                                   MAX ((NSUInteger)1,
+                                        (NSUInteger)llround (room * _dsp->sampleRate)));
+          _dsp->reverbMix = MAX (0.0f, MIN (1.0f, [[effect objectForKey:@"mix"] floatValue]));
+          _dsp->reverbFeedback =
+            MAX (0.0f, MIN (0.92f, 0.45f + (float)room * 0.55f));
+        }
+    }
+  memset (_dsp->delayLeft, 0, _dsp->delayCapacity * sizeof (float));
+  memset (_dsp->delayRight, 0, _dsp->delayCapacity * sizeof (float));
+  memset (_dsp->reverbLeft, 0, _dsp->reverbCapacity * sizeof (float));
+  memset (_dsp->reverbRight, 0, _dsp->reverbCapacity * sizeof (float));
+  _dsp->delayIndex = 0;
+  _dsp->reverbIndex = 0;
+  if (restart && ![self startWithError:error])
+    return NO;
+  return YES;
+}
+- (BOOL)configureEffectsFromGraph:(ScoreSynthesisGraph *)graph error:(NSError **)error
+{
+  NSArray *order = [ScoreSynthesisCompiler processingOrderForGraph:graph error:error];
+  if (!order)
+    return NO;
+  NSMutableArray *effects = [NSMutableArray array];
+  for (ScoreSynthesisNode *node in order)
+    if ([[[self class] supportedEffectTypes]
+          indexOfObjectPassingTest:^BOOL (NSDictionary *item, NSUInteger index, BOOL *stop) {
+            (void)index;
+            (void)stop;
+            return [[item objectForKey:@"identifier"] isEqualToString:[node typeIdentifier]];
+          }] != NSNotFound)
+      {
+        NSMutableDictionary *effect =
+          [NSMutableDictionary dictionaryWithDictionary:[node parameters]];
+        [effect setObject:[node typeIdentifier] forKey:@"type"];
+        [effect setObject:[node identifier] forKey:@"nodeIdentifier"];
+        [effects addObject:effect];
+      }
+  return [self configureEffects:effects error:error];
+}
+- (NSArray *)effectConfiguration
+{
+  return _effectConfiguration;
+}
 - (void)stop
 {
 #if defined(__APPLE__)
@@ -695,6 +971,8 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   [_engine stop];
   [_source release];
   _source = nil;
+  [_engineEffectNodes release];
+  _engineEffectNodes = nil;
   [_engine release];
   _engine = nil;
 #endif
@@ -829,7 +1107,17 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   if (!file)
     return NO;
   ScoreDSPState state = { 0 };
-  state.sampleRate = sampleRate;
+  ScoreDSPInitializeEffects (&state, sampleRate);
+  state.gain = _dsp->gain;
+  state.lowpassCoefficient = _dsp->lowpassCoefficient;
+  state.compressorThreshold = _dsp->compressorThreshold;
+  state.compressorRatio = _dsp->compressorRatio;
+  state.delayFrames = _dsp->delayFrames;
+  state.delayMix = _dsp->delayMix;
+  state.delayFeedback = _dsp->delayFeedback;
+  state.reverbFrames = _dsp->reverbFrames;
+  state.reverbMix = _dsp->reverbMix;
+  state.reverbFeedback = _dsp->reverbFeedback;
   state.scheduledEventCount = [events count];
   state.scheduledEvents = calloc (MAX ((NSUInteger)1, [events count]), sizeof (ScoreDSPEvent));
   for (NSUInteger index = 0; index < [events count]; index++)
@@ -853,11 +1141,13 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
       if (![file writeFromBuffer:buffer error:error])
         {
           free (state.scheduledEvents);
+          ScoreDSPDisposeEffects (&state);
           return NO;
         }
       framesRemaining -= count;
     }
   free (state.scheduledEvents);
+  ScoreDSPDisposeEffects (&state);
   return YES;
 #else
   (void)events;
@@ -896,7 +1186,9 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   [_instrument release];
   [_instrumentDescription release];
 #endif
+  [_effectConfiguration release];
   free (_dsp->scheduledEvents);
+  ScoreDSPDisposeEffects (_dsp);
   free (_dsp);
   [super dealloc];
 }

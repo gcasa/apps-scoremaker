@@ -140,5 +140,6 @@
 - (void)manageAudioUnitPresets:(id)sender;
 - (void)relinkAudioUnitInstrument:(id)sender;
 - (void)showAudioUnitCompatibilityReport:(id)sender;
+- (void)editEffects:(id)sender;
 - (void)renderOfflineAudio:(id)sender;
 @end

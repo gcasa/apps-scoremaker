@@ -1404,6 +1404,14 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   NSNumber *program = [[self scoreDocument] programForTrack:part];
   [_instrumentPopUp selectItemAtIndex:program ? [program integerValue] : 0];
   [_playbackMonitorView setSelectedTrack:part];
+  for (ScorePartDefinition *definition in [[self scoreDocument] parts])
+    if ([definition legacyTrack] == part)
+      {
+        [_realtimeDSP configureEffectsFromGraph:[definition synthesisGraph] error:NULL];
+        if ([[_realtimeDSP effectConfiguration] count])
+          _useRealtimeDSP = YES;
+        break;
+      }
 }
 
 - (void)scoreDisplayModeDidChange:(id)sender
@@ -2836,12 +2844,149 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     [ScoreRealtimeDSP clearAudioUnitBlacklist];
 }
 
+- (void)editEffects:(id)sender
+{
+  (void)sender;
+  ScorePartDefinition *selectedPart = nil;
+  for (ScorePartDefinition *part in [[self scoreDocument] parts])
+    if ([part legacyTrack] == [self selectedPartNumber])
+      {
+        selectedPart = part;
+        break;
+      }
+  if (!selectedPart)
+    return;
+  ScoreSynthesisGraph *graph = [selectedPart synthesisGraph];
+  NSArray *specifications = @[
+    @{ @"type" : @"gain", @"name" : @"Gain", @"key" : @"decibels", @"minimum" : @-24.0,
+       @"maximum" : @12.0, @"default" : @0.0 },
+    @{ @"type" : @"lowpass", @"name" : @"Low-Pass", @"key" : @"cutoff", @"minimum" : @200.0,
+       @"maximum" : @20000.0, @"default" : @12000.0 },
+    @{ @"type" : @"compressor", @"name" : @"Compressor", @"key" : @"threshold",
+       @"minimum" : @-60.0, @"maximum" : @0.0, @"default" : @-12.0 },
+    @{ @"type" : @"delay", @"name" : @"Delay", @"key" : @"mix", @"minimum" : @0.0,
+       @"maximum" : @1.0, @"default" : @0.2 },
+    @{ @"type" : @"reverb", @"name" : @"Reverb", @"key" : @"mix", @"minimum" : @0.0,
+       @"maximum" : @1.0, @"default" : @0.2 }
+  ];
+  NSMutableDictionary *existing = [NSMutableDictionary dictionary];
+  for (ScoreSynthesisNode *node in [graph nodes])
+    [existing setObject:node forKey:[node typeIdentifier] ?: @""];
+  NSView *accessory = [[[NSView alloc] initWithFrame:NSMakeRect (0, 0, 500, 230)] autorelease];
+  NSMutableArray *controls = [NSMutableArray array];
+  for (NSUInteger index = 0; index < [specifications count]; index++)
+    {
+      NSDictionary *specification = [specifications objectAtIndex:index];
+      ScoreSynthesisNode *node = [existing objectForKey:[specification objectForKey:@"type"]];
+      CGFloat y = 190.0 - index * 42.0;
+      NSButton *enabled = [[[NSButton alloc] initWithFrame:NSMakeRect (0, y, 135, 24)] autorelease];
+      [enabled setButtonType:NSButtonTypeSwitch];
+      [enabled setTitle:[specification objectForKey:@"name"]];
+      [enabled setState:node ? NSControlStateValueOn : NSControlStateValueOff];
+      [accessory addSubview:enabled];
+      NSSlider *value = [[[NSSlider alloc] initWithFrame:NSMakeRect (140, y, 350, 24)] autorelease];
+      [value setMinValue:[[specification objectForKey:@"minimum"] doubleValue]];
+      [value setMaxValue:[[specification objectForKey:@"maximum"] doubleValue]];
+      NSNumber *saved = [[node parameters] objectForKey:[specification objectForKey:@"key"]];
+      [value setDoubleValue:saved ? [saved doubleValue]
+                                  : [[specification objectForKey:@"default"] doubleValue]];
+      [accessory addSubview:value];
+      [controls addObject:@{ @"enabled" : enabled, @"value" : value, @"specification" : specification }];
+    }
+  NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+  [alert setMessageText:[NSString stringWithFormat:@"Effects — %@", [selectedPart name] ?: @"Part"]];
+  [alert setInformativeText:@"These effects are stored with the part and applied during real-time playback and offline rendering."];
+  [alert setAccessoryView:accessory];
+  [alert addButtonWithTitle:@"Apply"];
+  [alert addButtonWithTitle:@"Cancel"];
+  if ([alert runModal] != NSAlertFirstButtonReturn)
+    return;
+  [self registerUndoSnapshotWithName:@"Change Part Effects"];
+  NSMutableSet *removedIdentifiers = [NSMutableSet set];
+  NSIndexSet *effectIndexes = [[graph nodes]
+    indexesOfObjectsPassingTest:^BOOL (ScoreSynthesisNode *node, NSUInteger index, BOOL *stop) {
+      (void)index;
+      (void)stop;
+      for (NSDictionary *specification in specifications)
+        if ([[node typeIdentifier] isEqualToString:[specification objectForKey:@"type"]])
+          {
+            [removedIdentifiers addObject:[node identifier]];
+            return YES;
+          }
+      return NO;
+    }];
+  [[graph nodes] removeObjectsAtIndexes:effectIndexes];
+  NSIndexSet *connectionIndexes = [[graph connections]
+    indexesOfObjectsPassingTest:^BOOL (ScoreSynthesisConnection *connection, NSUInteger index,
+                                       BOOL *stop) {
+      (void)index;
+      (void)stop;
+      return [removedIdentifiers containsObject:[connection sourceNodeIdentifier]]
+             || [removedIdentifiers containsObject:[connection destinationNodeIdentifier]];
+    }];
+  [[graph connections] removeObjectsAtIndexes:connectionIndexes];
+  ScoreSynthesisNode *previous = nil;
+  for (NSDictionary *control in controls)
+    {
+      if ([[control objectForKey:@"enabled"] state] != NSControlStateValueOn)
+        continue;
+      NSDictionary *specification = [control objectForKey:@"specification"];
+      ScoreSynthesisNode *node = [[[ScoreSynthesisNode alloc] init] autorelease];
+      [node setTypeIdentifier:[specification objectForKey:@"type"]];
+      [[node parameters]
+        setObject:[NSNumber numberWithDouble:[[control objectForKey:@"value"] doubleValue]]
+           forKey:[specification objectForKey:@"key"]];
+      if ([[node typeIdentifier] isEqualToString:@"compressor"])
+        [[node parameters] setObject:@4.0 forKey:@"ratio"];
+      else if ([[node typeIdentifier] isEqualToString:@"delay"])
+        {
+          [[node parameters] setObject:@0.3 forKey:@"time"];
+          [[node parameters] setObject:@0.35 forKey:@"feedback"];
+        }
+      else if ([[node typeIdentifier] isEqualToString:@"reverb"])
+        [[node parameters] setObject:@0.35 forKey:@"roomSize"];
+      [[graph nodes] addObject:node];
+      if (previous)
+        {
+          ScoreSynthesisConnection *connection =
+            [[[ScoreSynthesisConnection alloc] init] autorelease];
+          [connection setSourceNodeIdentifier:[previous identifier]];
+          [connection setSourcePort:@"audio"];
+          [connection setDestinationNodeIdentifier:[node identifier]];
+          [connection setDestinationPort:@"audio"];
+          [[graph connections] addObject:connection];
+        }
+      previous = node;
+    }
+  NSError *error = nil;
+  if (![_realtimeDSP configureEffectsFromGraph:graph error:&error])
+    [[NSDocumentController sharedDocumentController] presentError:error];
+  else if ([[_realtimeDSP effectConfiguration] count])
+    _useRealtimeDSP = YES;
+  [self updateChangeCount:NSChangeDone];
+}
+
 - (void)restoreAudioUnitInstrument
 {
   [_realtimeDSP useInternalSynthesizer];
   _audioUnitPartTrack = -1;
   _useRealtimeDSP = NO;
   ScoreDocument *document = [self scoreDocument];
+  ScorePartDefinition *effectPart = nil;
+  for (ScorePartDefinition *part in [document parts])
+    if ([part legacyTrack] == [self selectedPartNumber])
+      {
+        effectPart = part;
+        break;
+      }
+  if (!effectPart && [[document parts] count])
+    effectPart = [[document parts] objectAtIndex:0];
+  if (effectPart)
+    {
+      [_realtimeDSP configureEffectsFromGraph:[effectPart synthesisGraph] error:NULL];
+      if ([[_realtimeDSP effectConfiguration] count])
+        _useRealtimeDSP = YES;
+    }
   for (ScorePartDefinition *part in [document parts])
     {
       ScoreInstrumentDefinition *instrument = [part instrument];
@@ -2909,6 +3054,12 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     return;
   BOOL renderCurrentPart = [scope indexOfSelectedItem] == 1;
   NSInteger renderedTrack = [self selectedPartNumber];
+  for (ScorePartDefinition *part in [document parts])
+    if ([part legacyTrack] == renderedTrack)
+      {
+        [_realtimeDSP configureEffectsFromGraph:[part synthesisGraph] error:NULL];
+        break;
+      }
   NSSavePanel *panel = [NSSavePanel savePanel];
   [panel setNameFieldStringValue:renderCurrentPart ? @"ScoreMaker Part Stem.caf"
                                                    : @"ScoreMaker Render.caf"];

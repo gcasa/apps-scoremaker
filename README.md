@@ -23,6 +23,8 @@ The renderer is intentionally lightweight. It focuses on extracting timing, pitc
 - Map common scorefile instrument, patch, sound, preset, and program declarations to General MIDI sounds for playback.
 - Host AUv2 and AUv3 music devices out of process, with vendor and generic editors, user presets,
   missing-unit relinking, substitution tracking, validation timeouts, recovery, and blacklisting.
+- Apply persistent per-part gain, low-pass, compressor, delay, and reverb chains during real-time
+  internal synthesis and offline rendering; compatible native effects also process Audio Unit output.
 - Run opt-in compatibility validation for every installed Audio Unit instrument with
   `make test-plugins`; results are written to `build/tests/audio-unit-compatibility.json`.
 

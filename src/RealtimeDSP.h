@@ -21,6 +21,7 @@ typedef id ScoreAudioUnitViewCompletion;
 + (NSArray *)blacklistedAudioUnitIdentifiers;
 + (void)clearAudioUnitBlacklist;
 + (NSArray *)audioUnitCompatibilityReport;
++ (NSArray *)supportedEffectTypes;
 + (NSArray *)relinkCandidatesForAudioUnit:(NSDictionary *)description;
 + (NSArray *)userPresetsForAudioUnit:(NSDictionary *)description;
 + (BOOL)removeUserPreset:(NSString *)name
@@ -39,6 +40,9 @@ typedef id ScoreAudioUnitViewCompletion;
 - (void)requestAudioUnitViewController:(ScoreAudioUnitViewCompletion)completion;
 - (BOOL)saveUserPreset:(NSString *)name error:(NSError **)error;
 - (BOOL)loadUserPreset:(NSString *)name error:(NSError **)error;
+- (BOOL)configureEffects:(NSArray *)effects error:(NSError **)error;
+- (BOOL)configureEffectsFromGraph:(id)graph error:(NSError **)error;
+- (NSArray *)effectConfiguration;
 - (void)noteOn:(NSInteger)pitch velocity:(NSUInteger)velocity;
 - (void)noteOff:(NSInteger)pitch;
 - (void)allNotesOff;

@@ -280,6 +280,9 @@
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Audio Unit Compatibility Report..."
                                                  action:@selector (showAudioUnitCompatibilityReport:)
                                           keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Effects..."
+                                                 action:@selector (editEffects:)
+                                          keyEquivalent:@""] autorelease]];
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Render Internal DSP Audio..."
                                                  action:@selector (renderOfflineAudio:)
                                           keyEquivalent:@""] autorelease]];

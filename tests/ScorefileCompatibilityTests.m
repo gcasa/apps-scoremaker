@@ -38,6 +38,25 @@ Require (BOOL condition, NSString *message)
     }
 }
 
+static float
+AudioPeakAtPath (NSString *path, NSError **error)
+{
+  AVAudioFile *file = [[[AVAudioFile alloc] initForReading:[NSURL fileURLWithPath:path]
+                                                     error:error] autorelease];
+  if (!file)
+    return 0.0f;
+  AVAudioPCMBuffer *buffer = [[[AVAudioPCMBuffer alloc]
+    initWithPCMFormat:[file processingFormat]
+        frameCapacity:(AVAudioFrameCount)[file length]] autorelease];
+  if (![file readIntoBuffer:buffer error:error])
+    return 0.0f;
+  float peak = 0.0f;
+  for (NSUInteger channel = 0; channel < [[file processingFormat] channelCount]; channel++)
+    for (AVAudioFrameCount frame = 0; frame < [buffer frameLength]; frame++)
+      peak = MAX (peak, fabsf ([buffer floatChannelData][channel][frame]));
+  return peak;
+}
+
 static void
 CompareNotes (ScoreDocument *left, ScoreDocument *right)
 {
@@ -184,6 +203,16 @@ main (void)
            @"large-score scheduler lost events under stress");
 
   ScoreRealtimeDSP *offlineDSP = [[[ScoreRealtimeDSP alloc] init] autorelease];
+  NSArray *effects = @[
+    @{ @"type" : @"gain", @"decibels" : @-3.0 },
+    @{ @"type" : @"lowpass", @"cutoff" : @8000.0 },
+    @{ @"type" : @"compressor", @"threshold" : @-12.0, @"ratio" : @4.0 },
+    @{ @"type" : @"delay", @"time" : @0.08, @"feedback" : @0.25, @"mix" : @0.15 },
+    @{ @"type" : @"reverb", @"roomSize" : @0.2, @"mix" : @0.1 }
+  ];
+  Require ([offlineDSP configureEffects:effects error:&platformError]
+             && [[offlineDSP effectConfiguration] count] == 5,
+           @"real-time DSP effect chain configuration failed");
   NSString *renderPath =
     [NSTemporaryDirectory () stringByAppendingPathComponent:@"scoremaker-offline-render.caf"];
   Require ([offlineDSP renderPitches:[NSArray arrayWithObjects:@60, @64, @67, nil]
@@ -194,7 +223,22 @@ main (void)
   NSDictionary *renderAttributes =
     [[NSFileManager defaultManager] attributesOfItemAtPath:renderPath error:&platformError];
   Require ([[renderAttributes objectForKey:NSFileSize] unsignedLongLongValue] > 1024,
-           @"offline rendering produced an empty audio file");
+           @"effect-enabled offline rendering produced an empty audio file");
+  float effectedPeak = AudioPeakAtPath (renderPath, &platformError);
+  NSString *quietRenderPath =
+    [NSTemporaryDirectory () stringByAppendingPathComponent:@"scoremaker-gain-effect.caf"];
+  Require ([offlineDSP configureEffects:@[ @{ @"type" : @"gain", @"decibels" : @-24.0 } ]
+                                    error:&platformError]
+             && [offlineDSP renderPitches:[NSArray arrayWithObjects:@60, @64, @67, nil]
+                                  duration:0.05
+                                     toURL:[NSURL fileURLWithPath:quietRenderPath]
+                                     error:&platformError],
+           @"gain effect render failed");
+  float quietPeak = AudioPeakAtPath (quietRenderPath, &platformError);
+  Require (effectedPeak > 0.01f && quietPeak < effectedPeak * 0.25f,
+           @"configured DSP effects did not change rendered audio");
+  [[NSFileManager defaultManager] removeItemAtPath:quietRenderPath error:NULL];
+  [offlineDSP configureEffects:effects error:NULL];
   [[NSFileManager defaultManager] removeItemAtPath:renderPath error:NULL];
 
   NSString *timingPath =
