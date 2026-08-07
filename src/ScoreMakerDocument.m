@@ -3230,6 +3230,13 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [alert setInformativeText:@"Disconnect and reconnect the keyboard, then choose it again."];
       [alert runModal];
     }
+  else if (endpoint && ![_realtimeDSP isRunning])
+    {
+      /* Warm the persistent audition engine before the first MIDI key press. */
+      NSError *error = nil;
+      if (![_realtimeDSP startWithError:&error])
+        NSLog (@"Could not prepare MIDI input audition: %@", error);
+    }
   [self refreshInspector];
 }
 
@@ -3366,7 +3373,21 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
         }
       else if (![_midiHeldStepNotes containsObject:key])
         {
-          [self auditionPitch:data1];
+          /*
+           * MIDI input is already delivered on the main thread.  Do not use
+           * auditionPitch: here: it serializes a MIDI file and constructs and
+           * prepares a new AVMIDIPlayer for every key press, blocking delivery
+           * of the following MIDI events.  The realtime engine is persistent
+           * and accepts polyphonic note events without that setup cost.
+           */
+          if (![_realtimeDSP isRunning])
+            {
+              NSError *error = nil;
+              if (![_realtimeDSP startWithError:&error])
+                NSLog (@"Could not start MIDI input audition: %@", error);
+            }
+          if ([_realtimeDSP isRunning])
+            [_realtimeDSP noteOn:data1 velocity:(NSUInteger)data2];
           if ([_midiHeldStepNotes count] == 0)
             {
               [self registerUndoSnapshotWithName:@"MIDI Step Entry"];
@@ -3381,7 +3402,6 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
                                             [self denominatorForSelectedNoteValue]]];
           [_midiHeldStepNotes addObject:key];
           [[[self scoreDocument] notes] sortUsingSelector:@selector (compareScoreNote:)];
-          [[self scoreView] reloadDocument];
           [self updateChangeCount:NSChangeDone];
         }
       return;
@@ -3400,6 +3420,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     }
   else
     {
+      if ([_realtimeDSP isRunning])
+        [_realtimeDSP noteOff:data1];
       [_midiHeldStepNotes removeObject:key];
       if ([_midiHeldStepNotes count] == 0)
         {
@@ -3408,6 +3430,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
           [_noteStartField
             setDoubleValue:(double)_midiStepStartTick / [[self scoreDocument] ticksPerQuarter] +
                            durationBeats];
+          /* Re-engrave once for the completed note or chord, not per key. */
+          [[self scoreView] reloadDocument];
           [self commitUndoBaseline];
         }
     }

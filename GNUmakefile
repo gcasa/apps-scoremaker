@@ -35,6 +35,8 @@ ScoreMaker_OBJC_FILES = \
 	src/ScoreModel.m \
 	src/MusicPlatformModel.m \
 	src/MusicEngine.m \
+	src/NotationModel.m \
+	src/EngravingLayout.m \
 	src/ScoreMakerDocument.m \
 	src/ScoreView.m \
 	src/PlaybackMonitorView.m \
@@ -51,6 +53,8 @@ ScoreMaker_HEADER_FILES = \
 	src/ScoreModel.h \
 	src/MusicPlatformModel.h \
 	src/MusicEngine.h \
+	src/NotationModel.h \
+	src/EngravingLayout.h \
 	src/ScoreMakerDocument.h \
 	src/ScoreView.h \
 	src/PlaybackMonitorView.h \

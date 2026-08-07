@@ -1,0 +1,94 @@
+{
+    APPLICATIONICON = "Resources/ScoreMakerAppIcon.png";
+    APP_DOCUMENT_BASED = YES;
+    APP_TYPE = GORM;
+    BUNDLE_IDENTIFIER = "com.gnustep.ScoreMaker";
+    CLASS_FILES = (
+        "src/RealtimeDSP.m",
+        "src/main.m",
+        "src/AppDelegate.m",
+        "src/ScoreMakerDocumentController.m",
+        "src/ScoreMakerDocument.m",
+        "src/MidiParser.m",
+        "src/MusicXMLParser.m",
+        "src/ScorefileParser.m",
+        "src/ScoreProjectSerializer.m",
+        "src/ScoreModel.m",
+        "src/MusicPlatformModel.m",
+        "src/MusicEngine.m",
+        "src/NotationModel.m",
+        "src/EngravingLayout.m",
+        "src/ScoreView.m",
+        "src/PlaybackMonitorView.m",
+        "src/MIDIInputManager.m"
+    );
+    COMPILEROPTIONS = "";
+    CPPOPTIONS = "";
+    CREATION_DATE = "2026-08-07";
+    DOCU_FILES = ("README.md", "ChangeLog", "LICENSE");
+    FRAMEWORKS = ();
+    HEADER_FILES = (
+        "src/RealtimeDSP.h",
+        "src/AppDelegate.h",
+        "src/ScoreMakerDocumentController.h",
+        "src/ScoreMakerDocument.h",
+        "src/MidiParser.h",
+        "src/MusicXMLParser.h",
+        "src/ScorefileParser.h",
+        "src/ScoreProjectSerializer.h",
+        "src/ScoreModel.h",
+        "src/MusicPlatformModel.h",
+        "src/MusicEngine.h",
+        "src/NotationModel.h",
+        "src/EngravingLayout.h",
+        "src/ScoreView.h",
+        "src/PlaybackMonitorView.h",
+        "src/MIDIInputManager.h"
+    );
+    IMAGES = (
+        "Resources/bass_clef.png",
+        "Resources/ScoreMakerAppIcon.png",
+        "Resources/ScoreMakerDocumentIcon.png",
+        "Resources/treble_clef.png"
+    );
+    INSTALLDIR = "$(HOME)/GNUstep";
+    INTERFACES = ();
+    LANGUAGE = English;
+    LIBRARIES = ("gnustep-base", "gnustep-gui");
+    LINKEROPTIONS = "-lAVFoundation";
+    LOCALIZED_RESOURCES = ();
+    MAININTERFACE = "";
+    MAKEFILEDIR = "$(GNUSTEP_MAKEFILES)";
+    OBJC_COMPILEROPTIONS = "";
+    OTHER_RESOURCES = (
+        "Resources/ScoreMakerAppIcon.icns",
+        "Resources/ScoreMakerDocumentIcon.icns"
+    );
+    OTHER_SOURCES = ();
+    PRINCIPAL_CLASS = NSApplication;
+    PROJECT_AUTHORS = ("Gregory Casamento");
+    PROJECT_COPYRIGHT = "Copyright (C) 2026 Gregory Casamento";
+    PROJECT_COPYRIGHT_DESC = "GNU Lesser General Public License, version 2.1 or later";
+    PROJECT_CREATOR = "Gregory Casamento";
+    PROJECT_DESCRIPTION = "A cross-platform AppKit score viewer, editor, and playback application.";
+    PROJECT_DOCUMENTTYPES = (score, mid, midi, musicxml, xml);
+    PROJECT_GROUP = "GNUstep Applications";
+    PROJECT_MAINTAINER = "Gregory Casamento";
+    PROJECT_NAME = ScoreMaker;
+    PROJECT_RELEASE = "0.1";
+    PROJECT_SUMMARY = "View, edit, play, import, and export musical scores.";
+    PROJECT_TYPE = Application;
+    PROJECT_URL = "";
+    SEARCH_HEADER_DIRS = (src);
+    SEARCH_LIB_DIRS = ();
+    SUBPROJECTS = ();
+    SUPPORTING_FILES = (
+        GNUmakefile,
+        Makefile,
+        Info.plist,
+        ScoreMakerInfo.plist,
+        "tests/ScorefileCompatibilityTests.m",
+        "tools/test-audio-units.py"
+    );
+    USER_LANGUAGES = ();
+}

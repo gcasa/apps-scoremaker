@@ -45,6 +45,9 @@ before ScoreMaker targets systems or vendors that do not supply Audio Units.
 
 ## Build
 
+To open the project in GNUstep ProjectCenter, open `PC.project`. The checked-in
+GNUmakefile remains usable directly from the command line.
+
 On macOS:
 
 ```sh
