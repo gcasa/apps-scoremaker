@@ -32,15 +32,15 @@ ScoreMaker_APPLICATION_ICON = Resources/ScoreMakerAppIcon.png
 # Resource files
 #
 ScoreMaker_RESOURCE_FILES = \
-Resources/Resources/bass_clef.png \
-Resources/Resources/ScoreMakerAppIcon.png \
-Resources/Resources/ScoreMakerDocumentIcon.png \
-Resources/Resources/treble_clef.png \
-Resources/README.md \
-Resources/ChangeLog \
-Resources/LICENSE \
-Resources/Resources/ScoreMakerAppIcon.icns \
-Resources/Resources/ScoreMakerDocumentIcon.icns 
+Resources/bass_clef.png \
+Resources/ScoreMakerAppIcon.png \
+Resources/ScoreMakerDocumentIcon.png \
+Resources/treble_clef.png \
+README.md \
+ChangeLog \
+LICENSE \
+Resources/ScoreMakerAppIcon.icns \
+Resources/ScoreMakerDocumentIcon.icns 
 
 
 #

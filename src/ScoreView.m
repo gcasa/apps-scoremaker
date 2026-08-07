@@ -581,6 +581,26 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   NSString *path = [[NSBundle mainBundle] pathForResource:name ofType:@"png"];
   if (!path)
     {
+      NSArray *candidateDirectories = [NSArray
+        arrayWithObjects:[[NSFileManager defaultManager] currentDirectoryPath],
+                         [[[NSBundle mainBundle] bundlePath] stringByDeletingLastPathComponent], nil];
+      NSEnumerator *directoryEnumerator = [candidateDirectories objectEnumerator];
+      NSString *directory = nil;
+      while ((directory = [directoryEnumerator nextObject]) != nil)
+        {
+          NSString *candidate =
+            [[directory stringByAppendingPathComponent:
+                         [NSString stringWithFormat:@"Resources/%@.png", name]]
+              stringByStandardizingPath];
+          if ([[NSFileManager defaultManager] fileExistsAtPath:candidate])
+            {
+              path = candidate;
+              break;
+            }
+        }
+    }
+  if (!path)
+    {
       path = [[NSString stringWithFormat:@"Resources/%@.png", name] stringByStandardizingPath];
     }
   NSImage *image = [[[NSImage alloc] initWithContentsOfFile:path] autorelease];
