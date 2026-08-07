@@ -2880,7 +2880,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       ScoreSynthesisNode *node = [existing objectForKey:[specification objectForKey:@"type"]];
       CGFloat y = 190.0 - index * 42.0;
       NSButton *enabled = [[[NSButton alloc] initWithFrame:NSMakeRect (0, y, 135, 24)] autorelease];
-      [enabled setButtonType:NSButtonTypeSwitch];
+      [enabled setButtonType:NSSwitchButton];
       [enabled setTitle:[specification objectForKey:@"name"]];
       [enabled setState:node ? NSControlStateValueOn : NSControlStateValueOff];
       [accessory addSubview:enabled];
