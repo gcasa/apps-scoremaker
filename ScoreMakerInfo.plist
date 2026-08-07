@@ -1,105 +1,55 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleIconFile</key>
-  <string>ScoreMakerAppIcon</string>
-  <key>CFBundleDocumentTypes</key>
-  <array>
-    <dict>
-      <key>CFBundleTypeName</key>
-      <string>MusicKit Scorefile</string>
-      <key>CFBundleTypeIconFile</key>
-      <string>ScoreMakerDocumentIcon.png</string>
-      <key>CFBundleTypeExtensions</key>
-      <array>
-        <string>score</string>
-      </array>
-      <key>CFBundleTypeRole</key>
-      <string>Editor</string>
-      <key>NSDocumentClass</key>
-      <string>ScoreMakerDocument</string>
-    </dict>
-    <dict>
-      <key>CFBundleTypeName</key>
-      <string>MIDI File</string>
-      <key>CFBundleTypeIconFile</key>
-      <string>ScoreMakerDocumentIcon.png</string>
-      <key>CFBundleTypeExtensions</key>
-      <array>
-        <string>mid</string>
-        <string>midi</string>
-      </array>
-      <key>CFBundleTypeRole</key>
-      <string>Editor</string>
-      <key>NSDocumentClass</key>
-      <string>ScoreMakerDocument</string>
-    </dict>
-    <dict>
-      <key>CFBundleTypeName</key>
-      <string>MusicXML File</string>
-      <key>CFBundleTypeExtensions</key>
-      <array>
-        <string>musicxml</string>
-        <string>xml</string>
-      </array>
-      <key>CFBundleTypeRole</key>
-      <string>Editor</string>
-      <key>NSDocumentClass</key>
-      <string>ScoreMakerDocument</string>
-    </dict>
-  </array>
-  <key>NSTypes</key>
-  <array>
-    <dict>
-      <key>NSName</key>
-      <string>MusicKit Scorefile</string>
-      <key>NSHumanReadableName</key>
-      <string>MusicKit Scorefile</string>
-      <key>NSIcon</key>
-      <string>ScoreMakerDocumentIcon.png</string>
-      <key>NSUnixExtensions</key>
-      <array>
-        <string>score</string>
-      </array>
-      <key>NSRole</key>
-      <string>Editor</string>
-      <key>NSDocumentClass</key>
-      <string>ScoreMakerDocument</string>
-    </dict>
-    <dict>
-      <key>NSName</key>
-      <string>MIDI File</string>
-      <key>NSHumanReadableName</key>
-      <string>MIDI File</string>
-      <key>NSIcon</key>
-      <string>ScoreMakerDocumentIcon.png</string>
-      <key>NSUnixExtensions</key>
-      <array>
-        <string>mid</string>
-        <string>midi</string>
-      </array>
-      <key>NSRole</key>
-      <string>Editor</string>
-      <key>NSDocumentClass</key>
-      <string>ScoreMakerDocument</string>
-    </dict>
-    <dict>
-      <key>NSName</key>
-      <string>MusicXML File</string>
-      <key>NSHumanReadableName</key>
-      <string>MusicXML File</string>
-      <key>NSUnixExtensions</key>
-      <array>
-        <string>musicxml</string>
-        <string>xml</string>
-      </array>
-      <key>NSRole</key>
-      <string>Editor</string>
-      <key>NSDocumentClass</key>
-      <string>ScoreMakerDocument</string>
-    </dict>
-  </array>
-</dict>
-</plist>
+{
+    ApplicationDescription = "A cross-platform AppKit score viewer, editor, and playback application.";
+    ApplicationIcon = "Resources/ScoreMakerAppIcon.png";
+    ApplicationName = ScoreMaker;
+    ApplicationRelease = "0.1";
+    Authors = (
+	"Gregory Casamento"
+    );
+    CFBundleDocumentTypes = (
+	{
+	    CFBundleTypeExtensions = (
+		score
+	    );
+	    CFBundleTypeIconFile = "ScoreMakerDocumentIcon.png";
+	    CFBundleTypeName = "MusicKit Scorefile";
+	    CFBundleTypeRole = Editor;
+	    NSDocumentClass = ScoreMakerDocument;
+	},
+	{
+	    CFBundleTypeExtensions = (
+		mid,
+		midi
+	    );
+	    CFBundleTypeIconFile = "ScoreMakerDocumentIcon.png";
+	    CFBundleTypeName = "MIDI File";
+	    CFBundleTypeRole = Editor;
+	    NSDocumentClass = ScoreMakerDocument;
+	},
+	{
+	    CFBundleTypeExtensions = (
+		musicxml,
+		xml
+	    );
+	    CFBundleTypeName = "MusicXML File";
+	    CFBundleTypeRole = Editor;
+	    NSDocumentClass = ScoreMakerDocument;
+	}
+    );
+    CFBundleIconFile = ScoreMakerAppIcon;
+    CFBundleIdentifier = "com.gnustep.ScoreMaker";
+    Copyright = "Copyright (C) 2026 Gregory Casamento";
+    CopyrightDescription = "GNU Lesser General Public License, version 2.1 or later";
+    FullVersionID = "0.1";
+    NSExecutable = ScoreMaker;
+    NSIcon = "Resources/ScoreMakerAppIcon.png";
+    NSPrincipalClass = NSApplication;
+    NSRole = Application;
+    NSTypes = (
+	score,
+	mid,
+	midi,
+	musicxml,
+	xml
+    );
+}
