@@ -134,9 +134,47 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 
 - (void)setPlaybackTick:(NSUInteger)tick
 {
+  NSUInteger previousTick = _playbackTick;
+  BOOL wasShowingPlayback = _showPlayback;
   _playbackTick = tick;
   _showPlayback = YES;
-  [self setNeedsDisplay:YES];
+
+  /* Playback changes only the note highlights.  Invalidating the whole
+   * document here made long scores re-render at 30 frames per second. */
+  if (wasShowingPlayback)
+    {
+      NSUInteger previousSystem = 0;
+      NSArray *layouts = [self systemLayouts];
+      for (NSUInteger index = 0; index < [layouts count]; index++)
+        {
+          ScoreEngravingSystem *layout = [layouts objectAtIndex:index];
+          if (previousTick >= [layout startTick] && previousTick < [layout endTick])
+            {
+              previousSystem = index;
+              break;
+            }
+        }
+      [self setNeedsDisplayInRect:NSInsetRect (
+                                     NSMakeRect (0.0, [self yForSystem:previousSystem],
+                                                 NSWidth ([self bounds]), [self systemHeight]),
+                                     0.0, -12.0)];
+    }
+
+  NSUInteger currentSystem = 0;
+  NSArray *layouts = [self systemLayouts];
+  for (NSUInteger index = 0; index < [layouts count]; index++)
+    {
+      ScoreEngravingSystem *layout = [layouts objectAtIndex:index];
+      if (tick >= [layout startTick] && tick < [layout endTick])
+        {
+          currentSystem = index;
+          break;
+        }
+    }
+  [self setNeedsDisplayInRect:NSInsetRect (
+                                 NSMakeRect (0.0, [self yForSystem:currentSystem],
+                                             NSWidth ([self bounds]), [self systemHeight]),
+                                 0.0, -12.0)];
 }
 
 - (void)clearPlayback
@@ -144,7 +182,21 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   if (_showPlayback)
     {
       _showPlayback = NO;
-      [self setNeedsDisplay:YES];
+      NSUInteger system = 0;
+      NSArray *layouts = [self systemLayouts];
+      for (NSUInteger index = 0; index < [layouts count]; index++)
+        {
+          ScoreEngravingSystem *layout = [layouts objectAtIndex:index];
+          if (_playbackTick >= [layout startTick] && _playbackTick < [layout endTick])
+            {
+              system = index;
+              break;
+            }
+        }
+      [self setNeedsDisplayInRect:NSInsetRect (
+                                     NSMakeRect (0.0, [self yForSystem:system],
+                                                 NSWidth ([self bounds]), [self systemHeight]),
+                                     0.0, -12.0)];
     }
 }
 
@@ -370,12 +422,20 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 
   for (NSUInteger page = 0; page < [self pageCount]; page++)
     {
-      [self drawHeaderForPage:page atOriginY:[self pageOriginY:page]];
+      CGFloat originY = [self pageOriginY:page];
+      NSRect paper = NSMakeRect (PaperInset, originY, PageWidth - 2.0 * PaperInset,
+                                 [self paperHeight]);
+      if (NSIntersectsRect (dirtyRect, paper))
+        [self drawHeaderForPage:page atOriginY:originY];
     }
   NSUInteger systemCount = [self systemCount];
   for (NSUInteger system = 0; system < systemCount; system++)
     {
       CGFloat y = [self yForSystem:system];
+      NSRect systemRect = NSInsetRect (
+        NSMakeRect (0.0, y, NSWidth ([self bounds]), [self systemHeight]), 0.0, -12.0);
+      if (!NSIntersectsRect (dirtyRect, systemRect))
+        continue;
       [self drawSystemAtY:y systemIndex:system];
     }
 }
