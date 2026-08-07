@@ -375,7 +375,7 @@ VoiceColor (NSInteger voice, BOOL blackKey)
       NSRectFill (meter);
       NSRect level = meter;
       level.size.width *= (CGFloat)velocity / 127.0;
-      [[NSColor colorWithCalibratedRed:0.2 green:0.78 blue:0.35 alpha:1.0] setFill];
+      [VoiceColor ([voice integerValue], NO) setFill];
       NSRectFill (level);
       NSString *value = [NSString stringWithFormat:@"%lu", (unsigned long)velocity];
       [value drawInRect:NSMakeRect (NSMaxX (meter) + 5.0, y + 3.0, 30.0, rowHeight)

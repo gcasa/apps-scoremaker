@@ -37,9 +37,12 @@ static CGFloat const PaletteDragNoteHeadXOffset = 26.0;
 static CGFloat const PaletteDragNoteHeadYOffset = 25.0;
 static CGFloat const ChordSnapDistance = 9.0;
 static CGFloat const NoteHorizontalInset = 6.0;
+static CGFloat const MeasureLeadingNoteHorizontalInset = 15.0;
 static CGFloat const MinimumMeasureWidth = 140.0;
 static CGFloat const EngravingMusicWidth = 684.0;
 static CGFloat const SystemsPageHeight = 1050.0;
+static CGFloat const PlaybackCartoucheVerticalInset = 17.0;
+static CGFloat const PlaybackCartoucheDamageInset = 20.0;
 NSString *const ScoreViewDidEditScoreNotification = @"ScoreViewDidEditScoreNotification";
 NSString *const ScoreViewSelectionDidChangeNotification
   = @"ScoreViewSelectionDidChangeNotification";
@@ -139,8 +142,9 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   _playbackTick = tick;
   _showPlayback = YES;
 
-  /* Playback changes only the note highlights.  Invalidating the whole
-   * document here made long scores re-render at 30 frames per second. */
+  /* Playback changes only the active system's cartouche and note highlights.
+   * Invalidating the whole document here made long scores re-render at
+   * 30 frames per second. */
   if (wasShowingPlayback)
     {
       NSUInteger previousSystem = 0;
@@ -157,7 +161,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
       [self setNeedsDisplayInRect:NSInsetRect (
                                      NSMakeRect (0.0, [self yForSystem:previousSystem],
                                                  NSWidth ([self bounds]), [self systemHeight]),
-                                     0.0, -12.0)];
+                                     0.0, -PlaybackCartoucheDamageInset)];
     }
 
   NSUInteger currentSystem = 0;
@@ -174,7 +178,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   [self setNeedsDisplayInRect:NSInsetRect (
                                  NSMakeRect (0.0, [self yForSystem:currentSystem],
                                              NSWidth ([self bounds]), [self systemHeight]),
-                                 0.0, -12.0)];
+                                 0.0, -PlaybackCartoucheDamageInset)];
 }
 
 - (void)clearPlayback
@@ -196,7 +200,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
       [self setNeedsDisplayInRect:NSInsetRect (
                                      NSMakeRect (0.0, [self yForSystem:system],
                                                  NSWidth ([self bounds]), [self systemHeight]),
-                                     0.0, -12.0)];
+                                     0.0, -PlaybackCartoucheDamageInset)];
     }
 }
 
@@ -516,6 +520,36 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
     }
 }
 
+- (void)drawPlaybackCartoucheAtY:(CGFloat)y
+                     systemStart:(NSUInteger)systemStart
+                       systemEnd:(NSUInteger)systemEnd
+                            left:(CGFloat)left
+                           right:(CGFloat)right
+{
+  if (!_showPlayback || _playbackTick < systemStart || _playbackTick >= systemEnd
+      || ![[NSGraphicsContext currentContext] isDrawingToScreen])
+    return;
+
+  CGFloat x = [self xForTick:_playbackTick
+                       start:systemStart
+                         end:systemEnd
+                        left:left
+                       right:right];
+  NSUInteger parts = _separateParts ? MAX ((NSUInteger)1, [[self scoreTracks] count]) : 1;
+  CGFloat partStride = [self partGrandStaffHeight] + PartStaffSpacing;
+  CGFloat top = y - PlaybackCartoucheVerticalInset;
+  CGFloat bottom = y + (CGFloat)(parts - 1) * partStride + [self partGrandStaffHeight]
+                   + PlaybackCartoucheVerticalInset;
+  NSRect rect = NSMakeRect (x - 13.0, top, 26.0, bottom - top);
+  NSBezierPath *path = [NSBezierPath bezierPathWithRoundedRect:rect xRadius:7.0 yRadius:7.0];
+
+  [[NSColor colorWithCalibratedRed:0.12 green:0.48 blue:0.95 alpha:0.18] setFill];
+  [path fill];
+  [[NSColor colorWithCalibratedRed:0.08 green:0.38 blue:0.88 alpha:0.55] setStroke];
+  [path setLineWidth:1.5];
+  [path stroke];
+}
+
 - (void)drawSystemAtY:(CGFloat)y systemIndex:(NSUInteger)systemIndex
 {
   CGFloat left = Margin + PartLabelWidth;
@@ -529,6 +563,11 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   NSArray *tracks = _separateParts ? [self scoreTracks] : [NSArray arrayWithObject:@-1];
   CGFloat partStride = [self partGrandStaffHeight] + PartStaffSpacing;
   NSUInteger perPage = [self systemsPerPage];
+  [self drawPlaybackCartoucheAtY:y
+                     systemStart:startTick
+                       systemEnd:endTick
+                            left:musicLeft
+                           right:musicRight];
   for (NSUInteger partIndex = 0; partIndex < [tracks count]; partIndex++)
     {
       NSInteger track = [[tracks objectAtIndex:partIndex] integerValue];
@@ -1189,8 +1228,12 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                    left:(CGFloat)left
                   right:(CGFloat)right
 {
+  CGFloat inset = NoteHorizontalInset;
+  ScoreMeasure *measure = [_document measureContainingTick:tick];
+  if (measure && tick == [measure startTick])
+    inset = MeasureLeadingNoteHorizontalInset;
   return MIN (right - 2.0,
-              [self xForTick:tick start:start end:end left:left right:right] + NoteHorizontalInset);
+              [self xForTick:tick start:start end:end left:left right:right] + inset);
 }
 
 - (CGFloat)chordOffsetForNote:(ScoreNote *)note
