@@ -23,6 +23,7 @@ typedef id ScoreAudioUnitViewCompletion;
 + (NSArray *)audioUnitCompatibilityReport;
 + (NSArray *)supportedEffectTypes;
 + (NSDictionary *)defaultInternalSynthPatch;
++ (NSDictionary *)factoryInternalSynthPatches;
 + (NSArray *)relinkCandidatesForAudioUnit:(NSDictionary *)description;
 + (NSArray *)userPresetsForAudioUnit:(NSDictionary *)description;
 + (BOOL)removeUserPreset:(NSString *)name
@@ -46,8 +47,18 @@ typedef id ScoreAudioUnitViewCompletion;
 - (NSArray *)effectConfiguration;
 - (NSDictionary *)internalSynthPatch;
 - (BOOL)configureInternalSynthPatch:(NSDictionary *)patch error:(NSError **)error;
+- (NSDictionary *)internalSynthPatchForVoice:(NSInteger)voice;
+- (BOOL)configureInternalSynthPatch:(NSDictionary *)patch
+                           forVoice:(NSInteger)voice
+                              error:(NSError **)error;
+- (NSArray *)internalSynthEffectsForVoice:(NSInteger)voice;
+- (BOOL)configureInternalSynthEffects:(NSArray *)effects
+                              forVoice:(NSInteger)voice
+                                 error:(NSError **)error;
 - (void)noteOn:(NSInteger)pitch velocity:(NSUInteger)velocity;
 - (void)noteOff:(NSInteger)pitch;
+- (void)noteOn:(NSInteger)pitch voice:(NSInteger)voice velocity:(NSUInteger)velocity;
+- (void)noteOff:(NSInteger)pitch voice:(NSInteger)voice;
 - (void)allNotesOff;
 - (BOOL)scheduleEvents:(NSArray *)events error:(NSError **)error;
 - (BOOL)renderEvents:(NSArray *)events

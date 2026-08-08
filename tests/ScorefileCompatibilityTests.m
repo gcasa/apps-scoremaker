@@ -155,6 +155,34 @@ main (void)
                                 @"lfoDepth" : @0.25,
                                 @"lfoDelay" : @0.1 };
   [[persistentInstrument parameters] setObject:savedPatch forKey:@"internalSynthPatch"];
+  NSDictionary *voiceTwoPatch = @{ @"name" : @"Test Square Voice",
+                                    @"category" : @"Lead",
+                                    @"description" : @"A test lead with velocity filter movement.",
+                                    @"waveform" : @"Square",
+                                    @"attack" : @0.01,
+                                    @"decay" : @0.08,
+                                    @"sustain" : @0.5,
+                                    @"release" : @0.2,
+                                    @"lfoRate" : @6.0,
+                                    @"lfoDepth" : @0.0,
+                                    @"lfoDelay" : @0.0,
+                                    @"filterCutoff" : @1800.0,
+                                    @"filterResonance" : @0.55,
+                                    @"filterAttack" : @0.02,
+                                    @"filterDecay" : @0.18,
+                                    @"filterSustain" : @0.35,
+                                    @"filterRelease" : @0.3,
+                                    @"filterEnvelopeAmount" : @36.0,
+                                    @"velocityToAmplitude" : @0.8,
+                                    @"velocityToFilter" : @18.0,
+                                    @"effects" : @[
+                                      @{ @"type" : @"lowpass", @"cutoff" : @2400.0 },
+                                      @{ @"type" : @"delay", @"time" : @0.08,
+                                         @"feedback" : @0.25, @"mix" : @0.15 }
+                                    ] };
+  [[persistentInstrument parameters]
+    setObject:@{ @"1" : savedPatch, @"2" : voiceTwoPatch }
+       forKey:@"internalSynthPatches"];
   NSData *projectData = [ScoreProjectSerializer dataForDocument:platform error:&platformError];
   ScoreDocument *projectRoundTrip = [ScoreProjectSerializer documentFromData:projectData
                                                                        error:&platformError];
@@ -168,6 +196,14 @@ main (void)
   Require ([[[restoredInstrument parameters] objectForKey:@"internalSynthPatch"]
              isEqualToDictionary:savedPatch],
            @"native project persistence lost the internal synthesizer patch");
+  NSDictionary *restoredVoiceTwo = [[[restoredInstrument parameters]
+    objectForKey:@"internalSynthPatches"] objectForKey:@"2"];
+  Require ([[restoredVoiceTwo objectForKey:@"name"] isEqualToString:@"Test Square Voice"]
+             && [[restoredVoiceTwo objectForKey:@"category"] isEqualToString:@"Lead"]
+             && [[restoredVoiceTwo objectForKey:@"description"] length] > 0
+             && [[restoredVoiceTwo objectForKey:@"waveform"] isEqualToString:@"Square"]
+             && [[restoredVoiceTwo objectForKey:@"effects"] count] == 2,
+           @"native project persistence lost a voice-specific synthesizer patch");
   NSDictionary *componentIdentity = @{
     @"type" : @1635085685,
     @"subtype" : @1935764848,
@@ -215,10 +251,32 @@ main (void)
            @"large-score scheduler lost events under stress");
 
   ScoreRealtimeDSP *offlineDSP = [[[ScoreRealtimeDSP alloc] init] autorelease];
+  NSDictionary *factoryPatches = [ScoreRealtimeDSP factoryInternalSynthPatches];
+  Require ([factoryPatches count] == 24,
+           @"factory synthesizer library does not contain the expected 24 patches");
+  for (NSString *factoryName in factoryPatches)
+    {
+      NSDictionary *factoryPatch = [factoryPatches objectForKey:factoryName];
+      Require ([[factoryPatch objectForKey:@"category"] length] > 0
+                 && [[factoryPatch objectForKey:@"description"] length] > 0
+                 && [offlineDSP configureInternalSynthPatch:factoryPatch forVoice:1
+                                                      error:&platformError],
+               [NSString stringWithFormat:@"invalid factory patch: %@", factoryName]);
+    }
   Require ([offlineDSP configureInternalSynthPatch:savedPatch error:&platformError]
              && [[[[offlineDSP internalSynthPatch] objectForKey:@"waveform"] description]
                    isEqualToString:@"Saw"],
            @"internal oscillator, envelope, or LFO patch configuration failed");
+  Require ([offlineDSP configureInternalSynthPatch:voiceTwoPatch forVoice:2 error:&platformError]
+             && [[[[offlineDSP internalSynthPatchForVoice:2] objectForKey:@"waveform"] description]
+                   isEqualToString:@"Square"]
+             && [[offlineDSP internalSynthEffectsForVoice:2] count] == 2,
+           @"voice-specific internal synthesizer patch configuration failed");
+  Require ([[[offlineDSP internalSynthPatchForVoice:2] objectForKey:@"filterEnvelopeAmount"]
+              floatValue] == 36.0f
+             && [[[offlineDSP internalSynthPatchForVoice:2] objectForKey:@"velocityToFilter"]
+                   floatValue] == 18.0f,
+           @"independent filter envelope or velocity modulation configuration failed");
   NSArray *effects = @[
     @{ @"type" : @"gain", @"decibels" : @-3.0 },
     @{ @"type" : @"lowpass", @"cutoff" : @8000.0 },
@@ -231,10 +289,16 @@ main (void)
            @"real-time DSP effect chain configuration failed");
   NSString *renderPath =
     [NSTemporaryDirectory () stringByAppendingPathComponent:@"scoremaker-offline-render.caf"];
-  Require ([offlineDSP renderPitches:[NSArray arrayWithObjects:@60, @64, @67, nil]
-                            duration:0.05
-                               toURL:[NSURL fileURLWithPath:renderPath]
-                               error:&platformError],
+  NSArray *voiceEvents = @[
+    @{ @"time" : @0.0, @"pitch" : @60, @"voice" : @1, @"velocity" : @100, @"on" : @YES },
+    @{ @"time" : @0.0, @"pitch" : @67, @"voice" : @2, @"velocity" : @100, @"on" : @YES },
+    @{ @"time" : @0.05, @"pitch" : @60, @"voice" : @1, @"velocity" : @0, @"on" : @NO },
+    @{ @"time" : @0.05, @"pitch" : @67, @"voice" : @2, @"velocity" : @0, @"on" : @NO }
+  ];
+  Require ([offlineDSP renderEvents:voiceEvents
+                           duration:0.12
+                              toURL:[NSURL fileURLWithPath:renderPath]
+                              error:&platformError],
            [NSString stringWithFormat:@"offline rendering failed: %@", platformError]);
   NSDictionary *renderAttributes =
     [[NSFileManager defaultManager] attributesOfItemAtPath:renderPath error:&platformError];

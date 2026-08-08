@@ -27,7 +27,7 @@
 #import <CoreMIDI/CoreMIDI.h>
 #endif
 
-@interface ScoreMakerDocument : NSDocument <NSTextFieldDelegate>
+@interface ScoreMakerDocument : NSDocument <NSTextFieldDelegate, NSTableViewDataSource, NSTableViewDelegate>
 {
   NSWindow *_documentWindow;
   NSWindowController *_windowController;
@@ -98,14 +98,23 @@
   ScoreRealtimeDSP *_realtimeDSP;
   BOOL _useRealtimeDSP;
   NSInteger _realtimeDSPPitch;
+  NSInteger _realtimeDSPVoice;
   NSInteger _audioUnitPartTrack;
   NSWindow *_audioUnitEditorWindow;
   NSMutableDictionary *_audioUnitParameterAddresses;
   NSWindow *_patchEditorWindow;
   NSPopUpButton *_patchWaveformPopUp;
+  NSPopUpButton *_patchVoicePopUp;
+  NSPopUpButton *_patchPresetPopUp;
   NSMutableDictionary *_patchControls;
   NSMutableDictionary *_patchValueLabels;
+  NSMutableDictionary *_patchFilterValues;
   NSView *_patchEnvelopeView;
+  BOOL _applyingNamedPatch;
+  NSWindow *_patchBrowserWindow;
+  NSTableView *_patchBrowserTable;
+  NSPopUpButton *_patchBrowserCategoryPopUp;
+  NSArray *_patchBrowserRows;
 #if defined(__APPLE__)
   MIDIEndpointRef _midiOutputEndpoint;
   NSString *_midiOutputName;

@@ -38,6 +38,7 @@ static CGFloat const InspectorWidth = 320.0;
 static CGFloat const InspectorPadding = 18.0;
 static CGFloat const PlaybackMonitorHeight = 150.0;
 static CGFloat const InspectorContentHeight = 1060.0;
+static NSString *const ScoreMakerInternalPatchPresetsKey = @"ScoreMakerInternalPatchPresets";
 
 #if defined(__APPLE__)
 static NSString *
@@ -120,10 +121,26 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (void)showGenericAudioUnitEditor;
 - (ScorePartDefinition *)selectedStructuredPartCreatingIfNeeded:(BOOL)create;
 - (NSDictionary *)patchForPart:(ScorePartDefinition *)part;
+- (NSDictionary *)patchForPart:(ScorePartDefinition *)part voice:(NSInteger)voice;
+- (NSInteger)selectedPatchVoice;
+- (void)configureVoicePatchesForPart:(ScorePartDefinition *)part;
 - (void)loadPatchEditorControls;
 - (void)patchControlChanged:(id)sender;
 - (void)resetInternalSynthPatch:(id)sender;
 - (void)previewInternalSynthPatch:(id)sender;
+- (void)patchVoiceChanged:(id)sender;
+- (void)patchPresetChanged:(id)sender;
+- (void)reloadPatchPresetPopUpSelectingName:(NSString *)name;
+- (NSDictionary *)availableInternalSynthPatchLibrary;
+- (void)saveInternalSynthPatchPreset:(id)sender;
+- (void)loadInternalSynthPatchPreset:(id)sender;
+- (void)editInternalSynthPatchEffects:(id)sender;
+- (void)editInternalSynthFilterEnvelope:(id)sender;
+- (void)showInternalSynthPatchBrowser:(id)sender;
+- (void)refreshPatchBrowser:(id)sender;
+- (void)auditionPatchBrowserSelection:(id)sender;
+- (void)usePatchBrowserSelection:(id)sender;
+- (void)restorePatchAfterBrowserAudition:(NSTimer *)timer;
 - (void)audioUnitParameterChanged:(id)sender;
 - (BOOL)prepareDSPPlaybackAtTick:(NSUInteger)tick error:(NSError **)error;
 @end
@@ -208,6 +225,83 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [curve setLineWidth:2.25];
   [[NSColor colorWithCalibratedRed:0.08 green:0.42 blue:0.92 alpha:0.95] setStroke];
   [curve stroke];
+}
+
+@end
+
+@interface ScoreFilterEnvelopeView : NSView
+{
+  NSDictionary *_controls;
+  NSDictionary *_valueLabels;
+}
+- (void)setControls:(NSDictionary *)controls valueLabels:(NSDictionary *)labels;
+- (void)controlChanged:(id)sender;
+@end
+
+@implementation ScoreFilterEnvelopeView
+
+- (void)dealloc
+{
+  [_controls release];
+  [_valueLabels release];
+  [super dealloc];
+}
+
+- (void)setControls:(NSDictionary *)controls valueLabels:(NSDictionary *)labels
+{
+  [_controls release];
+  [_valueLabels release];
+  _controls = [controls copy];
+  _valueLabels = [labels copy];
+  [self setNeedsDisplay:YES];
+}
+
+- (void)controlChanged:(id)sender
+{
+  (void)sender;
+  for (NSString *key in _valueLabels)
+    [[_valueLabels objectForKey:key]
+      setStringValue:[NSString stringWithFormat:@"%.2f",
+                                                 [[_controls objectForKey:key] doubleValue]]];
+  [self setNeedsDisplay:YES];
+}
+
+- (void)drawRect:(NSRect)dirtyRect
+{
+  (void)dirtyRect;
+  NSRect bounds = NSInsetRect ([self bounds], 0.5, 0.5);
+  [[NSColor colorWithCalibratedWhite:0.12 alpha:0.08] setFill];
+  NSBezierPath *background = [NSBezierPath bezierPathWithRoundedRect:bounds xRadius:7 yRadius:7];
+  [background fill];
+  [[NSColor colorWithCalibratedWhite:0.45 alpha:0.28] setStroke];
+  [background stroke];
+  NSRect graph = NSInsetRect (bounds, 14.0, 12.0);
+  double attack = [[_controls objectForKey:@"filterAttack"] doubleValue];
+  double decay = [[_controls objectForKey:@"filterDecay"] doubleValue];
+  double sustain = [[_controls objectForKey:@"filterSustain"] doubleValue];
+  double release = [[_controls objectForKey:@"filterRelease"] doubleValue];
+  double held = MAX (0.5, (attack + decay + release) * 0.28);
+  double total = MAX (0.01, attack + decay + held + release);
+  CGFloat x0 = NSMinX (graph);
+  CGFloat x1 = x0 + NSWidth (graph) * attack / total;
+  CGFloat x2 = x1 + NSWidth (graph) * decay / total;
+  CGFloat x3 = x2 + NSWidth (graph) * held / total;
+  CGFloat x4 = NSMaxX (graph);
+  CGFloat y0 = NSMinY (graph);
+  CGFloat peak = NSMaxY (graph);
+  CGFloat sustainY = y0 + NSHeight (graph) * MIN (1.0, MAX (0.0, sustain));
+  NSBezierPath *fill = [NSBezierPath bezierPath];
+  [fill moveToPoint:NSMakePoint (x0, y0)];
+  [fill lineToPoint:NSMakePoint (x1, peak)];
+  [fill lineToPoint:NSMakePoint (x2, sustainY)];
+  [fill lineToPoint:NSMakePoint (x3, sustainY)];
+  [fill lineToPoint:NSMakePoint (x4, y0)];
+  [fill closePath];
+  [[NSColor colorWithCalibratedRed:0.12 green:0.67 blue:0.42 alpha:0.18] setFill];
+  [fill fill];
+  [fill setLineWidth:2.25];
+  [[NSColor colorWithCalibratedRed:0.08 green:0.58 blue:0.34 alpha:0.95] setStroke];
+  [fill stroke];
 }
 
 @end
@@ -473,6 +567,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     {
       _realtimeDSP = [[ScoreRealtimeDSP alloc] init];
       _realtimeDSPPitch = -1;
+      _realtimeDSPVoice = 1;
       _audioUnitPartTrack = -1;
       ScoreDocument *document = [[[ScoreDocument alloc] init] autorelease];
       [document setTitle:@"Untitled"];
@@ -618,9 +713,17 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_patchEditorWindow close];
   [_patchEditorWindow release];
   [_patchWaveformPopUp release];
+  [_patchVoicePopUp release];
+  [_patchPresetPopUp release];
   [_patchControls release];
   [_patchValueLabels release];
+  [_patchFilterValues release];
   [_patchEnvelopeView release];
+  [_patchBrowserWindow close];
+  [_patchBrowserWindow release];
+  [_patchBrowserTable release];
+  [_patchBrowserCategoryPopUp release];
+  [_patchBrowserRows release];
   [_scrollView release];
   [_scoreView release];
   [_inspectorScrollView release];
@@ -1510,7 +1613,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
         if ([backend isEqualToString:@"scoremaker-internal-synth"])
           {
             [_realtimeDSP useInternalSynthesizer];
-            [_realtimeDSP configureInternalSynthPatch:[self patchForPart:definition] error:NULL];
+            [self configureVoicePatchesForPart:definition];
             _audioUnitPartTrack = -1;
             _useRealtimeDSP = YES;
           }
@@ -1971,7 +2074,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
         @"time" : @0,
         @"pitch" : [NSNumber numberWithInteger:[note pitch]],
         @"velocity" : [NSNumber numberWithUnsignedInteger:[note velocity]],
-        @"on" : @YES
+        @"on" : @YES,
+        @"voice" : [NSNumber numberWithInteger:[note voice]]
       }];
   for (ScoreScheduledEvent *event in [scheduler eventsFromTick:tick
                                                    throughTick:[[self scoreDocument] totalTicks]])
@@ -1981,7 +2085,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
         @"time" : [NSNumber numberWithDouble:MAX (0.0, [event time] - origin)],
         @"pitch" : [NSNumber numberWithInteger:[note pitch]],
         @"velocity" : [NSNumber numberWithUnsignedInteger:[note velocity]],
-        @"on" : [NSNumber numberWithBool:![event noteOff]]
+        @"on" : [NSNumber numberWithBool:![event noteOff]],
+        @"voice" : [NSNumber numberWithInteger:[note voice]]
       }];
     }
   return [_realtimeDSP scheduleEvents:timeline error:error];
@@ -2577,8 +2682,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
             }
         }
       [self stopAudition];
-      [_realtimeDSP noteOn:pitch velocity:100];
+      [_realtimeDSP noteOn:pitch voice:1 velocity:100];
       _realtimeDSPPitch = pitch;
+      _realtimeDSPVoice = 1;
       _auditionResetTimer = [[NSTimer scheduledTimerWithTimeInterval:0.5
                                                               target:self
                                                             selector:@selector (finishAudition:)
@@ -2601,8 +2707,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 {
   if (_realtimeDSPPitch >= 0)
     {
-      [_realtimeDSP noteOff:_realtimeDSPPitch];
+      [_realtimeDSP noteOff:_realtimeDSPPitch voice:_realtimeDSPVoice];
       _realtimeDSPPitch = -1;
+      _realtimeDSPVoice = 1;
     }
   [_auditionResetTimer invalidate];
   [_auditionResetTimer release];
@@ -2665,14 +2772,40 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 
 - (NSDictionary *)patchForPart:(ScorePartDefinition *)part
 {
-  NSDictionary *patch = [[[part instrument] parameters] objectForKey:@"internalSynthPatch"];
+  return [self patchForPart:part voice:1];
+}
+
+- (NSDictionary *)patchForPart:(ScorePartDefinition *)part voice:(NSInteger)voice
+{
+  NSDictionary *parameters = [[part instrument] parameters];
+  NSDictionary *patches = [parameters objectForKey:@"internalSynthPatches"];
+  NSDictionary *patch = [patches objectForKey:[NSString stringWithFormat:@"%ld", (long)voice]];
+  if (![patch isKindOfClass:[NSDictionary class]] && voice == 1)
+    patch = [parameters objectForKey:@"internalSynthPatch"];
   return [patch isKindOfClass:[NSDictionary class]] ? patch
                                                      : [ScoreRealtimeDSP defaultInternalSynthPatch];
 }
 
+- (NSInteger)selectedPatchVoice
+{
+  return _patchVoicePopUp ? MAX ((NSInteger)1, [_patchVoicePopUp indexOfSelectedItem] + 1) : 1;
+}
+
+- (void)configureVoicePatchesForPart:(ScorePartDefinition *)part
+{
+  for (NSInteger voice = 1; voice <= 16; voice++)
+    [_realtimeDSP configureInternalSynthPatch:[self patchForPart:part voice:voice]
+                                     forVoice:voice
+                                        error:NULL];
+}
+
 - (void)loadPatchEditorControls
 {
-  NSDictionary *patch = [self patchForPart:[self selectedStructuredPartCreatingIfNeeded:YES]];
+  NSDictionary *patch = [self patchForPart:[self selectedStructuredPartCreatingIfNeeded:YES]
+                                     voice:[self selectedPatchVoice]];
+  [_realtimeDSP configureInternalSynthPatch:patch
+                                   forVoice:[self selectedPatchVoice]
+                                      error:NULL];
   [_patchWaveformPopUp selectItemWithTitle:[patch objectForKey:@"waveform"] ?: @"Sine"];
   for (NSString *key in _patchControls)
     {
@@ -2681,7 +2814,49 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       NSTextField *value = [_patchValueLabels objectForKey:key];
       [value setStringValue:[NSString stringWithFormat:@"%.2f", [slider doubleValue]]];
     }
+  if (!_patchFilterValues)
+    _patchFilterValues = [[NSMutableDictionary alloc] init];
+  for (NSString *key in @[ @"filterCutoff", @"filterResonance", @"filterAttack",
+                            @"filterDecay", @"filterSustain", @"filterRelease",
+                            @"filterEnvelopeAmount", @"velocityToAmplitude",
+                            @"velocityToFilter" ])
+    [_patchFilterValues setObject:[patch objectForKey:key]
+                                  ?: [[ScoreRealtimeDSP defaultInternalSynthPatch] objectForKey:key]
+                           forKey:key];
   [(ScorePatchEnvelopeView *)_patchEnvelopeView setPatch:patch];
+  [self reloadPatchPresetPopUpSelectingName:[patch objectForKey:@"name"]];
+}
+
+- (void)reloadPatchPresetPopUpSelectingName:(NSString *)name
+{
+  if (!_patchPresetPopUp)
+    return;
+  [_patchPresetPopUp removeAllItems];
+  [_patchPresetPopUp addItemWithTitle:@"Custom Patch"];
+  [[_patchPresetPopUp lastItem] setRepresentedObject:[NSNull null]];
+  NSDictionary *presets = [self availableInternalSynthPatchLibrary];
+  NSArray *names = [[presets allKeys]
+    sortedArrayUsingSelector:@selector (localizedCaseInsensitiveCompare:)];
+  for (NSString *presetName in names)
+    {
+      [_patchPresetPopUp addItemWithTitle:presetName];
+      [[_patchPresetPopUp lastItem] setRepresentedObject:presetName];
+    }
+  if ([name length] && [names containsObject:name])
+    [_patchPresetPopUp selectItemWithTitle:name];
+  else
+    [_patchPresetPopUp selectItemAtIndex:0];
+}
+
+- (NSDictionary *)availableInternalSynthPatchLibrary
+{
+  NSMutableDictionary *library = [NSMutableDictionary
+    dictionaryWithDictionary:[ScoreRealtimeDSP factoryInternalSynthPatches]];
+  NSDictionary *userPatches = [[NSUserDefaults standardUserDefaults]
+    dictionaryForKey:ScoreMakerInternalPatchPresetsKey];
+  if (userPatches)
+    [library addEntriesFromDictionary:userPatches];
+  return library;
 }
 
 - (void)showInternalSynthPatchEditor:(id)sender
@@ -2718,6 +2893,32 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [_patchWaveformPopUp setTarget:self];
       [_patchWaveformPopUp setAction:@selector (patchControlChanged:)];
       [content addSubview:_patchWaveformPopUp];
+
+      NSTextField *voiceLabel = [[[NSTextField alloc] initWithFrame:NSMakeRect (24, 408, 88, 22)] autorelease];
+      [voiceLabel setEditable:NO];
+      [voiceLabel setBordered:NO];
+      [voiceLabel setDrawsBackground:NO];
+      [voiceLabel setStringValue:@"Score Voice"];
+      [content addSubview:voiceLabel];
+      _patchVoicePopUp = [[NSPopUpButton alloc] initWithFrame:NSMakeRect (112, 404, 180, 28)
+                                                    pullsDown:NO];
+      for (NSInteger voice = 1; voice <= 16; voice++)
+        [_patchVoicePopUp addItemWithTitle:[NSString stringWithFormat:@"Voice %ld", (long)voice]];
+      [_patchVoicePopUp setTarget:self];
+      [_patchVoicePopUp setAction:@selector (patchVoiceChanged:)];
+      [content addSubview:_patchVoicePopUp];
+
+      NSTextField *patchLabel = [[[NSTextField alloc] initWithFrame:NSMakeRect (24, 370, 88, 22)] autorelease];
+      [patchLabel setEditable:NO];
+      [patchLabel setBordered:NO];
+      [patchLabel setDrawsBackground:NO];
+      [patchLabel setStringValue:@"Named Patch"];
+      [content addSubview:patchLabel];
+      _patchPresetPopUp = [[NSPopUpButton alloc] initWithFrame:NSMakeRect (112, 366, 180, 28)
+                                                     pullsDown:NO];
+      [_patchPresetPopUp setTarget:self];
+      [_patchPresetPopUp setAction:@selector (patchPresetChanged:)];
+      [content addSubview:_patchPresetPopUp];
 
       NSTextField *graphLabel = [[[NSTextField alloc] initWithFrame:NSMakeRect (340, 446, 278, 22)] autorelease];
       [graphLabel setEditable:NO];
@@ -2790,23 +2991,44 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
           [_patchValueLabels setObject:value forKey:key];
         }
 
-      NSButton *preview = [[[NSButton alloc] initWithFrame:NSMakeRect (340, 92, 132, 30)] autorelease];
-      [preview setTitle:@"Preview Middle C"];
+      NSButton *preview = [[[NSButton alloc] initWithFrame:NSMakeRect (340, 92, 64, 30)] autorelease];
+      [preview setTitle:@"Preview"];
       [preview setTarget:self];
       [preview setAction:@selector (previewInternalSynthPatch:)];
       [content addSubview:preview];
-      NSButton *reset = [[[NSButton alloc] initWithFrame:NSMakeRect (486, 92, 132, 30)] autorelease];
+      NSButton *filter = [[[NSButton alloc] initWithFrame:NSMakeRect (410, 92, 64, 30)] autorelease];
+      [filter setTitle:@"Filter..."];
+      [filter setTarget:self];
+      [filter setAction:@selector (editInternalSynthFilterEnvelope:)];
+      [content addSubview:filter];
+      NSButton *effects = [[[NSButton alloc] initWithFrame:NSMakeRect (480, 92, 64, 30)] autorelease];
+      [effects setTitle:@"Effects..."];
+      [effects setTarget:self];
+      [effects setAction:@selector (editInternalSynthPatchEffects:)];
+      [content addSubview:effects];
+      NSButton *reset = [[[NSButton alloc] initWithFrame:NSMakeRect (550, 92, 68, 30)] autorelease];
       [reset setTitle:@"Reset Patch"];
       [reset setTarget:self];
       [reset setAction:@selector (resetInternalSynthPatch:)];
       [content addSubview:reset];
 
-      NSTextField *help = [[[NSTextField alloc] initWithFrame:NSMakeRect (24, 30, 594, 42)] autorelease];
+      NSButton *savePreset = [[[NSButton alloc] initWithFrame:NSMakeRect (340, 54, 132, 30)] autorelease];
+      [savePreset setTitle:@"Save Patch..."];
+      [savePreset setTarget:self];
+      [savePreset setAction:@selector (saveInternalSynthPatchPreset:)];
+      [content addSubview:savePreset];
+      NSButton *loadPreset = [[[NSButton alloc] initWithFrame:NSMakeRect (486, 54, 132, 30)] autorelease];
+      [loadPreset setTitle:@"Browse Patches..."];
+      [loadPreset setTarget:self];
+      [loadPreset setAction:@selector (showInternalSynthPatchBrowser:)];
+      [content addSubview:loadPreset];
+
+      NSTextField *help = [[[NSTextField alloc] initWithFrame:NSMakeRect (24, 22, 292, 58)] autorelease];
       [help setEditable:NO];
       [help setBordered:NO];
       [help setDrawsBackground:NO];
       [help setTextColor:[NSColor secondaryLabelColor]];
-      [help setStringValue:@"Patch changes apply to the selected part and are stored in ScoreMaker project files. The virtual keyboard auditions the current patch when real-time DSP is enabled."];
+      [help setStringValue:@"Each score voice can use its own patch. Saved patches are global and can be loaded into any score."];
       [content addSubview:help];
       [_patchEditorWindow center];
     }
@@ -2817,6 +3039,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (void)patchControlChanged:(id)sender
 {
   (void)sender;
+  NSInteger voice = [self selectedPatchVoice];
   NSMutableDictionary *patch = [NSMutableDictionary dictionary];
   [patch setObject:[_patchWaveformPopUp titleOfSelectedItem] forKey:@"waveform"];
   for (NSString *key in _patchControls)
@@ -2826,9 +3049,21 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [[_patchValueLabels objectForKey:key]
         setStringValue:[NSString stringWithFormat:@"%.2f", [slider doubleValue]]];
     }
+  for (NSString *key in _patchFilterValues)
+    [patch setObject:[_patchFilterValues objectForKey:key] forKey:key];
+  [patch setObject:[_realtimeDSP internalSynthEffectsForVoice:voice] forKey:@"effects"];
+  if (_applyingNamedPatch)
+    {
+      id name = [[_patchPresetPopUp selectedItem] representedObject];
+      if ([name isKindOfClass:[NSString class]])
+        [patch setObject:name forKey:@"name"];
+    }
+  else
+    [_patchPresetPopUp selectItemAtIndex:0];
   [(ScorePatchEnvelopeView *)_patchEnvelopeView setPatch:patch];
+  [_realtimeDSP useInternalSynthesizer];
   NSError *error = nil;
-  if (![_realtimeDSP configureInternalSynthPatch:patch error:&error])
+  if (![_realtimeDSP configureInternalSynthPatch:patch forVoice:voice error:&error])
     {
       [[NSDocumentController sharedDocumentController] presentError:error];
       return;
@@ -2839,14 +3074,455 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [self registerUndoSnapshotWithName:@"Edit Synth Patch"];
   NSMutableDictionary *parameters = [NSMutableDictionary
     dictionaryWithDictionary:[[part instrument] parameters] ?: [NSDictionary dictionary]];
-  [parameters setObject:[_realtimeDSP internalSynthPatch] forKey:@"internalSynthPatch"];
+  NSMutableDictionary *patches = [NSMutableDictionary
+    dictionaryWithDictionary:[parameters objectForKey:@"internalSynthPatches"]
+                               ?: [NSDictionary dictionary]];
+  NSDictionary *normalized = [_realtimeDSP internalSynthPatchForVoice:voice];
+  [patches setObject:normalized forKey:[NSString stringWithFormat:@"%ld", (long)voice]];
+  [parameters setObject:patches forKey:@"internalSynthPatches"];
+  if (voice == 1)
+    [parameters setObject:normalized forKey:@"internalSynthPatch"];
   [[part instrument] setParameters:parameters];
   [[part instrument] setBackendIdentifier:@"scoremaker-internal-synth"];
-  [_realtimeDSP useInternalSynthesizer];
   _audioUnitPartTrack = -1;
   _useRealtimeDSP = YES;
   [self updateChangeCount:NSChangeDone];
   [self commitUndoBaseline];
+}
+
+- (void)patchVoiceChanged:(id)sender
+{
+  (void)sender;
+  [self loadPatchEditorControls];
+}
+
+- (void)patchPresetChanged:(id)sender
+{
+  (void)sender;
+  id name = [[_patchPresetPopUp selectedItem] representedObject];
+  if (![name isKindOfClass:[NSString class]])
+    return;
+  NSDictionary *patch = [[self availableInternalSynthPatchLibrary] objectForKey:name];
+  if (![patch isKindOfClass:[NSDictionary class]])
+    return;
+  NSInteger voice = [self selectedPatchVoice];
+  NSError *error = nil;
+  if (![_realtimeDSP configureInternalSynthPatch:patch forVoice:voice error:&error])
+    {
+      [[NSDocumentController sharedDocumentController] presentError:error];
+      return;
+    }
+  [_patchWaveformPopUp selectItemWithTitle:[patch objectForKey:@"waveform"]];
+  for (NSString *key in _patchControls)
+    [[_patchControls objectForKey:key] setDoubleValue:[[patch objectForKey:key] doubleValue]];
+  for (NSString *key in _patchFilterValues)
+    [_patchFilterValues setObject:[patch objectForKey:key]
+                                  ?: [[ScoreRealtimeDSP defaultInternalSynthPatch] objectForKey:key]
+                           forKey:key];
+  _applyingNamedPatch = YES;
+  [self patchControlChanged:nil];
+  _applyingNamedPatch = NO;
+}
+
+- (void)saveInternalSynthPatchPreset:(id)sender
+{
+  (void)sender;
+  NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+  [alert setMessageText:@"Save Internal Synth Patch"];
+  [alert setInformativeText:@"Saved patches are available to every ScoreMaker score."];
+  [alert addButtonWithTitle:@"Save"];
+  [alert addButtonWithTitle:@"Cancel"];
+  NSView *accessory = [[[NSView alloc] initWithFrame:NSMakeRect (0, 0, 360, 92)] autorelease];
+  NSTextField *name = [[[NSTextField alloc] initWithFrame:NSMakeRect (0, 66, 360, 24)] autorelease];
+  [name setPlaceholderString:@"Patch name"];
+  [accessory addSubview:name];
+  NSPopUpButton *category = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (0, 34, 170, 26)
+                                                         pullsDown:NO] autorelease];
+  [category addItemsWithTitles:@[ @"Lead", @"Bass", @"Pad", @"Pluck", @"Keys", @"Effects",
+                                   @"Uncategorized" ]];
+  [accessory addSubview:category];
+  NSTextField *description = [[[NSTextField alloc] initWithFrame:NSMakeRect (0, 2, 360, 24)] autorelease];
+  [description setPlaceholderString:@"Short sound description"];
+  [accessory addSubview:description];
+  [alert setAccessoryView:accessory];
+  if ([alert runModal] != NSAlertFirstButtonReturn)
+    return;
+  NSString *trimmed = [[name stringValue]
+    stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+  if (![trimmed length])
+    return;
+  NSMutableDictionary *patch = [NSMutableDictionary
+    dictionaryWithDictionary:[self patchForPart:[self selectedStructuredPartCreatingIfNeeded:YES]
+                                             voice:[self selectedPatchVoice]]];
+  [patch setObject:trimmed forKey:@"name"];
+  [patch setObject:[category titleOfSelectedItem] forKey:@"category"];
+  [patch setObject:[description stringValue] ?: @"" forKey:@"description"];
+  NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+  NSMutableDictionary *presets = [NSMutableDictionary
+    dictionaryWithDictionary:[defaults dictionaryForKey:ScoreMakerInternalPatchPresetsKey]
+                               ?: [NSDictionary dictionary]];
+  [presets setObject:patch forKey:trimmed];
+  [defaults setObject:presets forKey:ScoreMakerInternalPatchPresetsKey];
+  if (_patchBrowserWindow)
+    [self refreshPatchBrowser:nil];
+  [self reloadPatchPresetPopUpSelectingName:trimmed];
+  _applyingNamedPatch = YES;
+  [self patchControlChanged:nil];
+  _applyingNamedPatch = NO;
+}
+
+- (void)loadInternalSynthPatchPreset:(id)sender
+{
+  (void)sender;
+  NSDictionary *presets = [self availableInternalSynthPatchLibrary];
+  NSArray *names = [[presets allKeys] sortedArrayUsingSelector:@selector (localizedCaseInsensitiveCompare:)];
+  if (![names count])
+    {
+      NSBeep ();
+      return;
+    }
+  NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+  [alert setMessageText:@"Load Internal Synth Patch"];
+  [alert setInformativeText:@"Choose a saved patch for the selected score voice."];
+  [alert addButtonWithTitle:@"Load"];
+  [alert addButtonWithTitle:@"Cancel"];
+  NSPopUpButton *choices = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (0, 0, 320, 26)
+                                                        pullsDown:NO] autorelease];
+  [choices addItemsWithTitles:names];
+  [alert setAccessoryView:choices];
+  if ([alert runModal] != NSAlertFirstButtonReturn)
+    return;
+  NSString *selectedName = [choices titleOfSelectedItem];
+  [self reloadPatchPresetPopUpSelectingName:selectedName];
+  [self patchPresetChanged:_patchPresetPopUp];
+}
+
+- (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView
+{
+  return tableView == _patchBrowserTable ? (NSInteger)[_patchBrowserRows count] : 0;
+}
+
+- (id)tableView:(NSTableView *)tableView
+  objectValueForTableColumn:(NSTableColumn *)tableColumn
+                     row:(NSInteger)row
+{
+  if (tableView != _patchBrowserTable || row < 0 || row >= (NSInteger)[_patchBrowserRows count])
+    return @"";
+  return [[_patchBrowserRows objectAtIndex:(NSUInteger)row]
+    objectForKey:[[tableColumn identifier] description]] ?: @"";
+}
+
+- (void)refreshPatchBrowser:(id)sender
+{
+  (void)sender;
+  NSDictionary *presets = [self availableInternalSynthPatchLibrary];
+  NSString *filter = [_patchBrowserCategoryPopUp titleOfSelectedItem] ?: @"All Categories";
+  NSMutableArray *rows = [NSMutableArray array];
+  for (NSString *name in presets)
+    {
+      NSDictionary *patch = [presets objectForKey:name];
+      NSString *category = [patch objectForKey:@"category"] ?: @"Uncategorized";
+      if (![filter isEqualToString:@"All Categories"] && ![category isEqualToString:filter])
+        continue;
+      [rows addObject:@{ @"name" : name,
+                         @"category" : category,
+                         @"description" : [patch objectForKey:@"description"] ?: @"",
+                         @"patch" : patch }];
+    }
+  [rows sortUsingComparator:^NSComparisonResult (NSDictionary *left, NSDictionary *right) {
+    NSComparisonResult categoryResult = [[left objectForKey:@"category"]
+      localizedCaseInsensitiveCompare:[right objectForKey:@"category"]];
+    return categoryResult == NSOrderedSame
+             ? [[left objectForKey:@"name"] localizedCaseInsensitiveCompare:[right objectForKey:@"name"]]
+             : categoryResult;
+  }];
+  [_patchBrowserRows release];
+  _patchBrowserRows = [rows copy];
+  [_patchBrowserTable reloadData];
+  if ([_patchBrowserRows count])
+    [_patchBrowserTable selectRowIndexes:[NSIndexSet indexSetWithIndex:0]
+                    byExtendingSelection:NO];
+}
+
+- (void)showInternalSynthPatchBrowser:(id)sender
+{
+  (void)sender;
+  if (!_patchBrowserWindow)
+    {
+      _patchBrowserWindow = [[NSWindow alloc]
+        initWithContentRect:NSMakeRect (0, 0, 720, 430)
+                  styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
+                             | NSWindowStyleMaskResizable)
+                    backing:NSBackingStoreBuffered
+                      defer:NO];
+      [_patchBrowserWindow setReleasedWhenClosed:NO];
+      [_patchBrowserWindow setTitle:@"ScoreMaker Patch Browser"];
+      NSView *content = [_patchBrowserWindow contentView];
+      NSTextField *heading = [[[NSTextField alloc] initWithFrame:NSMakeRect (18, 390, 330, 26)] autorelease];
+      [heading setEditable:NO];
+      [heading setBordered:NO];
+      [heading setDrawsBackground:NO];
+      [heading setFont:[NSFont boldSystemFontOfSize:18.0]];
+      [heading setStringValue:@"Choose a Sound"];
+      [content addSubview:heading];
+      _patchBrowserCategoryPopUp = [[NSPopUpButton alloc] initWithFrame:NSMakeRect (500, 388, 200, 28)
+                                                               pullsDown:NO];
+      [_patchBrowserCategoryPopUp addItemsWithTitles:@[ @"All Categories", @"Lead", @"Bass", @"Pad",
+                                                           @"Pluck", @"Keys", @"Effects", @"Uncategorized" ]];
+      [_patchBrowserCategoryPopUp setTarget:self];
+      [_patchBrowserCategoryPopUp setAction:@selector (refreshPatchBrowser:)];
+      [content addSubview:_patchBrowserCategoryPopUp];
+
+      _patchBrowserTable = [[NSTableView alloc] initWithFrame:NSMakeRect (0, 0, 680, 320)];
+      for (NSDictionary *specification in @[
+             @{ @"id" : @"name", @"title" : @"Patch", @"width" : @180 },
+             @{ @"id" : @"category", @"title" : @"Category", @"width" : @110 },
+             @{ @"id" : @"description", @"title" : @"Description", @"width" : @360 }
+           ])
+        {
+          NSTableColumn *column = [[[NSTableColumn alloc]
+            initWithIdentifier:[specification objectForKey:@"id"]] autorelease];
+          [[column headerCell] setStringValue:[specification objectForKey:@"title"]];
+          [column setWidth:[[specification objectForKey:@"width"] doubleValue]];
+          [_patchBrowserTable addTableColumn:column];
+        }
+      [_patchBrowserTable setDataSource:self];
+      [_patchBrowserTable setDelegate:self];
+      [_patchBrowserTable setUsesAlternatingRowBackgroundColors:YES];
+      [_patchBrowserTable setDoubleAction:@selector (usePatchBrowserSelection:)];
+      [_patchBrowserTable setTarget:self];
+      NSScrollView *scroll = [[[NSScrollView alloc] initWithFrame:NSMakeRect (18, 62, 684, 316)] autorelease];
+      [scroll setHasVerticalScroller:YES];
+      [scroll setHasHorizontalScroller:NO];
+      [scroll setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
+      [scroll setDocumentView:_patchBrowserTable];
+      [content addSubview:scroll];
+
+      NSButton *audition = [[[NSButton alloc] initWithFrame:NSMakeRect (430, 18, 126, 32)] autorelease];
+      [audition setTitle:@"Audition Phrase"];
+      [audition setTarget:self];
+      [audition setAction:@selector (auditionPatchBrowserSelection:)];
+      [content addSubview:audition];
+      NSButton *use = [[[NSButton alloc] initWithFrame:NSMakeRect (570, 18, 132, 32)] autorelease];
+      [use setTitle:@"Use Patch"];
+      [use setTarget:self];
+      [use setAction:@selector (usePatchBrowserSelection:)];
+      [content addSubview:use];
+      NSTextField *voice = [[[NSTextField alloc] initWithFrame:NSMakeRect (18, 24, 380, 22)] autorelease];
+      [voice setEditable:NO];
+      [voice setBordered:NO];
+      [voice setDrawsBackground:NO];
+      [voice setTextColor:[NSColor secondaryLabelColor]];
+      [voice setStringValue:@"Audition and assignment use the patch editor’s selected score voice."];
+      [content addSubview:voice];
+      [_patchBrowserWindow center];
+    }
+  [self refreshPatchBrowser:nil];
+  [_patchBrowserWindow makeKeyAndOrderFront:self];
+}
+
+- (void)auditionPatchBrowserSelection:(id)sender
+{
+  (void)sender;
+  NSInteger row = [_patchBrowserTable selectedRow];
+  if (row < 0 || row >= (NSInteger)[_patchBrowserRows count])
+    return;
+  NSDictionary *patch = [[_patchBrowserRows objectAtIndex:(NSUInteger)row] objectForKey:@"patch"];
+  NSInteger voice = [self selectedPatchVoice];
+  [_realtimeDSP useInternalSynthesizer];
+  NSError *error = nil;
+  if (![_realtimeDSP configureInternalSynthPatch:patch forVoice:voice error:&error])
+    {
+      [[NSDocumentController sharedDocumentController] presentError:error];
+      return;
+    }
+  NSArray *events = @[
+    @{ @"time" : @0.0, @"pitch" : @60, @"voice" : @(voice), @"velocity" : @92, @"on" : @YES },
+    @{ @"time" : @0.18, @"pitch" : @60, @"voice" : @(voice), @"velocity" : @0, @"on" : @NO },
+    @{ @"time" : @0.20, @"pitch" : @64, @"voice" : @(voice), @"velocity" : @106, @"on" : @YES },
+    @{ @"time" : @0.38, @"pitch" : @64, @"voice" : @(voice), @"velocity" : @0, @"on" : @NO },
+    @{ @"time" : @0.40, @"pitch" : @67, @"voice" : @(voice), @"velocity" : @118, @"on" : @YES },
+    @{ @"time" : @0.72, @"pitch" : @67, @"voice" : @(voice), @"velocity" : @0, @"on" : @NO }
+  ];
+  _useRealtimeDSP = YES;
+  if (![_realtimeDSP scheduleEvents:events error:&error])
+    [[NSDocumentController sharedDocumentController] presentError:error];
+  else
+    [NSTimer scheduledTimerWithTimeInterval:1.25
+                                     target:self
+                                   selector:@selector (restorePatchAfterBrowserAudition:)
+                                   userInfo:nil
+                                    repeats:NO];
+}
+
+- (void)restorePatchAfterBrowserAudition:(NSTimer *)timer
+{
+  (void)timer;
+  ScorePartDefinition *part = [self selectedStructuredPartCreatingIfNeeded:NO];
+  if (part)
+    [self configureVoicePatchesForPart:part];
+}
+
+- (void)usePatchBrowserSelection:(id)sender
+{
+  (void)sender;
+  NSInteger row = [_patchBrowserTable selectedRow];
+  if (row < 0 || row >= (NSInteger)[_patchBrowserRows count])
+    return;
+  NSString *name = [[_patchBrowserRows objectAtIndex:(NSUInteger)row] objectForKey:@"name"];
+  [self reloadPatchPresetPopUpSelectingName:name];
+  [self patchPresetChanged:_patchPresetPopUp];
+}
+
+- (void)editInternalSynthPatchEffects:(id)sender
+{
+  (void)sender;
+  NSInteger voice = [self selectedPatchVoice];
+  NSArray *specifications = @[
+    @{ @"type" : @"gain", @"name" : @"Gain", @"key" : @"decibels", @"minimum" : @-24.0,
+       @"maximum" : @12.0, @"default" : @0.0 },
+    @{ @"type" : @"lowpass", @"name" : @"Low-Pass", @"key" : @"cutoff", @"minimum" : @200.0,
+       @"maximum" : @20000.0, @"default" : @12000.0 },
+    @{ @"type" : @"compressor", @"name" : @"Compressor", @"key" : @"threshold",
+       @"minimum" : @-60.0, @"maximum" : @0.0, @"default" : @-12.0 },
+    @{ @"type" : @"delay", @"name" : @"Delay", @"key" : @"mix", @"minimum" : @0.0,
+       @"maximum" : @1.0, @"default" : @0.2 },
+    @{ @"type" : @"reverb", @"name" : @"Reverb", @"key" : @"mix", @"minimum" : @0.0,
+       @"maximum" : @1.0, @"default" : @0.2 }
+  ];
+  NSMutableDictionary *existing = [NSMutableDictionary dictionary];
+  for (NSDictionary *effect in [_realtimeDSP internalSynthEffectsForVoice:voice])
+    [existing setObject:effect forKey:[effect objectForKey:@"type"] ?: @""];
+  NSView *accessory = [[[NSView alloc] initWithFrame:NSMakeRect (0, 0, 500, 230)] autorelease];
+  NSMutableArray *controls = [NSMutableArray array];
+  for (NSUInteger index = 0; index < [specifications count]; index++)
+    {
+      NSDictionary *specification = [specifications objectAtIndex:index];
+      NSDictionary *effect = [existing objectForKey:[specification objectForKey:@"type"]];
+      CGFloat y = 190.0 - index * 42.0;
+      NSButton *enabled = [[[NSButton alloc] initWithFrame:NSMakeRect (0, y, 135, 24)] autorelease];
+      [enabled setButtonType:NSSwitchButton];
+      [enabled setTitle:[specification objectForKey:@"name"]];
+      [enabled setState:effect ? NSControlStateValueOn : NSControlStateValueOff];
+      [accessory addSubview:enabled];
+      NSSlider *value = [[[NSSlider alloc] initWithFrame:NSMakeRect (140, y, 350, 24)] autorelease];
+      [value setMinValue:[[specification objectForKey:@"minimum"] doubleValue]];
+      [value setMaxValue:[[specification objectForKey:@"maximum"] doubleValue]];
+      NSNumber *saved = [effect objectForKey:[specification objectForKey:@"key"]];
+      [value setDoubleValue:saved ? [saved doubleValue]
+                                  : [[specification objectForKey:@"default"] doubleValue]];
+      [accessory addSubview:value];
+      [controls addObject:@{ @"enabled" : enabled, @"value" : value,
+                             @"specification" : specification }];
+    }
+  NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+  [alert setMessageText:[NSString stringWithFormat:@"Patch Effects — Voice %ld", (long)voice]];
+  [alert setInformativeText:@"These effects belong to this patch and are included in globally saved patches."];
+  [alert setAccessoryView:accessory];
+  [alert addButtonWithTitle:@"Apply"];
+  [alert addButtonWithTitle:@"Cancel"];
+  if ([alert runModal] != NSAlertFirstButtonReturn)
+    return;
+  NSMutableArray *effects = [NSMutableArray array];
+  for (NSDictionary *control in controls)
+    {
+      if ([[control objectForKey:@"enabled"] state] != NSControlStateValueOn)
+        continue;
+      NSDictionary *specification = [control objectForKey:@"specification"];
+      NSString *type = [specification objectForKey:@"type"];
+      NSMutableDictionary *effect = [NSMutableDictionary dictionaryWithObjectsAndKeys:
+        type, @"type", [NSNumber numberWithDouble:[[control objectForKey:@"value"] doubleValue]],
+        [specification objectForKey:@"key"], nil];
+      if ([type isEqualToString:@"compressor"])
+        [effect setObject:@4.0 forKey:@"ratio"];
+      else if ([type isEqualToString:@"delay"])
+        {
+          [effect setObject:@0.3 forKey:@"time"];
+          [effect setObject:@0.35 forKey:@"feedback"];
+        }
+      else if ([type isEqualToString:@"reverb"])
+        [effect setObject:@0.35 forKey:@"roomSize"];
+      [effects addObject:effect];
+    }
+  NSError *error = nil;
+  if (![_realtimeDSP configureInternalSynthEffects:effects forVoice:voice error:&error])
+    {
+      [[NSDocumentController sharedDocumentController] presentError:error];
+      return;
+    }
+  [self patchControlChanged:nil];
+}
+
+- (void)editInternalSynthFilterEnvelope:(id)sender
+{
+  (void)sender;
+  NSArray *specifications = @[
+    @{ @"key" : @"filterCutoff", @"name" : @"Cutoff Hz", @"min" : @20.0, @"max" : @12000.0 },
+    @{ @"key" : @"filterResonance", @"name" : @"Resonance", @"min" : @0.0, @"max" : @0.95 },
+    @{ @"key" : @"filterAttack", @"name" : @"Attack", @"min" : @0.0, @"max" : @5.0 },
+    @{ @"key" : @"filterDecay", @"name" : @"Decay", @"min" : @0.0, @"max" : @5.0 },
+    @{ @"key" : @"filterSustain", @"name" : @"Sustain", @"min" : @0.0, @"max" : @1.0 },
+    @{ @"key" : @"filterRelease", @"name" : @"Release", @"min" : @0.0, @"max" : @8.0 },
+    @{ @"key" : @"filterEnvelopeAmount", @"name" : @"Env Amount st", @"min" : @-48.0, @"max" : @96.0 },
+    @{ @"key" : @"velocityToAmplitude", @"name" : @"Velocity → Amp", @"min" : @0.0, @"max" : @1.0 },
+    @{ @"key" : @"velocityToFilter", @"name" : @"Velocity → Filter st", @"min" : @-48.0, @"max" : @48.0 }
+  ];
+  NSView *accessory = [[[NSView alloc] initWithFrame:NSMakeRect (0, 0, 520, 475)] autorelease];
+  NSMutableDictionary *controls = [NSMutableDictionary dictionary];
+  NSMutableDictionary *valueLabels = [NSMutableDictionary dictionary];
+  NSTextField *graphHeading = [[[NSTextField alloc] initWithFrame:NSMakeRect (0, 449, 520, 22)] autorelease];
+  [graphHeading setEditable:NO];
+  [graphHeading setBordered:NO];
+  [graphHeading setDrawsBackground:NO];
+  [graphHeading setFont:[NSFont boldSystemFontOfSize:13.0]];
+  [graphHeading setStringValue:@"Filter Envelope Shape"];
+  [accessory addSubview:graphHeading];
+  ScoreFilterEnvelopeView *graph = [[[ScoreFilterEnvelopeView alloc]
+    initWithFrame:NSMakeRect (0, 350, 520, 94)] autorelease];
+  [accessory addSubview:graph];
+  for (NSUInteger index = 0; index < [specifications count]; index++)
+    {
+      NSDictionary *specification = [specifications objectAtIndex:index];
+      CGFloat y = 320.0 - index * 37.0;
+      NSTextField *label = [[[NSTextField alloc] initWithFrame:NSMakeRect (0, y, 145, 22)] autorelease];
+      [label setEditable:NO];
+      [label setBordered:NO];
+      [label setDrawsBackground:NO];
+      [label setStringValue:[specification objectForKey:@"name"]];
+      [accessory addSubview:label];
+      NSSlider *slider = [[[NSSlider alloc] initWithFrame:NSMakeRect (145, y, 315, 24)] autorelease];
+      [slider setMinValue:[[specification objectForKey:@"min"] doubleValue]];
+      [slider setMaxValue:[[specification objectForKey:@"max"] doubleValue]];
+      [slider setDoubleValue:[[_patchFilterValues objectForKey:[specification objectForKey:@"key"]]
+                               doubleValue]];
+      [slider setContinuous:YES];
+      [slider setTarget:graph];
+      [slider setAction:@selector (controlChanged:)];
+      [accessory addSubview:slider];
+      NSTextField *value = [[[NSTextField alloc] initWithFrame:NSMakeRect (462, y, 56, 22)] autorelease];
+      [value setEditable:NO];
+      [value setBordered:NO];
+      [value setDrawsBackground:NO];
+      [value setAlignment:NSTextAlignmentRight];
+      [value setStringValue:[NSString stringWithFormat:@"%.2f", [slider doubleValue]]];
+      [accessory addSubview:value];
+      [controls setObject:slider forKey:[specification objectForKey:@"key"]];
+      [valueLabels setObject:value forKey:[specification objectForKey:@"key"]];
+    }
+  [graph setControls:controls valueLabels:valueLabels];
+  NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+  [alert setMessageText:[NSString stringWithFormat:@"Filter Envelope — Voice %ld",
+                                                   (long)[self selectedPatchVoice]]];
+  [alert setInformativeText:@"The filter envelope is independent of the amplitude envelope. Velocity can modulate loudness and cutoff separately."];
+  [alert setAccessoryView:accessory];
+  [alert addButtonWithTitle:@"Apply"];
+  [alert addButtonWithTitle:@"Cancel"];
+  if ([alert runModal] != NSAlertFirstButtonReturn)
+    return;
+  for (NSString *key in controls)
+    [_patchFilterValues setObject:[NSNumber numberWithDouble:[[controls objectForKey:key] doubleValue]]
+                           forKey:key];
+  [self patchControlChanged:nil];
 }
 
 - (void)resetInternalSynthPatch:(id)sender
@@ -2856,6 +3532,11 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_patchWaveformPopUp selectItemWithTitle:[defaults objectForKey:@"waveform"]];
   for (NSString *key in _patchControls)
     [[_patchControls objectForKey:key] setDoubleValue:[[defaults objectForKey:key] doubleValue]];
+  for (NSString *key in _patchFilterValues)
+    [_patchFilterValues setObject:[defaults objectForKey:key] forKey:key];
+  [_realtimeDSP configureInternalSynthEffects:[NSArray array]
+                                     forVoice:[self selectedPatchVoice]
+                                        error:NULL];
   [self patchControlChanged:nil];
 }
 
@@ -2871,8 +3552,10 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [[NSDocumentController sharedDocumentController] presentError:error];
       return;
     }
-  [_realtimeDSP noteOn:60 velocity:104];
+  NSInteger voice = [self selectedPatchVoice];
+  [_realtimeDSP noteOn:60 voice:voice velocity:104];
   _realtimeDSPPitch = 60;
+  _realtimeDSPVoice = voice;
   _auditionResetTimer = [[NSTimer scheduledTimerWithTimeInterval:0.75
                                                           target:self
                                                         selector:@selector (finishAudition:)
@@ -2934,7 +3617,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
             [parameters setObject:patch forKey:@"internalSynthPatch"];
             [[part instrument] setBackendIdentifier:@"scoremaker-internal-synth"];
             [[part instrument] setParameters:parameters];
-            [_realtimeDSP configureInternalSynthPatch:patch error:NULL];
+            [self configureVoicePatchesForPart:part];
             [self updateChangeCount:NSChangeDone];
             break;
           }
@@ -3369,7 +4052,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       if ([[[effectPart instrument] backendIdentifier]
             isEqualToString:@"scoremaker-internal-synth"])
         {
-          [_realtimeDSP configureInternalSynthPatch:[self patchForPart:effectPart] error:NULL];
+          [self configureVoicePatchesForPart:effectPart];
           _useRealtimeDSP = YES;
         }
       if ([[_realtimeDSP effectConfiguration] count])
@@ -3473,7 +4156,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
         @"time" : [NSNumber numberWithDouble:[event time]],
         @"pitch" : [NSNumber numberWithInteger:[note pitch]],
         @"velocity" : [NSNumber numberWithUnsignedInteger:[note velocity]],
-        @"on" : [NSNumber numberWithBool:![event noteOff]]
+        @"on" : [NSNumber numberWithBool:![event noteOff]],
+        @"voice" : [NSNumber numberWithInteger:[note voice]]
       }];
     }
   NSError *error = nil;

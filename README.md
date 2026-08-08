@@ -26,8 +26,11 @@ The renderer is intentionally lightweight. It focuses on extracting timing, pitc
   missing-unit relinking, substitution tracking, validation timeouts, recovery, and blacklisting.
 - Apply persistent per-part gain, low-pass, compressor, delay, and reverb chains during real-time
   internal synthesis and offline rendering; compatible native effects also process Audio Unit output.
-- Create per-part internal synthesizer patches in a dedicated editor, with sine, triangle, saw, and
-  square oscillators, an ADSR amplitude envelope, and a delayed pitch LFO.
+- Create per-part, per-voice internal synthesizer patches in a dedicated editor, with sine,
+  triangle, saw, and square oscillators, a graphical ADSR amplitude envelope, and a delayed pitch
+  LFO. Each patch also has a resonant synth filter with an independent ADSR envelope and separate
+  velocity-to-amplitude and velocity-to-filter modulation. Give each patch its own gain, filter,
+  compressor, delay, and reverb chain; save named patches globally and reuse them in any score.
 - Run opt-in compatibility validation for every installed Audio Unit instrument with
   `make test-plugins`; results are written to `build/tests/audio-unit-compatibility.json`.
 
@@ -83,7 +86,9 @@ The input menu updates when MIDI devices are connected or removed. **Selected Pa
 
 Choose `Score > Play` or the Play button in the inspector to hear the current score. ScoreMaker sends the generated MIDI data directly to AVFoundation, using the platform AVFoundation implementation on macOS or GNUstep.
 
-Choose **Score > Internal Synth Patch Editor...** to design the internal sound for the selected part. The editor provides oscillator selection, ADSR envelope controls, pitch-LFO rate, depth, and delay, plus a middle-C preview. Changing a control selects the internal synthesizer for that part. Patch settings are preserved in ScoreMaker project files.
+Choose **Score > Internal Synth Patch Editor...** to design the internal sound for the selected part and notation voice. Each voice explicitly selects a named patch, and each patch carries its own oscillator, amplitude envelope, pitch LFO, resonant filter, independent filter envelope, velocity modulation, and effects. Use **Filter...** for cutoff, resonance, filter ADSR, envelope amount, and velocity routing. Editing a named patch creates a custom voice patch until it is saved under a name. Voice-to-patch assignments are preserved in ScoreMaker project files; named patches saved with **Save Patch...** are stored in user preferences and can be selected in any score. The separate **Score > Effects...** chain remains the shared master bus.
+
+Use **Browse Patches...** to explore the 24 bundled factory sounds and saved user sounds by Lead, Bass, Pad, Pluck, Keys, Effects, or Uncategorized. The browser shows each patch's description, auditions a short velocity-sensitive phrase without changing the score, and assigns the chosen patch to the editor's selected score voice only when **Use Patch** is pressed. Factory patches are always available; saving under the same name creates a user override without modifying the built-in library.
 
 To rehearse or inspect a passage repeatedly, select its first note, Shift-click its last note, enable **Score > Loop Selection**, and start playback. The inclusive loop range is tinted on the score and may span systems.
 

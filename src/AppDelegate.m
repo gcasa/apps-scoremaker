@@ -26,28 +26,12 @@
 {
   (void)notification;
   [self buildMenu];
-  [self performSelector:@selector (openUntitledDocumentIfNeeded) withObject:nil afterDelay:0.0];
-}
-
-- (void)openUntitledDocumentIfNeeded
-{
-  NSDocumentController *controller = [NSDocumentController sharedDocumentController];
-  if (!_receivedOpenRequest && [[controller documents] count] == 0)
-    {
-      NSError *error = nil;
-      NSDocument *document = [controller openUntitledDocumentAndDisplay:YES error:&error];
-      if (!document && error)
-        {
-          [controller presentError:error];
-        }
-    }
 }
 
 - (BOOL)openDocumentAtPath:(NSString *)path
 {
   if ([path length] == 0)
     return NO;
-  _receivedOpenRequest = YES;
   NSError *error = nil;
   NSDocumentController *controller = [NSDocumentController sharedDocumentController];
   NSDocument *document = [controller openDocumentWithContentsOfURL:[NSURL fileURLWithPath:path]
@@ -83,7 +67,8 @@
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender
 {
-  return YES;
+  (void)sender;
+  return NO;
 }
 
 - (void)applicationWillTerminate:(NSNotification *)notification
