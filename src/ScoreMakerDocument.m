@@ -132,6 +132,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (void)patchPresetChanged:(id)sender;
 - (void)reloadPatchPresetPopUpSelectingName:(NSString *)name;
 - (NSDictionary *)availableInternalSynthPatchLibrary;
+- (void)rebuildInstrumentPopUpSelectingCurrentSound;
+- (void)instrumentVoiceDidChange:(id)sender;
 - (void)saveInternalSynthPatchPreset:(id)sender;
 - (void)loadInternalSynthPatchPreset:(id)sender;
 - (void)editInternalSynthPatchEffects:(id)sender;
@@ -740,6 +742,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_noteValuePopUp release];
   [_partPopUp release];
   [_instrumentPopUp release];
+  [_instrumentVoicePopUp release];
   [_addPartButton release];
   [_separatePartsButton release];
   [_addNoteButton release];
@@ -1111,18 +1114,28 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [[self inspectorView] addSubview:_addNoteButton];
 
   NSTextField *instrumentLabel =
-    [self labelWithString:@"Part Instrument"
+    [self labelWithString:@"Instrument"
                     frame:NSMakeRect (InspectorPadding, frame.size.height - 362.0, 120.0, 18.0)];
   [instrumentLabel setAutoresizingMask:NSViewMinYMargin];
   [[self inspectorView] addSubview:instrumentLabel];
   _instrumentPopUp = [[NSPopUpButton alloc]
-    initWithFrame:NSMakeRect (InspectorPadding, frame.size.height - 392.0, 244.0, 26.0)
+    initWithFrame:NSMakeRect (InspectorPadding, frame.size.height - 392.0, 180.0, 26.0)
         pullsDown:NO];
-  [_instrumentPopUp addItemsWithTitles:[MidiParser generalMidiProgramNames]];
   [_instrumentPopUp setTarget:self];
   [_instrumentPopUp setAction:@selector (instrumentDidChange:)];
   [_instrumentPopUp setAutoresizingMask:NSViewMinYMargin];
   [[self inspectorView] addSubview:_instrumentPopUp];
+  _instrumentVoicePopUp = [[NSPopUpButton alloc]
+    initWithFrame:NSMakeRect (InspectorPadding + 184.0, frame.size.height - 392.0, 78.0, 26.0)
+        pullsDown:NO];
+  for (NSInteger voice = 1; voice <= 16; voice++)
+    [_instrumentVoicePopUp addItemWithTitle:[NSString stringWithFormat:@"V%ld", (long)voice]];
+  [_instrumentVoicePopUp setToolTip:@"Notation voice whose sound is being selected"];
+  [_instrumentVoicePopUp setTarget:self];
+  [_instrumentVoicePopUp setAction:@selector (instrumentVoiceDidChange:)];
+  [_instrumentVoicePopUp setAutoresizingMask:NSViewMinYMargin];
+  [[self inspectorView] addSubview:_instrumentVoicePopUp];
+  [self rebuildInstrumentPopUpSelectingCurrentSound];
 
   _separatePartsButton = [[NSButton alloc]
     initWithFrame:NSMakeRect (InspectorPadding + 132.0, frame.size.height - 364.0, 132.0, 20.0)];
@@ -1376,6 +1389,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_noteDurationField setEnabled:hasDocument];
   [_partPopUp setEnabled:hasDocument];
   [_instrumentPopUp setEnabled:hasDocument];
+  [_instrumentVoicePopUp setEnabled:hasDocument];
   [_addPartButton setEnabled:hasDocument];
   [_separatePartsButton setEnabled:hasDocument];
   [_noteTypePopUp setEnabled:hasDocument];
@@ -1494,8 +1508,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
           [_partPopUp selectItem:[_partPopUp lastItem]];
         }
     }
-  NSNumber *program = [document programForTrack:selectedPart];
-  [_instrumentPopUp selectItemAtIndex:program ? [program integerValue] : 0];
+  [self rebuildInstrumentPopUpSelectingCurrentSound];
   [_playbackMonitorView setSelectedTrack:selectedPart];
 
   if (selectedNote)
@@ -1594,7 +1607,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
           break;
         }
     }
-  [_instrumentPopUp selectItemAtIndex:0];
+  [self rebuildInstrumentPopUpSelectingCurrentSound];
   [self commitUndoBaseline];
 }
 
@@ -1602,8 +1615,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 {
   (void)sender;
   NSInteger part = [self selectedPartNumber];
-  NSNumber *program = [[self scoreDocument] programForTrack:part];
-  [_instrumentPopUp selectItemAtIndex:program ? [program integerValue] : 0];
+  [self rebuildInstrumentPopUpSelectingCurrentSound];
   [_playbackMonitorView setSelectedTrack:part];
   for (ScorePartDefinition *definition in [[self scoreDocument] parts])
     if ([definition legacyTrack] == part)
@@ -1637,12 +1649,61 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   ScoreDocument *document = [self scoreDocument];
   if (!document)
     return;
+  NSDictionary *selection = [[_instrumentPopUp selectedItem] representedObject];
+  NSString *kind = [selection objectForKey:@"kind"];
+  if ([kind isEqualToString:@"audio-unit"])
+    {
+      [self chooseAudioUnitInstrument:self];
+      [self rebuildInstrumentPopUpSelectingCurrentSound];
+      return;
+    }
+  if ([kind isEqualToString:@"custom"] || !kind)
+    return;
   [self registerUndoSnapshotWithName:@"Change Instrument"];
-  [document setProgram:[NSNumber numberWithInteger:[_instrumentPopUp indexOfSelectedItem]]
-              forTrack:[self selectedPartNumber]];
+  ScorePartDefinition *part = [self selectedStructuredPartCreatingIfNeeded:YES];
+  if ([kind isEqualToString:@"gm"])
+    {
+      [document setProgram:[selection objectForKey:@"program"] forTrack:[self selectedPartNumber]];
+      [[part instrument] setBackendIdentifier:@"general-midi"];
+    }
+  else if ([kind isEqualToString:@"synth"])
+    {
+      NSString *name = [selection objectForKey:@"name"];
+      NSDictionary *patch = [[self availableInternalSynthPatchLibrary] objectForKey:name];
+      NSInteger voice = [self selectedPatchVoice];
+      [_realtimeDSP useInternalSynthesizer];
+      [_realtimeDSP configureInternalSynthPatch:patch forVoice:voice error:NULL];
+      NSMutableDictionary *parameters = [NSMutableDictionary
+        dictionaryWithDictionary:[[part instrument] parameters] ?: [NSDictionary dictionary]];
+      NSMutableDictionary *patches = [NSMutableDictionary
+        dictionaryWithDictionary:[parameters objectForKey:@"internalSynthPatches"]
+                                   ?: [NSDictionary dictionary]];
+      NSDictionary *normalized = [_realtimeDSP internalSynthPatchForVoice:voice];
+      [patches setObject:normalized forKey:[NSString stringWithFormat:@"%ld", (long)voice]];
+      [parameters setObject:patches forKey:@"internalSynthPatches"];
+      if (voice == 1)
+        [parameters setObject:normalized forKey:@"internalSynthPatch"];
+      [[part instrument] setParameters:parameters];
+      [[part instrument] setBackendIdentifier:@"scoremaker-internal-synth"];
+      _audioUnitPartTrack = -1;
+      _useRealtimeDSP = YES;
+      if (_patchEditorWindow)
+        [self loadPatchEditorControls];
+    }
   [_playbackMonitorView setNeedsDisplay:YES];
   [self updateChangeCount:NSChangeDone];
   [self commitUndoBaseline];
+  [self rebuildInstrumentPopUpSelectingCurrentSound];
+}
+
+- (void)instrumentVoiceDidChange:(id)sender
+{
+  (void)sender;
+  if (_patchVoicePopUp)
+    [_patchVoicePopUp selectItemAtIndex:[_instrumentVoicePopUp indexOfSelectedItem]];
+  if (_patchEditorWindow)
+    [self loadPatchEditorControls];
+  [self rebuildInstrumentPopUpSelectingCurrentSound];
 }
 
 - (BOOL)isSupportedTimeSignatureDenominator:(NSUInteger)denominator
@@ -2788,6 +2849,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 
 - (NSInteger)selectedPatchVoice
 {
+  if (_instrumentVoicePopUp)
+    return MAX ((NSInteger)1, [_instrumentVoicePopUp indexOfSelectedItem] + 1);
   return _patchVoicePopUp ? MAX ((NSInteger)1, [_patchVoicePopUp indexOfSelectedItem] + 1) : 1;
 }
 
@@ -2859,6 +2922,73 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   return library;
 }
 
+- (void)rebuildInstrumentPopUpSelectingCurrentSound
+{
+  if (!_instrumentPopUp)
+    return;
+  [_instrumentPopUp removeAllItems];
+  [_instrumentPopUp addItemWithTitle:@"General MIDI"];
+  [[_instrumentPopUp lastItem] setEnabled:NO];
+  NSArray *programNames = [MidiParser generalMidiProgramNames];
+  for (NSUInteger program = 0; program < [programNames count]; program++)
+    {
+      [_instrumentPopUp addItemWithTitle:[programNames objectAtIndex:program]];
+      [[_instrumentPopUp lastItem]
+        setRepresentedObject:@{ @"kind" : @"gm", @"program" : [NSNumber numberWithUnsignedInteger:program] }];
+    }
+  [[_instrumentPopUp menu] addItem:[NSMenuItem separatorItem]];
+  [_instrumentPopUp addItemWithTitle:@"ScoreMaker Synth"];
+  [[_instrumentPopUp lastItem] setEnabled:NO];
+  NSDictionary *library = [self availableInternalSynthPatchLibrary];
+  NSArray *patchNames = [[library allKeys]
+    sortedArrayUsingSelector:@selector (localizedCaseInsensitiveCompare:)];
+  for (NSString *name in patchNames)
+    {
+      NSDictionary *patch = [library objectForKey:name];
+      NSString *category = [patch objectForKey:@"category"] ?: @"Uncategorized";
+      [_instrumentPopUp addItemWithTitle:[NSString stringWithFormat:@"%@ — %@", category, name]];
+      [[_instrumentPopUp lastItem] setRepresentedObject:@{ @"kind" : @"synth", @"name" : name }];
+    }
+  [[_instrumentPopUp menu] addItem:[NSMenuItem separatorItem]];
+  [_instrumentPopUp addItemWithTitle:@"Choose Audio Unit..."];
+  [[_instrumentPopUp lastItem] setRepresentedObject:@{ @"kind" : @"audio-unit" }];
+
+  ScorePartDefinition *part = [self selectedStructuredPartCreatingIfNeeded:NO];
+  NSString *backend = [[part instrument] backendIdentifier];
+  NSInteger voice = [self selectedPatchVoice];
+  NSString *patchName = [[self patchForPart:part voice:voice] objectForKey:@"name"];
+  NSNumber *program = [[self scoreDocument] programForTrack:[self selectedPartNumber]];
+  NSMenuItem *selection = nil;
+  for (NSMenuItem *item in [_instrumentPopUp itemArray])
+    {
+      NSDictionary *represented = [item representedObject];
+      NSString *kind = [represented objectForKey:@"kind"];
+      if ([backend isEqualToString:@"scoremaker-internal-synth"]
+          && [kind isEqualToString:@"synth"]
+          && [[represented objectForKey:@"name"] isEqualToString:patchName])
+        selection = item;
+      else if (![backend isEqualToString:@"scoremaker-internal-synth"]
+               && ![backend hasPrefix:@"audio-unit:"] && [kind isEqualToString:@"gm"]
+               && [[represented objectForKey:@"program"] integerValue] == [program integerValue])
+        selection = item;
+    }
+  if (selection)
+    [_instrumentPopUp selectItem:selection];
+  else if ([backend isEqualToString:@"scoremaker-internal-synth"])
+    {
+      NSInteger synthHeaderIndex = [_instrumentPopUp indexOfItemWithTitle:@"ScoreMaker Synth"];
+      NSInteger customIndex = synthHeaderIndex == -1 ? 0 : synthHeaderIndex + 1;
+      [_instrumentPopUp insertItemWithTitle:@"Custom Synth Patch" atIndex:customIndex];
+      NSMenuItem *custom = [_instrumentPopUp itemAtIndex:customIndex];
+      [custom setRepresentedObject:@{ @"kind" : @"custom" }];
+      [_instrumentPopUp selectItem:custom];
+    }
+  else if ([backend hasPrefix:@"audio-unit:"])
+    [_instrumentPopUp selectItemWithTitle:@"Choose Audio Unit..."];
+  else if ([_instrumentPopUp numberOfItems] > 1)
+    [_instrumentPopUp selectItemAtIndex:1];
+}
+
 - (void)showInternalSynthPatchEditor:(id)sender
 {
   (void)sender;
@@ -2904,6 +3034,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
                                                     pullsDown:NO];
       for (NSInteger voice = 1; voice <= 16; voice++)
         [_patchVoicePopUp addItemWithTitle:[NSString stringWithFormat:@"Voice %ld", (long)voice]];
+      if (_instrumentVoicePopUp)
+        [_patchVoicePopUp selectItemAtIndex:[_instrumentVoicePopUp indexOfSelectedItem]];
       [_patchVoicePopUp setTarget:self];
       [_patchVoicePopUp setAction:@selector (patchVoiceChanged:)];
       [content addSubview:_patchVoicePopUp];
@@ -3088,12 +3220,16 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _useRealtimeDSP = YES;
   [self updateChangeCount:NSChangeDone];
   [self commitUndoBaseline];
+  [self rebuildInstrumentPopUpSelectingCurrentSound];
 }
 
 - (void)patchVoiceChanged:(id)sender
 {
   (void)sender;
+  if (_instrumentVoicePopUp)
+    [_instrumentVoicePopUp selectItemAtIndex:[_patchVoicePopUp indexOfSelectedItem]];
   [self loadPatchEditorControls];
+  [self rebuildInstrumentPopUpSelectingCurrentSound];
 }
 
 - (void)patchPresetChanged:(id)sender
@@ -3658,6 +3794,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
                          break;
                        }
                    [self updateChangeCount:NSChangeDone];
+                   [self rebuildInstrumentPopUpSelectingCurrentSound];
                  }];
 #else
   NSError *error =

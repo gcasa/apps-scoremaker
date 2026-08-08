@@ -48,6 +48,7 @@
   NSPopUpButton *_noteValuePopUp;
   NSPopUpButton *_partPopUp;
   NSPopUpButton *_instrumentPopUp;
+  NSPopUpButton *_instrumentVoicePopUp;
   NSButton *_addPartButton;
   NSButton *_separatePartsButton;
   NSButton *_addNoteButton;

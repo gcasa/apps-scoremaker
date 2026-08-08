@@ -90,6 +90,8 @@ Choose **Score > Internal Synth Patch Editor...** to design the internal sound f
 
 Use **Browse Patches...** to explore the 24 bundled factory sounds and saved user sounds by Lead, Bass, Pad, Pluck, Keys, Effects, or Uncategorized. The browser shows each patch's description, auditions a short velocity-sensitive phrase without changing the score, and assigns the chosen patch to the editor's selected score voice only when **Use Patch** is pressed. Factory patches are always available; saving under the same name creates a user override without modifying the built-in library.
 
+The inspector's **Instrument** menu provides the fast sound-selection path. Its adjacent **V1–V16** selector chooses the notation voice, and the grouped menu offers General MIDI programs, complete ScoreMaker Synth patches, and Audio Unit selection. Choosing a synth entry assigns its oscillator, envelopes, modulation, and effects together; the patch editor remains the detailed sound-design interface.
+
 To rehearse or inspect a passage repeatedly, select its first note, Shift-click its last note, enable **Score > Loop Selection**, and start playback. The inclusive loop range is tinted on the score and may span systems.
 
 Choose `File > Print...` to print the complete rendered score.
