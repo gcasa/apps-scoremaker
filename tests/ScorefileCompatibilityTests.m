@@ -146,6 +146,15 @@ main (void)
   [persistentInstrument setBackendIdentifier:@"audio-unit:1635085685:1935764848:1634758764"];
   NSData *pluginState = [@"opaque plugin state" dataUsingEncoding:NSUTF8StringEncoding];
   [[persistentInstrument parameters] setObject:pluginState forKey:@"stateData"];
+  NSDictionary *savedPatch = @{ @"waveform" : @"Saw",
+                                @"attack" : @0.03,
+                                @"decay" : @0.2,
+                                @"sustain" : @0.65,
+                                @"release" : @0.4,
+                                @"lfoRate" : @5.5,
+                                @"lfoDepth" : @0.25,
+                                @"lfoDelay" : @0.1 };
+  [[persistentInstrument parameters] setObject:savedPatch forKey:@"internalSynthPatch"];
   NSData *projectData = [ScoreProjectSerializer dataForDocument:platform error:&platformError];
   ScoreDocument *projectRoundTrip = [ScoreProjectSerializer documentFromData:projectData
                                                                        error:&platformError];
@@ -156,6 +165,9 @@ main (void)
       isEqualToString:@"audio-unit:1635085685:1935764848:1634758764"]
       && [[[restoredInstrument parameters] objectForKey:@"stateData"] isEqualToData:pluginState],
     @"native project persistence lost Audio Unit identity or opaque state");
+  Require ([[[restoredInstrument parameters] objectForKey:@"internalSynthPatch"]
+             isEqualToDictionary:savedPatch],
+           @"native project persistence lost the internal synthesizer patch");
   NSDictionary *componentIdentity = @{
     @"type" : @1635085685,
     @"subtype" : @1935764848,
@@ -203,6 +215,10 @@ main (void)
            @"large-score scheduler lost events under stress");
 
   ScoreRealtimeDSP *offlineDSP = [[[ScoreRealtimeDSP alloc] init] autorelease];
+  Require ([offlineDSP configureInternalSynthPatch:savedPatch error:&platformError]
+             && [[[[offlineDSP internalSynthPatch] objectForKey:@"waveform"] description]
+                   isEqualToString:@"Saw"],
+           @"internal oscillator, envelope, or LFO patch configuration failed");
   NSArray *effects = @[
     @{ @"type" : @"gain", @"decibels" : @-3.0 },
     @{ @"type" : @"lowpass", @"cutoff" : @8000.0 },

@@ -101,6 +101,11 @@
   NSInteger _audioUnitPartTrack;
   NSWindow *_audioUnitEditorWindow;
   NSMutableDictionary *_audioUnitParameterAddresses;
+  NSWindow *_patchEditorWindow;
+  NSPopUpButton *_patchWaveformPopUp;
+  NSMutableDictionary *_patchControls;
+  NSMutableDictionary *_patchValueLabels;
+  NSView *_patchEnvelopeView;
 #if defined(__APPLE__)
   MIDIEndpointRef _midiOutputEndpoint;
   NSString *_midiOutputName;
@@ -138,6 +143,7 @@
 - (void)chooseMIDIOutput:(id)sender;
 - (void)toggleRealtimeDSP:(id)sender;
 - (void)chooseAudioUnitInstrument:(id)sender;
+- (void)showInternalSynthPatchEditor:(id)sender;
 - (void)showAudioUnitEditor:(id)sender;
 - (void)manageAudioUnitPresets:(id)sender;
 - (void)relinkAudioUnitInstrument:(id)sender;

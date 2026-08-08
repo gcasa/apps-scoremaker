@@ -269,6 +269,9 @@
                                              keyEquivalent:@""] autorelease];
   [dspItem setTarget:nil];
   [scoreMenu addItem:dspItem];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Internal Synth Patch Editor..."
+                                                 action:@selector (showInternalSynthPatchEditor:)
+                                          keyEquivalent:@""] autorelease]];
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Choose Audio Unit Instrument..."
                                                  action:@selector (chooseAudioUnitInstrument:)
                                           keyEquivalent:@""] autorelease]];

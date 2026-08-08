@@ -29,11 +29,27 @@ typedef struct
 {
   int pitch;
   double phase;
-  float level;
+  double lfoPhase;
+  uint64_t ageFrames;
+  float envelopeLevel;
+  float releaseRate;
   float velocity;
+  int envelopeStage;
   BOOL active;
   BOOL releasing;
 } ScoreDSPVoice;
+
+typedef struct
+{
+  int waveform;
+  float attack;
+  float decay;
+  float sustain;
+  float release;
+  float lfoRate;
+  float lfoDepth;
+  float lfoDelay;
+} ScoreDSPPatch;
 typedef struct
 {
   ScoreDSPVoice voices[SCORE_DSP_VOICES];
@@ -65,7 +81,48 @@ typedef struct
   float *reverbLeft;
   float *reverbRight;
   NSUInteger reverbCapacity;
+  _Atomic(int) patchWaveform;
+  _Atomic(float) patchAttack;
+  _Atomic(float) patchDecay;
+  _Atomic(float) patchSustain;
+  _Atomic(float) patchRelease;
+  _Atomic(float) patchLFORate;
+  _Atomic(float) patchLFODepth;
+  _Atomic(float) patchLFODelay;
 } ScoreDSPState;
+
+static ScoreDSPPatch
+ScoreDSPLoadPatch (ScoreDSPState *state)
+{
+  return (ScoreDSPPatch){ atomic_load_explicit (&state->patchWaveform, memory_order_acquire),
+                          atomic_load_explicit (&state->patchAttack, memory_order_acquire),
+                          atomic_load_explicit (&state->patchDecay, memory_order_acquire),
+                          atomic_load_explicit (&state->patchSustain, memory_order_acquire),
+                          atomic_load_explicit (&state->patchRelease, memory_order_acquire),
+                          atomic_load_explicit (&state->patchLFORate, memory_order_acquire),
+                          atomic_load_explicit (&state->patchLFODepth, memory_order_acquire),
+                          atomic_load_explicit (&state->patchLFODelay, memory_order_acquire) };
+}
+
+static void
+ScoreDSPStorePatch (ScoreDSPState *state, ScoreDSPPatch patch)
+{
+  atomic_store_explicit (&state->patchWaveform, patch.waveform, memory_order_release);
+  atomic_store_explicit (&state->patchAttack, patch.attack, memory_order_release);
+  atomic_store_explicit (&state->patchDecay, patch.decay, memory_order_release);
+  atomic_store_explicit (&state->patchSustain, patch.sustain, memory_order_release);
+  atomic_store_explicit (&state->patchRelease, patch.release, memory_order_release);
+  atomic_store_explicit (&state->patchLFORate, patch.lfoRate, memory_order_release);
+  atomic_store_explicit (&state->patchLFODepth, patch.lfoDepth, memory_order_release);
+  atomic_store_explicit (&state->patchLFODelay, patch.lfoDelay, memory_order_release);
+}
+
+static float
+ScoreDSPPatchFloat (NSDictionary *patch, NSDictionary *defaults, NSString *key)
+{
+  NSNumber *value = [patch objectForKey:key] ?: [defaults objectForKey:key];
+  return [value floatValue];
+}
 
 static void
 ScoreDSPInitializeEffects (ScoreDSPState *state, double sampleRate)
@@ -80,6 +137,16 @@ ScoreDSPInitializeEffects (ScoreDSPState *state, double sampleRate)
   state->delayRight = calloc (state->delayCapacity, sizeof (float));
   state->reverbLeft = calloc (state->reverbCapacity, sizeof (float));
   state->reverbRight = calloc (state->reverbCapacity, sizeof (float));
+  atomic_init (&state->patchWaveform, 0);
+  atomic_init (&state->patchAttack, 0.01f);
+  atomic_init (&state->patchDecay, 0.12f);
+  atomic_init (&state->patchSustain, 0.78f);
+  atomic_init (&state->patchRelease, 0.28f);
+  atomic_init (&state->patchLFORate, 5.0f);
+  atomic_init (&state->patchLFODepth, 0.0f);
+  atomic_init (&state->patchLFODelay, 0.0f);
+  ScoreDSPStorePatch (state, (ScoreDSPPatch){ 0, 0.01f, 0.12f, 0.78f, 0.28f, 5.0f, 0.0f,
+                                              0.0f });
 }
 
 static void
@@ -169,7 +236,16 @@ ScoreDSPApplyEvent (ScoreDSPState *s, ScoreDSPEvent e)
           }
       if (!v)
         v = &s->voices[0];
-      *v = (ScoreDSPVoice){ e.pitch, 0, 0, e.velocity, YES, NO };
+      *v = (ScoreDSPVoice){ .pitch = e.pitch,
+                            .phase = 0,
+                            .lfoPhase = 0,
+                            .ageFrames = 0,
+                            .envelopeLevel = 0,
+                            .releaseRate = 0,
+                            .velocity = e.velocity,
+                            .envelopeStage = 0,
+                            .active = YES,
+                            .releasing = NO };
     }
   else
     for (int i = 0; i < SCORE_DSP_VOICES; i++)
@@ -193,6 +269,7 @@ static void
 ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
 {
   ScoreDSPApplyImmediateEvents (s);
+  ScoreDSPPatch patch = ScoreDSPLoadPatch (s);
   for (NSUInteger f = 0; f < frames; f++)
     {
       while (s->scheduledEventIndex < s->scheduledEventCount
@@ -204,19 +281,69 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
           ScoreDSPVoice *v = &s->voices[i];
           if (!v->active)
             continue;
-          float target = v->releasing ? 0.0f : v->velocity;
-          float rate = v->releasing ? 0.0008f : 0.0025f;
-          v->level += (target - v->level) * rate;
-          if (v->releasing && v->level < 0.0001f)
+          if (v->releasing)
             {
-              v->active = NO;
-              continue;
+              if (v->releaseRate <= 0.0f)
+                v->releaseRate = patch.release > 0.0001f
+                                   ? v->envelopeLevel / (patch.release * (float)s->sampleRate)
+                                   : v->envelopeLevel;
+              v->envelopeLevel -= v->releaseRate;
+              if (v->envelopeLevel <= 0.0001f)
+                {
+                  v->active = NO;
+                  continue;
+                }
+            }
+          else if (v->envelopeStage == 0)
+            {
+              v->envelopeLevel += patch.attack > 0.0001f
+                                    ? 1.0f / (patch.attack * (float)s->sampleRate)
+                                    : 1.0f;
+              if (v->envelopeLevel >= 1.0f)
+                {
+                  v->envelopeLevel = 1.0f;
+                  v->envelopeStage = 1;
+                }
+            }
+          else if (v->envelopeStage == 1)
+            {
+              v->envelopeLevel -= patch.decay > 0.0001f
+                                    ? (1.0f - patch.sustain)
+                                        / (patch.decay * (float)s->sampleRate)
+                                    : 1.0f;
+              if (v->envelopeLevel <= patch.sustain)
+                {
+                  v->envelopeLevel = patch.sustain;
+                  v->envelopeStage = 2;
+                }
             }
           double hz = 440.0 * pow (2.0, (v->pitch - 69) / 12.0);
-          mix += sin (v->phase) * v->level;
+          if ((double)v->ageFrames / s->sampleRate >= patch.lfoDelay && patch.lfoDepth != 0.0f)
+            hz *= pow (2.0, sin (v->lfoPhase) * patch.lfoDepth / 12.0);
+          double oscillator = 0.0;
+          switch (patch.waveform)
+            {
+            case 1:
+              oscillator = (2.0 / M_PI) * asin (sin (v->phase));
+              break;
+            case 2:
+              oscillator = v->phase / M_PI - 1.0;
+              break;
+            case 3:
+              oscillator = v->phase < M_PI ? 1.0 : -1.0;
+              break;
+            default:
+              oscillator = sin (v->phase);
+              break;
+            }
+          mix += oscillator * v->envelopeLevel * v->velocity;
           v->phase += 2.0 * M_PI * hz / s->sampleRate;
           if (v->phase >= 2.0 * M_PI)
             v->phase -= 2.0 * M_PI;
+          v->lfoPhase += 2.0 * M_PI * patch.lfoRate / s->sampleRate;
+          if (v->lfoPhase >= 2.0 * M_PI)
+            v->lfoPhase -= 2.0 * M_PI;
+          v->ageFrames++;
         }
       float sample = (float)(mix * 0.22);
       left[f] = sample;
@@ -245,6 +372,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   NSMutableArray *_engineEffectNodes;
 #endif
   NSArray *_effectConfiguration;
+  NSDictionary *_internalSynthPatch;
   BOOL _running;
 }
 + (NSArray *)availableAudioUnitInstruments
@@ -346,6 +474,17 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
     @{ @"identifier" : @"reverb", @"name" : @"Reverb" }
   ];
 }
++ (NSDictionary *)defaultInternalSynthPatch
+{
+  return @{ @"waveform" : @"Sine",
+            @"attack" : @0.01,
+            @"decay" : @0.12,
+            @"sustain" : @0.78,
+            @"release" : @0.28,
+            @"lfoRate" : @5.0,
+            @"lfoDepth" : @0.0,
+            @"lfoDelay" : @0.0 };
+}
 + (NSArray *)relinkCandidatesForAudioUnit:(NSDictionary *)description
 {
   NSMutableArray *candidates = [NSMutableArray array];
@@ -446,6 +585,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
       _dsp = calloc (1, sizeof (*_dsp));
       ScoreDSPInitializeEffects (_dsp, 48000.0);
       _effectConfiguration = [[NSArray alloc] init];
+      _internalSynthPatch = [[[self class] defaultInternalSynthPatch] copy];
     }
   return self;
 }
@@ -961,6 +1101,47 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
 {
   return _effectConfiguration;
 }
+- (NSDictionary *)internalSynthPatch
+{
+  return _internalSynthPatch;
+}
+- (BOOL)configureInternalSynthPatch:(NSDictionary *)patch error:(NSError **)error
+{
+  NSDictionary *defaults = [[self class] defaultInternalSynthPatch];
+  NSString *waveform = [patch objectForKey:@"waveform"] ?: [defaults objectForKey:@"waveform"];
+  NSArray *waveforms = @[ @"Sine", @"Triangle", @"Saw", @"Square" ];
+  NSUInteger waveformIndex = [waveforms indexOfObject:waveform];
+  if (waveformIndex == NSNotFound)
+    {
+      if (error)
+        *error = [NSError errorWithDomain:@"ScoreMakerDSP"
+                                     code:12
+                                 userInfo:@{
+                                   NSLocalizedDescriptionKey : @"The oscillator waveform is invalid."
+                                 }];
+      return NO;
+    }
+  float attack = MAX (0.0f, MIN (10.0f, ScoreDSPPatchFloat (patch, defaults, @"attack")));
+  float decay = MAX (0.0f, MIN (10.0f, ScoreDSPPatchFloat (patch, defaults, @"decay")));
+  float sustain = MAX (0.0f, MIN (1.0f, ScoreDSPPatchFloat (patch, defaults, @"sustain")));
+  float release = MAX (0.0f, MIN (20.0f, ScoreDSPPatchFloat (patch, defaults, @"release")));
+  float lfoRate = MAX (0.01f, MIN (40.0f, ScoreDSPPatchFloat (patch, defaults, @"lfoRate")));
+  float lfoDepth = MAX (0.0f, MIN (12.0f, ScoreDSPPatchFloat (patch, defaults, @"lfoDepth")));
+  float lfoDelay = MAX (0.0f, MIN (10.0f, ScoreDSPPatchFloat (patch, defaults, @"lfoDelay")));
+  NSDictionary *normalized = @{ @"waveform" : waveform,
+                                @"attack" : [NSNumber numberWithFloat:attack],
+                                @"decay" : [NSNumber numberWithFloat:decay],
+                                @"sustain" : [NSNumber numberWithFloat:sustain],
+                                @"release" : [NSNumber numberWithFloat:release],
+                                @"lfoRate" : [NSNumber numberWithFloat:lfoRate],
+                                @"lfoDepth" : [NSNumber numberWithFloat:lfoDepth],
+                                @"lfoDelay" : [NSNumber numberWithFloat:lfoDelay] };
+  [_internalSynthPatch release];
+  _internalSynthPatch = [normalized copy];
+  ScoreDSPStorePatch (_dsp, (ScoreDSPPatch){ (int)waveformIndex, attack, decay, sustain, release,
+                                             lfoRate, lfoDepth, lfoDelay });
+  return YES;
+}
 - (void)stop
 {
 #if defined(__APPLE__)
@@ -1108,6 +1289,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
     return NO;
   ScoreDSPState state = { 0 };
   ScoreDSPInitializeEffects (&state, sampleRate);
+  ScoreDSPStorePatch (&state, ScoreDSPLoadPatch (_dsp));
   state.gain = _dsp->gain;
   state.lowpassCoefficient = _dsp->lowpassCoefficient;
   state.compressorThreshold = _dsp->compressorThreshold;
@@ -1187,6 +1369,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   [_instrumentDescription release];
 #endif
   [_effectConfiguration release];
+  [_internalSynthPatch release];
   free (_dsp->scheduledEvents);
   ScoreDSPDisposeEffects (_dsp);
   free (_dsp);

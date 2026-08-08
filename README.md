@@ -26,6 +26,8 @@ The renderer is intentionally lightweight. It focuses on extracting timing, pitc
   missing-unit relinking, substitution tracking, validation timeouts, recovery, and blacklisting.
 - Apply persistent per-part gain, low-pass, compressor, delay, and reverb chains during real-time
   internal synthesis and offline rendering; compatible native effects also process Audio Unit output.
+- Create per-part internal synthesizer patches in a dedicated editor, with sine, triangle, saw, and
+  square oscillators, an ADSR amplitude envelope, and a delayed pitch LFO.
 - Run opt-in compatibility validation for every installed Audio Unit instrument with
   `make test-plugins`; results are written to `build/tests/audio-unit-compatibility.json`.
 
@@ -81,6 +83,8 @@ The input menu updates when MIDI devices are connected or removed. **Selected Pa
 
 Choose `Score > Play` or the Play button in the inspector to hear the current score. ScoreMaker sends the generated MIDI data directly to AVFoundation, using the platform AVFoundation implementation on macOS or GNUstep.
 
+Choose **Score > Internal Synth Patch Editor...** to design the internal sound for the selected part. The editor provides oscillator selection, ADSR envelope controls, pitch-LFO rate, depth, and delay, plus a middle-C preview. Changing a control selects the internal synthesizer for that part. Patch settings are preserved in ScoreMaker project files.
+
 To rehearse or inspect a passage repeatedly, select its first note, Shift-click its last note, enable **Score > Loop Selection**, and start playback. The inclusive loop range is tinted on the score and may span systems.
 
 Choose `File > Print...` to print the complete rendered score.
@@ -108,7 +112,7 @@ build/macos/ScoreMaker.app/Contents/MacOS/ScoreMaker path/to/song.score
 
 ## Limitations
 
-ScoreMaker maps common MusicKit-style instrument declarations to General MIDI programs for playback, but it does not emulate MusicKit synthesis engines, envelopes, wave tables, or DSP patch settings. When saving `.score` files, it writes the renderable note data and track program mappings from the current document rather than preserving every original source statement or comment.
+ScoreMaker maps common MusicKit-style instrument declarations to General MIDI programs for playback. Its internal patch editor supplies its own oscillator, envelope, and LFO model, but does not emulate arbitrary MusicKit synthesis engines, wave tables, or source DSP patches. When saving `.score` files, it writes the renderable note data and track program mappings from the current document rather than preserving every original source statement or comment; internal patch settings are stored in ScoreMaker project files.
 
 ScoreMaker keeps `.score` note statements compatible with MusicKit-style readers. Voice assignments and explicit measure structure are stored in an additional `ScoreMaker Structure V2` JSON metadata comment; older readers can ignore that comment and continue reading pitches, timing, parts, and programs. Files without V2 structure metadata open as voice 1 with measures derived from their time signature.
 
