@@ -93,6 +93,7 @@
   NSTimeInterval _playbackStartTime;
   NSTimeInterval _playbackPausedElapsed;
   BOOL _playbackPaused;
+  BOOL _loopSelectionEnabled;
   BOOL _updatingInspector;
   ScoreRealtimeDSP *_realtimeDSP;
   BOOL _useRealtimeDSP;
@@ -129,6 +130,7 @@
 - (void)stopPlayback:(id)sender;
 - (void)pausePlayback:(id)sender;
 - (void)playScore:(id)sender;
+- (void)toggleLoopSelection:(id)sender;
 - (void)printDocument:(id)sender;
 - (void)editScoreTitle:(id)sender;
 - (void)chooseTitleFont:(id)sender;

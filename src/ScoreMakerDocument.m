@@ -2014,6 +2014,21 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   ScoreScheduler *scheduler = [[[ScoreScheduler alloc] initWithDocument:document] autorelease];
   NSUInteger tick = [scheduler tickForTime:elapsed];
 
+  if (_loopSelectionEnabled && [[self scoreView] hasLoopSelection]
+      && tick >= [[self scoreView] loopEndTick])
+    {
+      NSUInteger loopStart = [[self scoreView] loopStartTick];
+      if (![self restartPlaybackAtTick:loopStart])
+        {
+          [self stopCurrentPlayback];
+          return;
+        }
+      [[self scoreView] setPlaybackTick:loopStart];
+      [[self scoreView] scrollPlaybackTickToVisible:loopStart];
+      [_playbackMonitorView setPlaybackTick:loopStart];
+      return;
+    }
+
   if (tick >= [document totalTicks])
     {
       [_playbackTimer invalidate];
@@ -2190,7 +2205,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 
   [self syncInspectorMetadataMarkingChange:NO];
   ScoreNote *selectedNote = [[self scoreView] selectedNote];
-  NSUInteger startTick = selectedNote ? [selectedNote startTick] : 0;
+  NSUInteger startTick = _loopSelectionEnabled && [[self scoreView] hasLoopSelection]
+                           ? [[self scoreView] loopStartTick]
+                           : (selectedNote ? [selectedNote startTick] : 0);
 
   if (startTick > 0)
     {
@@ -2225,6 +2242,21 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       return;
     }
   [self startPlaybackHighlight];
+}
+
+- (void)toggleLoopSelection:(id)sender
+{
+  if (![[self scoreView] hasLoopSelection])
+    {
+      NSBeep ();
+      _loopSelectionEnabled = NO;
+    }
+  else
+    {
+      _loopSelectionEnabled = !_loopSelectionEnabled;
+    }
+  if ([sender respondsToSelector:@selector (setState:)])
+    [sender setState:_loopSelectionEnabled ? NSOnState : NSOffState];
 }
 
 - (BOOL)pitchString:(NSString *)string toMidiPitch:(NSInteger *)pitch
@@ -2502,6 +2534,12 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 {
   if ([menuItem action] == @selector (toggleRealtimeDSP:))
     [menuItem setState:_useRealtimeDSP ? NSOnState : NSOffState];
+  if ([menuItem action] == @selector (toggleLoopSelection:))
+    {
+      BOOL hasSelection = [[self scoreView] hasLoopSelection];
+      [menuItem setState:_loopSelectionEnabled && hasSelection ? NSOnState : NSOffState];
+      return hasSelection;
+    }
   return YES;
 }
 

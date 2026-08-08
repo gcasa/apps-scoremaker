@@ -257,6 +257,10 @@
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Stop"
                                                  action:@selector (stopPlayback:)
                                           keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Loop Selection"
+                                                 action:@selector (toggleLoopSelection:)
+                                          keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[NSMenuItem separatorItem]];
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"MIDI Output..."
                                                  action:@selector (chooseMIDIOutput:)
                                           keyEquivalent:@""] autorelease]];
