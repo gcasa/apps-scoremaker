@@ -20,6 +20,10 @@
 #import <Foundation/Foundation.h>
 #import "ScoreModel.h"
 
+extern NSString *const ScorefileErrorRangeKey;
+extern NSString *const ScorefileErrorLineKey;
+extern NSString *const ScorefileErrorColumnKey;
+
 @interface ScorefileParser : NSObject
 + (ScoreDocument *)parseFileAtPath:(NSString *)path error:(NSError **)error;
 + (ScoreDocument *)parseString:(NSString *)source

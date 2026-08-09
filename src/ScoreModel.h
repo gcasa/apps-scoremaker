@@ -24,6 +24,7 @@
 @class ScoreMIDIRoute;
 @class ScoreSynthesisGraph;
 @class ScoreCompositionProgram;
+@class ScoreDocument;
 
 @interface ScoreNote : NSObject <NSCopying>
 {
@@ -97,6 +98,7 @@
   NSUInteger _timeSignatureDenominator;
   BOOL _implicit;
   NSInteger _keySignatureFifths;
+  NSString *_keyMode;
   BOOL _repeatStart;
   BOOL _repeatEnd;
 }
@@ -114,11 +116,20 @@
 - (void)setImplicit:(BOOL)implicit;
 - (NSInteger)keySignatureFifths;
 - (void)setKeySignatureFifths:(NSInteger)value;
+- (NSString *)keyMode;
+- (void)setKeyMode:(NSString *)value;
 - (BOOL)repeatStart;
 - (void)setRepeatStart:(BOOL)value;
 - (BOOL)repeatEnd;
 - (void)setRepeatEnd:(BOOL)value;
 @end
+
+FOUNDATION_EXPORT NSInteger ScoreKeySignatureAlterationForStep (NSInteger fifths,
+                                                                 NSInteger diatonicStep);
+/* Returns -1 (flat), 0 (natural), 1 (sharp), or NSIntegerMax when no glyph is needed. */
+FOUNDATION_EXPORT NSInteger ScoreDisplayedAccidentalForNote (ScoreNote *note,
+                                                              ScoreDocument *document);
+FOUNDATION_EXPORT NSDictionary *ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document);
 
 @interface ScoreDocument : NSObject <NSCopying>
 {

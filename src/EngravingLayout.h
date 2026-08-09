@@ -44,6 +44,10 @@
 @end
 
 @interface ScoreEngraver : NSObject
+{
+  NSDictionary *_displayedAccidentals;
+  ScoreDocument *_accidentalDocument;
+}
 - (CGFloat)widthForMeasure:(ScoreMeasure *)measure
                   document:(ScoreDocument *)document
                    minimum:(CGFloat)minimum;

@@ -68,10 +68,26 @@
 @end
 
 @implementation ScoreEngraver
+- (void)dealloc
+{
+  [_displayedAccidentals release];
+  [_accidentalDocument release];
+  [super dealloc];
+}
+- (void)prepareAccidentalsForDocument:(ScoreDocument *)document
+{
+  if (_accidentalDocument == document && _displayedAccidentals)
+    return;
+  [_accidentalDocument release];
+  _accidentalDocument = [document retain];
+  [_displayedAccidentals release];
+  _displayedAccidentals = [ScoreDisplayedAccidentalMapForDocument (document) copy];
+}
 - (CGFloat)widthForMeasure:(ScoreMeasure *)measure
                   document:(ScoreDocument *)document
                    minimum:(CGFloat)minimum
 {
+  [self prepareAccidentalsForDocument:document];
   NSMutableDictionary *notesByOnset = [NSMutableDictionary dictionary];
   NSUInteger end = [measure startTick] + [measure durationTicks];
   for (ScoreNote *note in [document notes])
@@ -87,13 +103,23 @@
         [notes addObject:note];
       }
   CGFloat contentWidth = 42.0;
+  NSUInteger measureIndex = [[document measures] indexOfObjectIdenticalTo:measure];
+  if (measureIndex > 0 && measureIndex != NSNotFound)
+    {
+      ScoreMeasure *previous = [[document measures] objectAtIndex:measureIndex - 1];
+      if ([previous keySignatureFifths] != [measure keySignatureFifths] ||
+          ![[previous keyMode] isEqualToString:[measure keyMode]])
+        contentWidth += 8.0 * (labs ([previous keySignatureFifths]) +
+                               labs ([measure keySignatureFifths])) + 12.0;
+    }
   for (NSArray *notes in [notesByOnset allValues])
     {
       NSUInteger accidentals = 0;
       CGFloat annotationWidth = 0.0;
       for (ScoreNote *note in notes)
         {
-          if ([note accidental])
+          if ([[self->_displayedAccidentals objectForKey:[NSValue valueWithPointer:note]]
+                integerValue] != NSIntegerMax)
             accidentals++;
           annotationWidth = MAX (annotationWidth, (CGFloat)[[note dynamic] length] * 7.0);
         }

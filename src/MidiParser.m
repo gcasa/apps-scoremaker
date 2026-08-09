@@ -333,6 +333,7 @@ GeneralMidiProgramName (unsigned char program)
   ScoreDocument *document = [[[ScoreDocument alloc] init] autorelease];
   [document setTitle:[[path lastPathComponent] stringByDeletingPathExtension]];
   [document setTicksPerQuarter:division];
+  NSMutableArray *keyEvents = [NSMutableArray array];
 
   NSUInteger offset = 8 + headerLength;
   for (NSUInteger trackIndex = 0; trackIndex < trackCount && offset + 8 <= length; trackIndex++)
@@ -357,11 +358,92 @@ GeneralMidiProgramName (unsigned char program)
                      length:trackLength
                  trackIndex:trackIndex
                    document:document];
+      /* Key-signature meta events are collected separately because measures are
+         constructed only after all MIDI tracks have been read. */
+      NSUInteger scan = 0, tick = 0;
+      unsigned char scanStatus = 0;
+      const unsigned char *trackBytes = bytes + offset;
+      while (scan < trackLength)
+        {
+          NSUInteger delta = 0;
+          if (!ReadVarLen (trackBytes, trackLength, &scan, &delta)) break;
+          tick += delta;
+          if (scan >= trackLength) break;
+          unsigned char status = trackBytes[scan++];
+          if (status < 0x80) { if (!scanStatus) break; scan--; status = scanStatus; }
+          else if (status < 0xf0) scanStatus = status;
+          if (status == 0xff)
+            {
+              if (scan >= trackLength) break;
+              unsigned char type = trackBytes[scan++];
+              NSUInteger size = 0;
+              if (!ReadVarLen (trackBytes, trackLength, &scan, &size) || scan + size > trackLength) break;
+              if (type == 0x59 && size >= 2)
+                [keyEvents addObject:[NSDictionary dictionaryWithObjectsAndKeys:
+                  [NSNumber numberWithUnsignedInteger:tick], @"tick",
+                  [NSNumber numberWithInteger:(int8_t)trackBytes[scan]], @"fifths",
+                  trackBytes[scan + 1] ? @"minor" : @"major", @"mode", nil]];
+              scan += size; scanStatus = 0; continue;
+            }
+          if (status == 0xf0 || status == 0xf7)
+            { NSUInteger size = 0; if (!ReadVarLen (trackBytes, trackLength, &scan, &size) || scan + size > trackLength) break; scan += size; scanStatus = 0; continue; }
+          unsigned char kind = status & 0xf0;
+          scan += (kind == 0xc0 || kind == 0xd0) ? 1 : 2;
+        }
       offset += trackLength;
     }
 
   [[document notes] sortUsingSelector:@selector (compareScoreNote:)];
   [document buildDefaultMeasures];
+  [keyEvents sortUsingFunction:CompareMidiEventDictionaries context:NULL];
+  for (NSDictionary *event in keyEvents)
+    {
+      NSUInteger keyTick = [[event objectForKey:@"tick"] unsignedIntegerValue];
+      ScoreMeasure *containing = [document measureContainingTick:keyTick];
+      if (!containing || keyTick == [containing startTick])
+        continue;
+      NSUInteger index = [[document measures] indexOfObjectIdenticalTo:containing];
+      NSUInteger oldEnd = [containing startTick] + [containing durationTicks];
+      [containing setDurationTicks:keyTick - [containing startTick]];
+      ScoreMeasure *split = [[containing copy] autorelease];
+      [split setStartTick:keyTick];
+      [split setDurationTicks:oldEnd - keyTick];
+      [[document measures] insertObject:split atIndex:index + 1];
+    }
+  for (NSUInteger i = 0; i < [[document measures] count]; i++)
+    [[[document measures] objectAtIndex:i] setNumber:(NSInteger)i + 1];
+  NSInteger fifths = 0;
+  NSString *mode = @"major";
+  NSUInteger eventIndex = 0;
+  for (ScoreMeasure *measure in [document measures])
+    {
+      while (eventIndex < [keyEvents count] &&
+             [[[keyEvents objectAtIndex:eventIndex] objectForKey:@"tick"] unsignedIntegerValue]
+               <= [measure startTick])
+        {
+          NSDictionary *event = [keyEvents objectAtIndex:eventIndex++];
+          fifths = [[event objectForKey:@"fifths"] integerValue];
+          mode = [event objectForKey:@"mode"];
+        }
+      [measure setKeySignatureFifths:fifths];
+      [measure setKeyMode:mode];
+    }
+  for (ScoreNote *note in [document notes])
+    {
+      NSInteger pitchClass = (([note pitch] % 12) + 12) % 12;
+      BOOL blackKey = pitchClass == 1 || pitchClass == 3 || pitchClass == 6 ||
+                      pitchClass == 8 || pitchClass == 10;
+      if (blackKey)
+        {
+          ScoreMeasure *measure = [document measureContainingTick:[note startTick]];
+          NSInteger signature = measure ? [measure keySignatureFifths] : 0;
+          if (signature)
+            [note setAccidental:signature < 0 ? -1 : 1];
+        }
+      ScoreMeasure *measure = [document measureContainingTick:[note startTick]];
+      [note setMeasureIndex:measure ? (NSInteger)[[document measures]
+        indexOfObjectIdenticalTo:measure] : -1];
+    }
 
   [document rebuildStructuredPartsFromLegacyTracks];
   return document;
@@ -599,7 +681,8 @@ GeneralMidiProgramName (unsigned char program)
       NSInteger trackIndex = [trackNumber integerValue];
       NSMutableData *trackData = [NSMutableData data];
 
-      if (!wroteGlobalMetadata)
+      BOOL globalTrack = !wroteGlobalMetadata;
+      if (globalTrack)
         {
           AppendVarLen (trackData, 0);
           AppendByte (trackData, 0xff);
@@ -665,6 +748,20 @@ GeneralMidiProgramName (unsigned char program)
         }
 
       NSMutableArray *events = [NSMutableArray array];
+      if (globalTrack)
+        {
+          ScoreMeasure *previous = nil;
+          for (ScoreMeasure *measure in [document measures])
+            if (!previous || [previous keySignatureFifths] != [measure keySignatureFifths] ||
+                ![[previous keyMode] isEqualToString:[measure keyMode]])
+              {
+                [events addObject:[NSDictionary dictionaryWithObjectsAndKeys:
+                  [NSNumber numberWithUnsignedInteger:[measure startTick]], @"tick", @-2, @"order",
+                  @"key", @"kind", [NSNumber numberWithInteger:[measure keySignatureFifths]],
+                  @"fifths", [measure keyMode], @"mode", nil]];
+                previous = measure;
+              }
+        }
       noteEnumerator = [[document notes] objectEnumerator];
       while ((note = [noteEnumerator nextObject]) != nil)
         {
@@ -707,6 +804,14 @@ GeneralMidiProgramName (unsigned char program)
         {
           NSUInteger tick = [[event objectForKey:@"tick"] unsignedIntegerValue];
           AppendVarLen (trackData, tick >= previousTick ? tick - previousTick : 0);
+          if ([[event objectForKey:@"kind"] isEqualToString:@"key"])
+            {
+              AppendByte (trackData, 0xff); AppendByte (trackData, 0x59); AppendByte (trackData, 2);
+              AppendByte (trackData, (unsigned char)(int8_t)[[event objectForKey:@"fifths"] integerValue]);
+              AppendByte (trackData, [[event objectForKey:@"mode"] isEqualToString:@"minor"] ? 1 : 0);
+              previousTick = tick;
+              continue;
+            }
           AppendByte (trackData, (unsigned char)[[event objectForKey:@"status"] unsignedCharValue]);
           AppendByte (trackData, (unsigned char)[[event objectForKey:@"data1"] unsignedCharValue]);
           AppendByte (trackData, (unsigned char)[[event objectForKey:@"data2"] unsignedCharValue]);

@@ -80,6 +80,7 @@
   NSArray *_scoreSourceRangeMappings;
   NSArray *_scoreSourcePlaybackRanges;
   NSString *_scoreSourcePlaybackSignature;
+  NSValue *_scoreSourceErrorRange;
   NSMutableSet *_scoreSourceActivePlaybackNotes;
   NSUInteger _scoreSourcePlaybackNoteIndex;
   NSUInteger _scoreSourceLastPlaybackTick;
@@ -108,6 +109,7 @@
   NSTimer *_playbackTimer;
   NSTimeInterval _playbackStartTime;
   NSTimeInterval _playbackPausedElapsed;
+  NSTimeInterval _playbackMIDIOriginTime;
   BOOL _playbackPaused;
   BOOL _loopSelectionEnabled;
   BOOL _updatingInspector;

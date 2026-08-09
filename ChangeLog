@@ -11,6 +11,34 @@ explicit measures without breaking MusicKit-style .score files.
   playback retained when no note is selected.
 * Kept playback audio, highlighting, scrolling, pause, resume, tempo changes,
   and MIDI-output changes synchronized when playback starts after tick zero.
+* Matched source-editor playback highlights in musical beat units so imported
+  MIDI files highlight correctly regardless of their ticks-per-quarter value.
+* Kept an open, unedited source editor synchronized as notes are added to a new
+  blank document, allowing playback highlighting without manual regeneration.
+* Added professional key-signature handling: distinct major/minor semantics,
+  MusicXML and MIDI key metadata round trips, mid-system changes with
+  cancellation naturals, signature-aware accidental carry/reset rules, and
+  engraving space reserved for key changes and contextual accidentals.
+* Cached contextual accidental decisions in a single ordered pass, preventing
+  large scores from stalling during engraving and display.
+* Reserved dynamic opening-system space in clef/key/time order so key
+  signatures remain visible at the beginning of the score and later systems.
+* Added a compact G-major to E-flat-major example demonstrating visible key
+  signatures and cancellation at a measure-boundary change.
+* Anchored each score-source editor to the right of its document window so the
+  editor opens beside and moves with the score it represents.
+* Anchored the per-score Internal Synth Patch Editor beside its document using
+  the same top-aligned child-window behavior as the source editor.
+* Stacked the Internal Synth Patch Editor beneath an open Score Source Editor
+  in the document's right-side auxiliary-window column, independent of opening
+  order.
+* Synchronized score-note selection with the generated source and virtual
+  keyboard, and based built-in MIDI highlighting on the player's actual
+  position to keep imported MIDI documents aligned.
+* Preserved original MIDI track numbers while reparsing generated score source
+  and avoided selecting an empty conductor track in the virtual keyboard.
+* Replaced textual playback controls with accessible vector play, pause/resume,
+  and stop icons; the pause control changes state when playback is paused.
 * Added independent voice numbers to notes; notes from legacy sources default
   to voice 1.
 * Added explicit measure objects containing measure number, starting tick,
@@ -230,3 +258,9 @@ notation capabilities.
 * Prevented a quit-time AppKit crash by closing document-owned editor and plug-in
   windows explicitly on the main thread instead of from document deallocation,
   which macOS file coordination may perform on a background queue.
+* Added ranged source diagnostics on Apply, including line/column reporting and
+  red editor highlighting for lexical, timing, parenthesis, and pitch errors.
+2026-08-09  Gregory Casamento  <greg.casamento@gmail.com>
+
+	* src/ScoreMakerDocument.m: Distinguish Resume from Play with a
+	bar-and-right-arrow transport icon.

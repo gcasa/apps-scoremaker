@@ -22,6 +22,7 @@
 #import "ScorefileParser.h"
 #import "ScoreProjectSerializer.h"
 #import "MusicXMLParser.h"
+#import "MidiParser.h"
 #import "NotationModel.h"
 #import "EngravingLayout.h"
 #import "MusicEngine.h"
@@ -102,6 +103,52 @@ main (void)
            @"source parser returned an incorrect note character range");
   Require ([ScorefileParser parseString:@"" suggestedTitle:@"Empty" error:&sourceError] == nil,
            @"empty editor source should fail validation");
+  NSString *badTimeSource = @"part P;\nBEGIN;\nt one+;\nP (1) keyNum:c4k;\nEND;\n";
+  sourceError = nil;
+  Require ([ScorefileParser parseString:badTimeSource suggestedTitle:@"Bad Time"
+                                  error:&sourceError] == nil,
+           @"invalid time expression should fail source validation");
+  Require ([[sourceError userInfo] objectForKey:ScorefileErrorRangeKey] != nil &&
+             [[[sourceError userInfo] objectForKey:ScorefileErrorLineKey] unsignedIntegerValue] == 3,
+           @"syntax error did not report its source range and line");
+  NSRange badTimeRange = [[[sourceError userInfo] objectForKey:ScorefileErrorRangeKey] rangeValue];
+  Require ([[badTimeSource substringWithRange:badTimeRange] rangeOfString:@"t one+;"].location
+             != NSNotFound,
+           @"invalid time expression highlighted the wrong statement");
+  sourceError = nil;
+  Require ([ScorefileParser parseString:@"string scoreTitle = \"broken;"
+                         suggestedTitle:@"Bad Quote" error:&sourceError] == nil &&
+             [[sourceError userInfo] objectForKey:ScorefileErrorRangeKey] != nil,
+           @"unterminated string did not produce a ranged syntax error");
+
+  ScoreDocument *highResolution = [[[ScoreDocument alloc] init] autorelease];
+  [highResolution setTicksPerQuarter:960];
+  ScoreNote *highResolutionNote = [[[ScoreNote alloc] init] autorelease];
+  [highResolutionNote setPitch:67];
+  [highResolutionNote setTrack:2];
+  [highResolutionNote setVoice:3];
+  [highResolutionNote setStartTick:320];
+  [highResolutionNote setDurationTicks:160];
+  [[highResolution notes] addObject:highResolutionNote];
+  [highResolution setTotalTicks:480];
+  NSData *highResolutionData = [ScorefileParser dataForDocument:highResolution error:&sourceError];
+  NSString *highResolutionSource = [[[NSString alloc]
+    initWithData:highResolutionData encoding:NSUTF8StringEncoding] autorelease];
+  ScoreDocument *normalized = [ScorefileParser parseString:highResolutionSource
+                                            suggestedTitle:@"Normalized MIDI"
+                                                     error:&sourceError];
+  ScoreNote *normalizedNote = [[normalized notes] objectAtIndex:0];
+  Require ([normalizedNote track] == 2 && [normalizedNote voice] == 3,
+           @"generated source did not restore the original MIDI track and voice");
+  Require (llround ((double)[highResolutionNote startTick] * 1000000.0 /
+                    (double)[highResolution ticksPerQuarter]) ==
+             llround ((double)[normalizedNote startTick] * 1000000.0 /
+                    (double)[normalized ticksPerQuarter]) &&
+             llround ((double)[highResolutionNote durationTicks] * 1000000.0 /
+                    (double)[highResolution ticksPerQuarter]) ==
+             llround ((double)[normalizedNote durationTicks] * 1000000.0 /
+                    (double)[normalized ticksPerQuarter]),
+           @"generated source changed high-resolution MIDI note timing");
 
   NSDirectoryEnumerator *examples = [[NSFileManager defaultManager] enumeratorAtPath:@"examples"];
   for (NSString *name in examples)
@@ -441,6 +488,7 @@ main (void)
       [[voices notes] addObject:note];
     }
   [pickup setKeySignatureFifths:2];
+  [pickup setKeyMode:@"minor"];
   [pickup setRepeatStart:YES];
   [measure setKeySignatureFifths:-3];
   [measure setRepeatEnd:YES];
@@ -458,6 +506,7 @@ main (void)
   Require ([firstVoiceNote velocity] == 96 && [secondVoiceNote velocity] == 48,
            @"velocities did not round trip");
   Require ([[voiceRoundTrip measures][0] keySignatureFifths] == 2 &&
+             [[[voiceRoundTrip measures][0] keyMode] isEqualToString:@"minor"] &&
              [[voiceRoundTrip measures][0] repeatStart] && [[voiceRoundTrip measures][1] repeatEnd],
            @"scorefile signatures or repeats did not round trip");
   ScoreNote *scoreFeatureNote = [[voiceRoundTrip notes] objectAtIndex:0];
@@ -478,8 +527,50 @@ main (void)
   Require ([firstXMLNote voice] == 1 && [secondXMLNote voice] == 2,
            @"MusicXML voices did not round trip");
   Require ([[xmlRoundTrip measures][0] keySignatureFifths] == 2 &&
+             [[[xmlRoundTrip measures][0] keyMode] isEqualToString:@"minor"] &&
              [[xmlRoundTrip measures][0] repeatStart] && [[xmlRoundTrip measures][1] repeatEnd],
            @"MusicXML signatures or repeats did not round trip");
+
+  NSData *midiKeys = [MidiParser dataForDocument:voices error:&error];
+  NSString *midiKeyPath = [NSTemporaryDirectory () stringByAppendingPathComponent:@"scoremaker-keys.mid"];
+  Require ([midiKeys writeToFile:midiKeyPath atomically:YES], @"could not write MIDI key test");
+  ScoreDocument *midiKeyRoundTrip = [MidiParser parseFileAtPath:midiKeyPath error:&error];
+  Require ([[midiKeyRoundTrip measures][0] keySignatureFifths] == 2 &&
+             [[[midiKeyRoundTrip measures][0] keyMode] isEqualToString:@"minor"] &&
+             [[midiKeyRoundTrip measures] count] >= 2 &&
+             [[midiKeyRoundTrip measures][1] startTick] == 480 &&
+             [[midiKeyRoundTrip measures][1] keySignatureFifths] == -3 &&
+             [[[midiKeyRoundTrip measures][1] keyMode] isEqualToString:@"major"],
+           @"MIDI key signature or mode did not round trip");
+
+  ScoreDocument *accidentalScore = [[[ScoreDocument alloc] init] autorelease];
+  [accidentalScore setTotalTicks:3840];
+  [accidentalScore buildDefaultMeasures];
+  for (ScoreMeasure *keyMeasure in [accidentalScore measures])
+    [keyMeasure setKeySignatureFifths:1];
+  NSInteger pitches[] = { 66, 65, 65, 66, 66 };
+  NSInteger spellings[] = { 1, 0, 0, 1, 1 };
+  NSUInteger starts[] = { 0, 480, 960, 1440, 1920 };
+  NSMutableArray *accidentalNotes = [NSMutableArray array];
+  for (NSUInteger i = 0; i < 5; i++)
+    {
+      ScoreNote *keyNote = [[[ScoreNote alloc] init] autorelease];
+      [keyNote setPitch:pitches[i]];
+      [keyNote setAccidental:spellings[i]];
+      [keyNote setStartTick:starts[i]];
+      [keyNote setDurationTicks:240];
+      [[accidentalScore notes] addObject:keyNote];
+      [accidentalNotes addObject:keyNote];
+    }
+  Require (ScoreDisplayedAccidentalForNote ([accidentalNotes objectAtIndex:0], accidentalScore)
+             == NSIntegerMax &&
+             ScoreDisplayedAccidentalForNote ([accidentalNotes objectAtIndex:1], accidentalScore) == 0 &&
+             ScoreDisplayedAccidentalForNote ([accidentalNotes objectAtIndex:2], accidentalScore)
+               == NSIntegerMax &&
+             ScoreDisplayedAccidentalForNote ([accidentalNotes objectAtIndex:3], accidentalScore) == 1 &&
+             ScoreDisplayedAccidentalForNote ([accidentalNotes objectAtIndex:4], accidentalScore)
+               == NSIntegerMax,
+           @"key-aware accidental carry or measure reset is incorrect");
   ScoreNote *xmlFeatureNote = [[xmlRoundTrip notes] objectAtIndex:0];
   Require ([xmlFeatureNote tieStart] && [xmlFeatureNote tupletActual] == 3 &&
              [[xmlFeatureNote dynamic] isEqualToString:@"mf"] &&

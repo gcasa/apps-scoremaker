@@ -40,6 +40,43 @@ static CGFloat const PlaybackMonitorHeight = 150.0;
 static CGFloat const InspectorContentHeight = 1060.0;
 static NSString *const ScoreMakerInternalPatchPresetsKey = @"ScoreMakerInternalPatchPresets";
 
+static NSImage *
+ScoreMakerTransportImage (NSString *kind)
+{
+  NSImage *image = [[[NSImage alloc] initWithSize:NSMakeSize (16.0, 16.0)] autorelease];
+  [image lockFocus];
+  [[NSColor blackColor] setFill];
+  if ([kind isEqualToString:@"play"])
+    {
+      NSBezierPath *path = [NSBezierPath bezierPath];
+      [path moveToPoint:NSMakePoint (4.0, 2.0)];
+      [path lineToPoint:NSMakePoint (13.0, 8.0)];
+      [path lineToPoint:NSMakePoint (4.0, 14.0)];
+      [path closePath];
+      [path fill];
+    }
+  else if ([kind isEqualToString:@"resume"])
+    {
+      NSRectFill (NSMakeRect (2.0, 2.0, 2.5, 12.0));
+      NSBezierPath *path = [NSBezierPath bezierPath];
+      [path moveToPoint:NSMakePoint (6.0, 2.0)];
+      [path lineToPoint:NSMakePoint (14.0, 8.0)];
+      [path lineToPoint:NSMakePoint (6.0, 14.0)];
+      [path closePath];
+      [path fill];
+    }
+  else if ([kind isEqualToString:@"pause"])
+    {
+      NSRectFill (NSMakeRect (3.0, 2.0, 4.0, 12.0));
+      NSRectFill (NSMakeRect (9.0, 2.0, 4.0, 12.0));
+    }
+  else
+    NSRectFill (NSMakeRect (3.0, 3.0, 10.0, 10.0));
+  [image unlockFocus];
+  [image setTemplate:YES];
+  return image;
+}
+
 #if defined(__APPLE__)
 static NSString *
 ScoreMakerMIDIEndpointName (MIDIEndpointRef endpoint)
@@ -128,6 +165,13 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (void)clearScoreSourcePlaybackHighlight;
 - (void)resetScoreSourceRangeCache;
 - (void)closeAuxiliaryWindows;
+- (void)refreshScoreSourceEditorFromScoreIfClean;
+- (void)positionScoreSourceEditorBesideDocument;
+- (void)positionAuxiliaryWindowBesideDocument:(NSWindow *)auxiliaryWindow;
+- (void)arrangeScoreAuxiliaryWindows;
+- (void)updatePauseButtonForPaused:(BOOL)paused;
+- (void)clearScoreSourceErrorHighlight;
+- (void)showScoreSourceError:(NSError *)error;
 - (void)showGenericAudioUnitEditor;
 - (ScorePartDefinition *)selectedStructuredPartCreatingIfNeeded:(BOOL)create;
 - (NSDictionary *)patchForPart:(ScorePartDefinition *)part;
@@ -712,7 +756,10 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 {
   [super updateChangeCount:change];
   if (!_applyingScoreSource && change == NSChangeDone)
-    _scoreSourceIsAuthoritative = NO;
+    {
+      _scoreSourceIsAuthoritative = NO;
+      [self refreshScoreSourceEditorFromScoreIfClean];
+    }
 }
 
 - (void)dealloc
@@ -786,6 +833,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_scoreSourceRangeMappings release];
   [_scoreSourcePlaybackRanges release];
   [_scoreSourcePlaybackSignature release];
+  [_scoreSourceErrorRange release];
   [_scoreSourceActivePlaybackNotes release];
 
   [super dealloc];
@@ -807,8 +855,14 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 {
   NSAssert ([NSThread isMainThread], @"ScoreMaker windows must close on the main thread");
   [_audioUnitEditorWindow close];
+  NSWindow *patchParent = [_patchEditorWindow parentWindow];
+  if (patchParent)
+    [patchParent removeChildWindow:_patchEditorWindow];
   [_patchEditorWindow close];
   [_patchBrowserWindow close];
+  NSWindow *sourceParent = [_scoreSourceEditorWindow parentWindow];
+  if (sourceParent)
+    [sourceParent removeChildWindow:_scoreSourceEditorWindow];
   [_scoreSourceEditorWindow close];
 }
 
@@ -940,7 +994,11 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _playButton =
     [[NSButton alloc] initWithFrame:NSMakeRect (frame.size.width - InspectorPadding - 176.0,
                                                 frame.size.height - 42.0, 54.0, 28.0)];
-  [_playButton setTitle:@"Play"];
+  [_playButton setTitle:@""];
+  [_playButton setImage:ScoreMakerTransportImage (@"play")];
+  [_playButton setImagePosition:NSImageOnly];
+  [_playButton setToolTip:@"Play"];
+  [_playButton setAccessibilityLabel:@"Play"];
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -958,7 +1016,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _pauseButton =
     [[NSButton alloc] initWithFrame:NSMakeRect (frame.size.width - InspectorPadding - 118.0,
                                                 frame.size.height - 42.0, 62.0, 28.0)];
-  [_pauseButton setTitle:@"Pause"];
+  [_pauseButton setTitle:@""];
+  [_pauseButton setImagePosition:NSImageOnly];
+  [self updatePauseButtonForPaused:NO];
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -976,7 +1036,11 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _stopButton =
     [[NSButton alloc] initWithFrame:NSMakeRect (frame.size.width - InspectorPadding - 52.0,
                                                 frame.size.height - 42.0, 52.0, 28.0)];
-  [_stopButton setTitle:@"Stop"];
+  [_stopButton setTitle:@""];
+  [_stopButton setImage:ScoreMakerTransportImage (@"stop")];
+  [_stopButton setImagePosition:NSImageOnly];
+  [_stopButton setToolTip:@"Stop"];
+  [_stopButton setAccessibilityLabel:@"Stop"];
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -1250,20 +1314,23 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [[self inspectorView] addSubview:notationLabel];
 
   _keySignaturePopUp = [[NSPopUpButton alloc]
-    initWithFrame:NSMakeRect (InspectorPadding, frame.size.height - 578.0, 132.0, 26.0)
+    initWithFrame:NSMakeRect (InspectorPadding, frame.size.height - 578.0, 128.0, 26.0)
         pullsDown:NO];
-  NSArray *keyNames =
-    [NSArray arrayWithObjects:@"C / A minor", @"1♯ G / E minor", @"2♯ D / B minor",
-                              @"3♯ A / F♯ minor", @"4♯ E / C♯ minor", @"5♯ B / G♯ minor",
-                              @"6♯ F♯ / D♯ minor", @"7♯ C♯ / A♯ minor", @"1♭ F / D minor",
-                              @"2♭ B♭ / G minor", @"3♭ E♭ / C minor", @"4♭ A♭ / F minor",
-                              @"5♭ D♭ / B♭ minor", @"6♭ G♭ / E♭ minor", @"7♭ C♭ / A♭ minor", nil];
-  NSInteger keyValues[] = { 0, 1, 2, 3, 4, 5, 6, 7, -1, -2, -3, -4, -5, -6, -7 };
+  NSArray *keyNames = [NSArray arrayWithObjects:
+    @"C major", @"G major", @"D major", @"A major", @"E major", @"B major", @"F♯ major",
+    @"C♯ major", @"F major", @"B♭ major", @"E♭ major", @"A♭ major", @"D♭ major",
+    @"G♭ major", @"C♭ major", @"A minor", @"E minor", @"B minor", @"F♯ minor",
+    @"C♯ minor", @"G♯ minor", @"D♯ minor", @"A♯ minor", @"D minor", @"G minor",
+    @"C minor", @"F minor", @"B♭ minor", @"E♭ minor", @"A♭ minor", nil];
+  NSInteger keyValues[] = { 0, 1, 2, 3, 4, 5, 6, 7, -1, -2, -3, -4, -5, -6, -7,
+                            0, 1, 2, 3, 4, 5, 6, 7, -1, -2, -3, -4, -5, -6, -7 };
   for (NSUInteger i = 0; i < [keyNames count]; i++)
     {
       [_keySignaturePopUp addItemWithTitle:[keyNames objectAtIndex:i]];
-      [[_keySignaturePopUp lastItem]
-        setRepresentedObject:[NSNumber numberWithInteger:keyValues[i]]];
+      [[_keySignaturePopUp lastItem] setRepresentedObject:
+        [NSDictionary dictionaryWithObjectsAndKeys:[NSNumber numberWithInteger:keyValues[i]],
+                                                   @"fifths", i < 15 ? @"major" : @"minor",
+                                                   @"mode", nil]];
     }
   [_keySignaturePopUp setTarget:self];
   [_keySignaturePopUp setAction:@selector (notationDidChange:)];
@@ -1486,7 +1553,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   if (selectedMeasure)
     {
       for (NSMenuItem *item in [_keySignaturePopUp itemArray])
-        if ([[item representedObject] integerValue] == [selectedMeasure keySignatureFifths])
+        if ([[[item representedObject] objectForKey:@"fifths"] integerValue]
+              == [selectedMeasure keySignatureFifths] &&
+            [[[item representedObject] objectForKey:@"mode"] isEqualToString:[selectedMeasure keyMode]])
           {
             [_keySignaturePopUp selectItem:item];
             break;
@@ -1514,6 +1583,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
                           : @"No articulation"];
   NSNumber *viewedPart = [[_partPopUp selectedItem] representedObject];
   NSMutableSet *partSet = [NSMutableSet set];
+  NSMutableSet *noteTrackSet = [NSMutableSet set];
   [partSet addObjectsFromArray:[[document partNames] allKeys]];
   [partSet addObjectsFromArray:[[document trackPrograms] allKeys]];
   NSEnumerator *partNoteEnumerator = [[document notes] objectEnumerator];
@@ -1522,6 +1592,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   while ((partNote = [partNoteEnumerator nextObject]) != nil)
     {
       [partSet addObject:[NSNumber numberWithInteger:[partNote track]]];
+      [noteTrackSet addObject:[NSNumber numberWithInteger:[partNote track]]];
       firstNoteTrack = MIN (firstNoteTrack, [partNote track]);
     }
   if ([partSet count] == 0)
@@ -1534,6 +1605,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
                            ? firstNoteTrack
                            : [[[[partSet allObjects] sortedArrayUsingSelector:@selector (compare:)]
                                objectAtIndex:0] integerValue]));
+  if (viewedPart && [noteTrackSet count] && ![noteTrackSet containsObject:viewedPart])
+    selectedPart = [[[[noteTrackSet allObjects] sortedArrayUsingSelector:@selector (compare:)]
+      objectAtIndex:0] integerValue];
   if (![partSet containsObject:[NSNumber numberWithInteger:selectedPart]])
     selectedPart = [[[[partSet allObjects] sortedArrayUsingSelector:@selector (compare:)]
       objectAtIndex:0] integerValue];
@@ -1891,6 +1965,23 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 {
   (void)notification;
   [self refreshInspector];
+  ScoreNote *note = [[self scoreView] selectedNote];
+  if (note && ![note isRest])
+    [_playbackMonitorView setInputPitch:[note pitch]];
+  else
+    [_playbackMonitorView resetInputPitch];
+  if (_scoreSourceEditorWindow && [_scoreSourceEditorWindow isVisible] &&
+      !_scoreSourceEditorDirty)
+    {
+      NSValue *value = [self sourceRangeForScoreNote:note];
+      if (value)
+        {
+          _updatingScoreSourceEditor = YES;
+          [_scoreSourceTextView setSelectedRange:[value rangeValue]];
+          [_scoreSourceTextView scrollRangeToVisible:[value rangeValue]];
+          _updatingScoreSourceEditor = NO;
+        }
+    }
 }
 
 - (void)noteValueDidChange:(id)sender
@@ -1915,8 +2006,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [self registerUndoSnapshotWithName:@"Edit Notation"];
   if (measure)
     {
-      [measure
-        setKeySignatureFifths:[[[_keySignaturePopUp selectedItem] representedObject] integerValue]];
+      NSDictionary *key = [[_keySignaturePopUp selectedItem] representedObject];
+      [measure setKeySignatureFifths:[[key objectForKey:@"fifths"] integerValue]];
+      [measure setKeyMode:[key objectForKey:@"mode"]];
       [measure setRepeatStart:[_repeatStartButton state] == NSOnState];
       [measure setRepeatEnd:[_repeatEndButton state] == NSOnState];
     }
@@ -2279,6 +2371,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 
   ScoreScheduler *scheduler = [[[ScoreScheduler alloc] initWithDocument:source] autorelease];
   NSTimeInterval adjustedElapsed = [scheduler timeForTick:tick];
+  _playbackMIDIOriginTime = adjustedElapsed;
   _playbackStartTime = [NSDate timeIntervalSinceReferenceDate] - adjustedElapsed;
   _playbackPausedElapsed = adjustedElapsed;
 
@@ -2291,7 +2384,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
         }
       [_playbackSound pause];
       _playbackPaused = YES;
-      [_pauseButton setTitle:@"Resume"];
+      [self updatePauseButtonForPaused:YES];
     }
   return YES;
 }
@@ -2303,7 +2396,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _playbackTimer = nil;
   _playbackPaused = NO;
   _playbackPausedElapsed = 0.0;
-  [_pauseButton setTitle:@"Pause"];
+  _playbackMIDIOriginTime = 0.0;
+  [self updatePauseButtonForPaused:NO];
   [_pauseButton setEnabled:NO];
   [[self scoreView] clearPlayback];
   [_playbackMonitorView clearPlayback];
@@ -2313,6 +2407,14 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _scoreSourceLastPlaybackTick = NSNotFound;
   [self stopPlaybackAudioOnly];
   [self stopAudition];
+}
+
+- (void)updatePauseButtonForPaused:(BOOL)paused
+{
+  NSString *label = paused ? @"Resume" : @"Pause";
+  [_pauseButton setImage:ScoreMakerTransportImage (paused ? @"resume" : @"pause")];
+  [_pauseButton setToolTip:label];
+  [_pauseButton setAccessibilityLabel:label];
 }
 
 - (void)schedulePlaybackTimer
@@ -2337,6 +2439,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     }
 
   NSTimeInterval elapsed = [NSDate timeIntervalSinceReferenceDate] - _playbackStartTime;
+  if (_midiPlayer && [(AVMIDIPlayer *)_midiPlayer respondsToSelector:@selector (currentPosition)] &&
+      [(AVMIDIPlayer *)_midiPlayer isPlaying])
+    elapsed = _playbackMIDIOriginTime + [(AVMIDIPlayer *)_midiPlayer currentPosition];
   ScoreScheduler *scheduler = [[[ScoreScheduler alloc] initWithDocument:document] autorelease];
   NSUInteger tick = [scheduler tickForTime:elapsed];
 
@@ -2364,7 +2469,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [[self scoreView] clearPlayback];
       [_playbackMonitorView clearPlayback];
       [self clearScoreSourcePlaybackHighlight];
-      [_pauseButton setTitle:@"Pause"];
+      [self updatePauseButtonForPaused:NO];
       [_pauseButton setEnabled:NO];
       [_realtimeDSP allNotesOff];
       return;
@@ -2381,6 +2486,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   ScoreDocument *document = [self scoreDocument];
   ScoreScheduler *scheduler = [[[ScoreScheduler alloc] initWithDocument:document] autorelease];
   NSTimeInterval elapsed = [scheduler timeForTick:tick];
+  _playbackMIDIOriginTime = elapsed;
   _playbackStartTime = [NSDate timeIntervalSinceReferenceDate] - elapsed;
   [_scoreSourceActivePlaybackNotes removeAllObjects];
   _scoreSourcePlaybackNoteIndex = 0;
@@ -2391,7 +2497,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [self updateScoreSourcePlaybackHighlightAtTick:tick];
   _playbackPaused = NO;
   _playbackPausedElapsed = elapsed;
-  [_pauseButton setTitle:@"Pause"];
+  [self updatePauseButtonForPaused:NO];
   [_pauseButton setEnabled:YES];
   [self schedulePlaybackTimer];
 }
@@ -2426,7 +2532,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
           [_realtimeDSP stop];
         }
       _playbackPaused = YES;
-      [_pauseButton setTitle:@"Resume"];
+      [self updatePauseButtonForPaused:YES];
     }
   else
     {
@@ -2448,7 +2554,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
         }
       _playbackStartTime = [NSDate timeIntervalSinceReferenceDate] - _playbackPausedElapsed;
       _playbackPaused = NO;
-      [_pauseButton setTitle:@"Pause"];
+      [self updatePauseButtonForPaused:NO];
       [self schedulePlaybackTimer];
     }
 }
@@ -3221,10 +3327,11 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [help setTextColor:[NSColor secondaryLabelColor]];
       [help setStringValue:@"Each score voice can use its own patch. Saved patches are global and can be loaded into any score."];
       [content addSubview:help];
-      [_patchEditorWindow center];
     }
   [self loadPatchEditorControls];
+  [self positionAuxiliaryWindowBesideDocument:_patchEditorWindow];
   [_patchEditorWindow makeKeyAndOrderFront:nil];
+  [self arrangeScoreAuxiliaryWindows];
 }
 
 - (void)patchControlChanged:(id)sender
@@ -4883,6 +4990,72 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   return [[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] autorelease];
 }
 
+- (void)refreshScoreSourceEditorFromScoreIfClean
+{
+  if (!_scoreSourceTextView || _scoreSourceEditorDirty)
+    return;
+  NSError *error = nil;
+  NSString *source = [self generatedScoreSourceWithError:&error];
+  if (!source)
+    {
+      [_scoreSourceStatusLabel setStringValue:[NSString
+        stringWithFormat:@"Could not refresh source: %@", [error localizedDescription]]];
+      return;
+    }
+  [self clearScoreSourcePlaybackHighlight];
+  [self clearScoreSourceErrorHighlight];
+  _updatingScoreSourceEditor = YES;
+  [_scoreSourceTextView setString:source];
+  _updatingScoreSourceEditor = NO;
+  [_scoreSourceStatusLabel setStringValue:@"Source updated from the current score."];
+  [self updateScoreSourceSyntaxHighlighting];
+  [self resetScoreSourceRangeCache];
+}
+
+- (void)positionScoreSourceEditorBesideDocument
+{
+  [self positionAuxiliaryWindowBesideDocument:_scoreSourceEditorWindow];
+}
+
+- (void)positionAuxiliaryWindowBesideDocument:(NSWindow *)auxiliaryWindow
+{
+  NSWindow *documentWindow = [self window];
+  if (!documentWindow || !auxiliaryWindow)
+    return;
+  NSWindow *oldParent = [auxiliaryWindow parentWindow];
+  if (oldParent && oldParent != documentWindow)
+    [oldParent removeChildWindow:auxiliaryWindow];
+  NSRect documentFrame = [documentWindow frame];
+  NSRect auxiliaryFrame = [auxiliaryWindow frame];
+  auxiliaryFrame.origin.x = NSMaxX (documentFrame) + 10.0;
+  auxiliaryFrame.origin.y = NSMaxY (documentFrame) - auxiliaryFrame.size.height;
+  [auxiliaryWindow setFrame:auxiliaryFrame display:NO];
+  if ([auxiliaryWindow parentWindow] != documentWindow)
+    [documentWindow addChildWindow:auxiliaryWindow ordered:NSWindowAbove];
+}
+
+- (void)arrangeScoreAuxiliaryWindows
+{
+  BOOL sourceVisible = _scoreSourceEditorWindow && [_scoreSourceEditorWindow isVisible];
+  BOOL patchVisible = _patchEditorWindow && [_patchEditorWindow isVisible];
+  if (!sourceVisible && !patchVisible)
+    return;
+  if (sourceVisible)
+    [self positionAuxiliaryWindowBesideDocument:_scoreSourceEditorWindow];
+  if (patchVisible)
+    {
+      [self positionAuxiliaryWindowBesideDocument:_patchEditorWindow];
+      if (sourceVisible)
+        {
+          NSRect sourceFrame = [_scoreSourceEditorWindow frame];
+          NSRect patchFrame = [_patchEditorWindow frame];
+          patchFrame.origin.x = sourceFrame.origin.x;
+          patchFrame.origin.y = NSMinY (sourceFrame) - 10.0 - patchFrame.size.height;
+          [_patchEditorWindow setFrame:patchFrame display:NO];
+        }
+    }
+}
+
 - (void)showScoreSourceEditor:(id)sender
 {
   (void)sender;
@@ -4982,7 +5155,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [self updateScoreSourceSyntaxHighlighting];
       [self resetScoreSourceRangeCache];
     }
+  [self positionScoreSourceEditorBesideDocument];
   [_scoreSourceEditorWindow makeKeyAndOrderFront:self];
+  [self arrangeScoreAuxiliaryWindows];
 }
 
 - (void)scoreSourceTextDidChange:(NSNotification *)notification
@@ -4990,6 +5165,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   (void)notification;
   if (_updatingScoreSourceEditor)
     return;
+  [self clearScoreSourceErrorHighlight];
   _scoreSourceEditorDirty = YES;
   [self clearScoreSourcePlaybackHighlight];
   [self resetScoreSourceRangeCache];
@@ -4998,12 +5174,62 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [self updateScoreSourceSyntaxHighlighting];
 }
 
-static NSString *
-ScoreSourceNoteIdentity (ScoreNote *note)
+- (void)clearScoreSourceErrorHighlight
 {
-  return [NSString stringWithFormat:@"%ld:%lu:%lu:%ld:%ld:%d", (long)[note track],
-                                   (unsigned long)[note startTick],
-                                   (unsigned long)[note durationTicks], (long)[note pitch],
+  if (_scoreSourceTextView && _scoreSourceErrorRange)
+    {
+      NSRange range = [_scoreSourceErrorRange rangeValue];
+      NSUInteger length = [[_scoreSourceTextView string] length];
+      if (range.location < length)
+        {
+          range.length = MIN (range.length, length - range.location);
+          NSLayoutManager *layout = [_scoreSourceTextView layoutManager];
+          [layout removeTemporaryAttribute:NSBackgroundColorAttributeName
+                         forCharacterRange:range];
+          [layout removeTemporaryAttribute:NSUnderlineStyleAttributeName
+                         forCharacterRange:range];
+          [layout removeTemporaryAttribute:NSUnderlineColorAttributeName
+                         forCharacterRange:range];
+        }
+    }
+  [_scoreSourceErrorRange release];
+  _scoreSourceErrorRange = nil;
+}
+
+- (void)showScoreSourceError:(NSError *)error
+{
+  [self clearScoreSourceErrorHighlight];
+  NSValue *value = [[error userInfo] objectForKey:ScorefileErrorRangeKey];
+  if (!value)
+    return;
+  NSRange range = [value rangeValue];
+  NSUInteger length = [[_scoreSourceTextView string] length];
+  if (range.location >= length)
+    return;
+  range.length = MAX ((NSUInteger)1, MIN (range.length, length - range.location));
+  _scoreSourceErrorRange = [[NSValue valueWithRange:range] retain];
+  NSLayoutManager *layout = [_scoreSourceTextView layoutManager];
+  [layout addTemporaryAttribute:NSBackgroundColorAttributeName
+                         value:[[NSColor redColor] colorWithAlphaComponent:0.16]
+             forCharacterRange:range];
+  [layout addTemporaryAttribute:NSUnderlineStyleAttributeName
+                         value:[NSNumber numberWithInteger:NSUnderlineStyleSingle]
+             forCharacterRange:range];
+  [layout addTemporaryAttribute:NSUnderlineColorAttributeName
+                         value:[NSColor redColor]
+             forCharacterRange:range];
+  [_scoreSourceTextView scrollRangeToVisible:range];
+}
+
+static NSString *
+ScoreSourceNoteIdentity (ScoreNote *note, ScoreDocument *document)
+{
+  double ticksPerQuarter = MAX ((double)1.0, (double)[document ticksPerQuarter]);
+  long long startMicrobeats = llround ((double)[note startTick] * 1000000.0 / ticksPerQuarter);
+  long long durationMicrobeats
+    = llround ((double)[note durationTicks] * 1000000.0 / ticksPerQuarter);
+  return [NSString stringWithFormat:@"%ld:%lld:%lld:%ld:%ld:%d", (long)[note track],
+                                   startMicrobeats, durationMicrobeats, (long)[note pitch],
                                    (long)[note voice],
                                    [note isRest] ? 1 : 0];
 }
@@ -5034,7 +5260,7 @@ ScoreSourceNoteIdentity (ScoreNote *note)
   NSMutableDictionary *availableNotes = [NSMutableDictionary dictionary];
   for (ScoreNote *note in [[self scoreDocument] notes])
     {
-      NSString *identity = ScoreSourceNoteIdentity (note);
+      NSString *identity = ScoreSourceNoteIdentity (note, [self scoreDocument]);
       NSMutableArray *notes = [availableNotes objectForKey:identity];
       if (!notes)
         {
@@ -5047,7 +5273,7 @@ ScoreSourceNoteIdentity (ScoreNote *note)
   for (NSDictionary *entry in parsedRanges)
     {
       ScoreNote *parsedNote = [entry objectForKey:@"note"];
-      NSString *identity = ScoreSourceNoteIdentity (parsedNote);
+      NSString *identity = ScoreSourceNoteIdentity (parsedNote, parsed);
       NSMutableArray *notes = [availableNotes objectForKey:identity];
       if (![notes count])
         continue;
@@ -5069,7 +5295,7 @@ ScoreSourceNoteIdentity (ScoreNote *note)
     return nil;
   if (!_scoreSourceNoteRangeCache)
     [self resetScoreSourceRangeCache];
-  NSString *targetIdentity = ScoreSourceNoteIdentity (target);
+  NSString *targetIdentity = ScoreSourceNoteIdentity (target, [self scoreDocument]);
   return [_scoreSourceNoteRangeCache objectForKey:targetIdentity];
 }
 
@@ -5120,7 +5346,7 @@ ScoreSourceNoteIdentity (ScoreNote *note)
   NSArray *active = [_scoreSourceActivePlaybackNotes allObjects];
   NSMutableArray *identities = [NSMutableArray array];
   for (ScoreNote *note in active)
-    [identities addObject:ScoreSourceNoteIdentity (note)];
+    [identities addObject:ScoreSourceNoteIdentity (note, [self scoreDocument])];
   [identities sortUsingSelector:@selector (compare:)];
   NSString *signature = [identities componentsJoinedByString:@"|"];
   if ([_scoreSourcePlaybackSignature isEqualToString:signature])
@@ -5209,6 +5435,7 @@ ScoreSourceNoteIdentity (ScoreNote *note)
 - (void)applyScoreSource:(id)sender
 {
   (void)sender;
+  [self clearScoreSourceErrorHighlight];
   NSString *source = [_scoreSourceTextView string];
   NSError *error = nil;
   NSString *suggestedTitle = [[[self fileURL] path] lastPathComponent];
@@ -5218,8 +5445,13 @@ ScoreSourceNoteIdentity (ScoreNote *note)
                                                  error:&error];
   if (!parsed)
     {
+      [self showScoreSourceError:error];
+      NSNumber *line = [[error userInfo] objectForKey:ScorefileErrorLineKey];
+      NSNumber *column = [[error userInfo] objectForKey:ScorefileErrorColumnKey];
+      NSString *location = line ? [NSString stringWithFormat:@" at line %@, column %@",
+                                    line, column ?: [NSNumber numberWithInteger:1]] : @"";
       [_scoreSourceStatusLabel setStringValue:[NSString
-        stringWithFormat:@"Cannot apply: %@", [error localizedDescription]]];
+        stringWithFormat:@"Cannot apply%@ — %@", location, [error localizedDescription]]];
       NSBeep ();
       return;
     }
@@ -5236,6 +5468,7 @@ ScoreSourceNoteIdentity (ScoreNote *note)
   _scoreSourceText = [source copy];
   _scoreSourceIsAuthoritative = YES;
   _scoreSourceEditorDirty = NO;
+  [self clearScoreSourceErrorHighlight];
   [self resetScoreSourceRangeCache];
   [_scoreSourceStatusLabel setStringValue:[NSString
     stringWithFormat:@"Applied successfully — %lu notes.",
@@ -5246,6 +5479,7 @@ ScoreSourceNoteIdentity (ScoreNote *note)
 - (void)revertScoreSource:(id)sender
 {
   (void)sender;
+  [self clearScoreSourceErrorHighlight];
   NSError *error = nil;
   NSString *source = [self generatedScoreSourceWithError:&error];
   if (!source)

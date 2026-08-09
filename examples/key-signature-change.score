@@ -1,0 +1,49 @@
+/*
+ * Key Signature Change
+ * A compact engraving example: G major changes to E-flat major in measure 3.
+ */
+
+/* ScoreMaker Structure V2
+eyJ2ZXJzaW9uIjoyLCJtZWFzdXJlcyI6W3sibnVtYmVyIjoxLCJzdGFydFRpY2siOjAsImR1cmF0
+aW9uVGlja3MiOjE5MjAsImJlYXRzIjo0LCJiZWF0VHlwZSI6NCwiaW1wbGljaXQiOmZhbHNlLCJr
+ZXlGaWZ0aHMiOjEsImtleU1vZGUiOiJtYWpvciIsInJlcGVhdFN0YXJ0IjpmYWxzZSwicmVwZWF0
+RW5kIjpmYWxzZX0seyJudW1iZXIiOjIsInN0YXJ0VGljayI6MTkyMCwiZHVyYXRpb25UaWNrcyI6
+MTkyMCwiYmVhdHMiOjQsImJlYXRUeXBlIjo0LCJpbXBsaWNpdCI6ZmFsc2UsImtleUZpZnRocyI6
+MSwia2V5TW9kZSI6Im1ham9yIiwicmVwZWF0U3RhcnQiOmZhbHNlLCJyZXBlYXRFbmQiOmZhbHNl
+fSx7Im51bWJlciI6Mywic3RhcnRUaWNrIjozODQwLCJkdXJhdGlvblRpY2tzIjoxOTIwLCJiZWF0
+cyI6NCwiYmVhdFR5cGUiOjQsImltcGxpY2l0IjpmYWxzZSwia2V5RmlmdGhzIjotMywia2V5TW9k
+ZSI6Im1ham9yIiwicmVwZWF0U3RhcnQiOmZhbHNlLCJyZXBlYXRFbmQiOmZhbHNlfSx7Im51bWJl
+ciI6NCwic3RhcnRUaWNrIjo1NzYwLCJkdXJhdGlvblRpY2tzIjoxOTIwLCJiZWF0cyI6NCwiYmVh
+dFR5cGUiOjQsImltcGxpY2l0IjpmYWxzZSwia2V5RmlmdGhzIjotMywia2V5TW9kZSI6Im1ham9y
+IiwicmVwZWF0U3RhcnQiOmZhbHNlLCJyZXBlYXRFbmQiOmZhbHNlfV0sIm5vdGVEZXRhaWxzIjpb
+XX0=
+*/
+
+string scoreTitle = "Key Signature Change";
+string scoreComposer = "ScoreMaker Example";
+info tempo:108 timeSignature:4/4;
+part Piano;
+
+BEGIN;
+
+/* Measures 1-2: G major (one sharp). */
+t 0; Piano (1) keyNum:g4k;
+t 1; Piano (1) keyNum:a4k;
+t 2; Piano (1) keyNum:b4k;
+t 3; Piano (1) keyNum:c5k;
+t 4; Piano (1) keyNum:d5k;
+t 5; Piano (1) keyNum:e5k;
+t 6; Piano (1) keyNum:fs5k;
+t 7; Piano (1) keyNum:g5k;
+
+/* Measures 3-4: E-flat major (three flats). */
+t 8; Piano (1) keyNum:ef4k;
+t 9; Piano (1) keyNum:f4k;
+t 10; Piano (1) keyNum:g4k;
+t 11; Piano (1) keyNum:af4k;
+t 12; Piano (1) keyNum:bf4k;
+t 13; Piano (1) keyNum:c5k;
+t 14; Piano (1) keyNum:d5k;
+t 15; Piano (1) keyNum:ef5k;
+
+END;

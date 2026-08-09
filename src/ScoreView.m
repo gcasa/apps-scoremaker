@@ -268,6 +268,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 {
   [_document release];
   [_engravingLayout release];
+  [_displayedAccidentals release];
   [_publicationTrack release];
   [super dealloc];
 }
@@ -284,6 +285,8 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 {
   [_engravingLayout release];
   _engravingLayout = nil;
+  [_displayedAccidentals release];
+  _displayedAccidentals = [ScoreDisplayedAccidentalMapForDocument (_document) copy];
   [self updateFrameForDocument];
   [self setNeedsDisplay:YES];
 }
@@ -633,7 +636,15 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   NSUInteger startTick = [layout startTick];
   NSUInteger endTick = [layout endTick];
 
-  CGFloat musicLeft = left + 100.0;
+  ScoreMeasure *openingMeasure = [_document measureContainingTick:startTick];
+  NSInteger openingFifths = openingMeasure ? [openingMeasure keySignatureFifths] : 0;
+  BOOL drawsOpeningTime = systemIndex % [self systemsPerPage] == 0;
+  CGFloat keySignatureX = left + 39.0;
+  CGFloat keySignatureWidth = labs (openingFifths) * 8.0;
+  CGFloat timeSignatureX = openingFifths ? keySignatureX + keySignatureWidth + 7.0 : left + 58.0;
+  CGFloat musicLeft = MAX (left + 100.0,
+                           drawsOpeningTime ? timeSignatureX + 38.0
+                                            : keySignatureX + keySignatureWidth + 12.0);
   CGFloat musicRight = right - 18.0;
   NSArray *tracks = _separateParts ? [self scoreTracks] : [NSArray arrayWithObject:@-1];
   CGFloat partStride = [self partGrandStaffHeight] + PartStaffSpacing;
@@ -671,13 +682,30 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
       if (systemIndex == 0 && partIndex == 0)
         [self drawTempoMarkAtX:musicLeft y:trebleTop - 30.0];
       if (systemIndex % perPage == 0)
-        [self drawTimeSignatureAtX:left + 58.0 trebleY:trebleTop bassY:bassTop];
-      ScoreMeasure *openingMeasure = [_document measureContainingTick:startTick];
+        [self drawTimeSignatureAtX:timeSignatureX trebleY:trebleTop bassY:bassTop];
       if (openingMeasure && [openingMeasure keySignatureFifths] != 0)
         [self drawKeySignature:[openingMeasure keySignatureFifths]
-                           atX:left + 39.0
+                           atX:keySignatureX
                        trebleY:trebleTop
                          bassY:bassTop];
+      ScoreMeasure *previousMeasure = nil;
+      for (ScoreMeasure *measure in [_document measures])
+        {
+          NSUInteger tick = [measure startTick];
+          if (tick <= startTick) { previousMeasure = measure; continue; }
+          if (tick >= endTick) break;
+          if (previousMeasure &&
+              ([previousMeasure keySignatureFifths] != [measure keySignatureFifths] ||
+               ![[previousMeasure keyMode] isEqualToString:[measure keyMode]]))
+            {
+              CGFloat keyX = [self xForTick:tick start:startTick end:endTick
+                                      left:musicLeft right:musicRight] + 7.0;
+              [self drawKeySignatureCancellationFrom:[previousMeasure keySignatureFifths]
+                                                   to:[measure keySignatureFifths]
+                                                  atX:keyX trebleY:trebleTop bassY:bassTop];
+            }
+          previousMeasure = measure;
+        }
       [self drawMeasureLinesFromX:musicLeft
                               toX:musicRight
                              topY:trebleTop
@@ -693,27 +721,46 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
     }
 }
 
-- (void)drawKeySignature:(NSInteger)fifths
-                     atX:(CGFloat)x
-                 trebleY:(CGFloat)trebleY
-                   bassY:(CGFloat)bassY
+- (void)drawKeyAccidentals:(NSInteger)fifths symbol:(NSString *)symbol
+                       atX:(CGFloat)x trebleY:(CGFloat)trebleY bassY:(CGFloat)bassY
 {
-  NSString *symbol = fifths > 0 ? @"♯" : @"♭";
   NSInteger count = labs (fifths);
   NSInteger sharpSteps[] = { 0, 3, -1, 2, 5, 1, 4 };
   NSInteger flatSteps[] = { 4, 1, 5, 2, 6, 3, 7 };
-  NSDictionary *attrs =
-    [NSDictionary dictionaryWithObjectsAndKeys:([NSFont fontWithName:@"Times New Roman" size:18.0]
-                                                  ?: [NSFont systemFontOfSize:16.0]),
-                                               NSFontAttributeName, [NSColor blackColor],
-                                               NSForegroundColorAttributeName, nil];
+  NSDictionary *attrs = [NSDictionary dictionaryWithObjectsAndKeys:
+    ([NSFont fontWithName:@"Times New Roman" size:18.0] ?: [NSFont systemFontOfSize:16.0]),
+    NSFontAttributeName, [NSColor blackColor], NSForegroundColorAttributeName, nil];
   for (NSInteger i = 0; i < count; i++)
     {
       NSInteger step = fifths > 0 ? sharpSteps[i] : flatSteps[i];
       [symbol drawAtPoint:NSMakePoint (x + i * 8.0, trebleY + step * 2.5 - 9.0)
            withAttributes:attrs];
-      [symbol drawAtPoint:NSMakePoint (x + i * 8.0, bassY + step * 2.5 - 9.0) withAttributes:attrs];
+      [symbol drawAtPoint:NSMakePoint (x + i * 8.0, bassY + step * 2.5 - 9.0)
+           withAttributes:attrs];
     }
+}
+
+- (void)drawKeySignatureCancellationFrom:(NSInteger)oldFifths
+                                       to:(NSInteger)newFifths
+                                      atX:(CGFloat)x
+                                  trebleY:(CGFloat)trebleY
+                                    bassY:(CGFloat)bassY
+{
+  if (oldFifths)
+    [self drawKeyAccidentals:oldFifths symbol:@"♮" atX:x trebleY:trebleY bassY:bassY];
+  CGFloat newX = x + (oldFifths ? labs (oldFifths) * 8.0 + 4.0 : 0.0);
+  if (newFifths)
+    [self drawKeyAccidentals:newFifths symbol:(newFifths > 0 ? @"♯" : @"♭")
+                         atX:newX trebleY:trebleY bassY:bassY];
+}
+
+- (void)drawKeySignature:(NSInteger)fifths
+                     atX:(CGFloat)x
+                 trebleY:(CGFloat)trebleY
+                   bassY:(CGFloat)bassY
+{
+  [self drawKeyAccidentals:fifths symbol:(fifths > 0 ? @"♯" : @"♭")
+                       atX:x trebleY:trebleY bassY:bassY];
 }
 
 - (void)drawTempoMarkAtX:(CGFloat)x y:(CGFloat)y
@@ -1312,7 +1359,18 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   CGFloat inset = NoteHorizontalInset;
   ScoreMeasure *measure = [_document measureContainingTick:tick];
   if (measure && tick == [measure startTick])
-    inset = MeasureLeadingNoteHorizontalInset;
+    {
+      inset = MeasureLeadingNoteHorizontalInset;
+      NSUInteger index = [[_document measures] indexOfObjectIdenticalTo:measure];
+      if (index > 0 && index != NSNotFound)
+        {
+          ScoreMeasure *previous = [[_document measures] objectAtIndex:index - 1];
+          if ([previous keySignatureFifths] != [measure keySignatureFifths] ||
+              ![[previous keyMode] isEqualToString:[measure keyMode]])
+            inset += 8.0 * (labs ([previous keySignatureFifths]) +
+                            labs ([measure keySignatureFifths])) + 12.0;
+        }
+    }
   return MIN (right - 2.0,
               [self xForTick:tick start:start end:end left:left right:right] + inset);
 }
@@ -1378,13 +1436,16 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 
 - (CGFloat)accidentalColumnOffsetForNote:(ScoreNote *)note
 {
-  if ([note accidental] == 0)
+  if ([[_displayedAccidentals objectForKey:[NSValue valueWithPointer:note]] integerValue]
+        == NSIntegerMax)
     return 0.0;
   NSMutableArray *accidentals = [NSMutableArray array];
   BOOL treble = [note pitch] >= 60;
   for (ScoreNote *candidate in [_document notes])
     {
-      if ([candidate isRest] || [candidate accidental] == 0 ||
+      if ([candidate isRest] ||
+          [[_displayedAccidentals objectForKey:[NSValue valueWithPointer:candidate]] integerValue]
+            == NSIntegerMax ||
           [candidate startTick] != [note startTick] || [candidate track] != [note track]
           || (([candidate pitch] >= 60) != treble))
         continue;
@@ -2080,10 +2141,11 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   [head fill];
   [head stroke];
 
-  NSInteger accidental = [note accidental];
-  if (accidental != 0)
+  NSInteger accidental = [[_displayedAccidentals objectForKey:[NSValue valueWithPointer:note]]
+    integerValue];
+  if (accidental != NSIntegerMax)
     {
-      NSString *symbol = accidental > 0 ? @"♯" : @"♭";
+      NSString *symbol = accidental > 0 ? @"♯" : (accidental < 0 ? @"♭" : @"♮");
       NSFont *font = [NSFont fontWithName:@"Times New Roman" size:20.0];
       if (!font)
         font = [NSFont systemFontOfSize:17.0];
