@@ -296,6 +296,13 @@ DefaultAccidentalForPitch (NSInteger pitch)
 @end
 
 @implementation ScoreMeasure
+- (id)init
+{
+  self = [super init];
+  if (self)
+    _keyMode = [@"major" copy];
+  return self;
+}
 - (NSInteger)number
 {
   return _number;
@@ -352,6 +359,19 @@ DefaultAccidentalForPitch (NSInteger pitch)
 {
   _keySignatureFifths = MIN (MAX (value, (NSInteger)-7), (NSInteger)7);
 }
+- (NSString *)keyMode
+{
+  return _keyMode ?: @"major";
+}
+- (void)setKeyMode:(NSString *)value
+{
+  NSString *normalized = [[value lowercaseString] isEqualToString:@"minor"] ? @"minor" : @"major";
+  if (_keyMode != normalized)
+    {
+      [_keyMode release];
+      _keyMode = [normalized copy];
+    }
+}
 - (BOOL)repeatStart
 {
   return _repeatStart;
@@ -378,11 +398,98 @@ DefaultAccidentalForPitch (NSInteger pitch)
   [copy setTimeSignatureDenominator:_timeSignatureDenominator];
   [copy setImplicit:_implicit];
   [copy setKeySignatureFifths:_keySignatureFifths];
+  [copy setKeyMode:[self keyMode]];
   [copy setRepeatStart:_repeatStart];
   [copy setRepeatEnd:_repeatEnd];
   return copy;
 }
+- (void)dealloc
+{
+  [_keyMode release];
+  [super dealloc];
+}
 @end
+
+NSInteger
+ScoreKeySignatureAlterationForStep (NSInteger fifths, NSInteger step)
+{
+  static NSInteger sharpOrder[] = { 3, 0, 4, 1, 5, 2, 6 }; /* F C G D A E B */
+  static NSInteger flatOrder[] = { 6, 2, 5, 1, 4, 0, 3 };  /* B E A D G C F */
+  step = ((step % 7) + 7) % 7;
+  NSInteger count = labs (fifths);
+  for (NSInteger i = 0; i < count; i++)
+    if ((fifths > 0 ? sharpOrder[i] : flatOrder[i]) == step)
+      return fifths > 0 ? 1 : -1;
+  return 0;
+}
+
+static NSInteger
+DiatonicStepAndOctaveForNote (ScoreNote *note, NSInteger *octave)
+{
+  static NSInteger pitchClassToStep[] = { 0, 0, 1, 2, 2, 3, 3, 4, 5, 5, 6, 6 };
+  NSInteger naturalPitch = [note pitch] - [note accidental];
+  NSInteger pitchClass = ((naturalPitch % 12) + 12) % 12;
+  if (octave)
+    *octave = naturalPitch / 12 - 1;
+  return pitchClassToStep[pitchClass];
+}
+
+NSInteger
+ScoreDisplayedAccidentalForNote (ScoreNote *note, ScoreDocument *document)
+{
+  NSNumber *value = [ScoreDisplayedAccidentalMapForDocument (document)
+    objectForKey:[NSValue valueWithPointer:note]];
+  return value ? [value integerValue] : NSIntegerMax;
+}
+
+NSDictionary *
+ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
+{
+  NSMutableDictionary *result = [NSMutableDictionary dictionary];
+  if (!document)
+    return result;
+  NSArray *notes = [[document notes] sortedArrayUsingSelector:@selector (compareScoreNote:)];
+  NSArray *measures = [document measures];
+  NSUInteger measureIndex = 0;
+  NSMutableDictionary *state = [NSMutableDictionary dictionary];
+  NSUInteger index = 0;
+  while (index < [notes count])
+    {
+      ScoreNote *first = [notes objectAtIndex:index];
+      NSUInteger onset = [first startTick];
+      while (measureIndex + 1 < [measures count] &&
+             onset >= [[measures objectAtIndex:measureIndex + 1] startTick])
+        { measureIndex++; [state removeAllObjects]; }
+      ScoreMeasure *measure = [measures count] ? [measures objectAtIndex:measureIndex] : nil;
+      NSUInteger end = index;
+      while (end < [notes count] && [[notes objectAtIndex:end] startTick] == onset) end++;
+      for (NSUInteger i = index; i < end; i++)
+        {
+          ScoreNote *note = [notes objectAtIndex:i];
+          if ([note isRest]) continue;
+          NSInteger octave = 0, step = DiatonicStepAndOctaveForNote (note, &octave);
+          NSString *key = [NSString stringWithFormat:@"%ld:%ld:%ld", (long)[note track],
+                                                   (long)step, (long)octave];
+          NSNumber *stored = [state objectForKey:key];
+          NSInteger active = stored ? [stored integerValue]
+            : ScoreKeySignatureAlterationForStep (measure ? [measure keySignatureFifths] : 0, step);
+          NSInteger displayed = active == [note accidental] ? NSIntegerMax : [note accidental];
+          [result setObject:[NSNumber numberWithInteger:displayed]
+                     forKey:[NSValue valueWithPointer:note]];
+        }
+      for (NSUInteger i = index; i < end; i++)
+        {
+          ScoreNote *note = [notes objectAtIndex:i];
+          if ([note isRest]) continue;
+          NSInteger octave = 0, step = DiatonicStepAndOctaveForNote (note, &octave);
+          NSString *key = [NSString stringWithFormat:@"%ld:%ld:%ld", (long)[note track],
+                                                   (long)step, (long)octave];
+          [state setObject:[NSNumber numberWithInteger:[note accidental]] forKey:key];
+        }
+      index = end;
+    }
+  return result;
+}
 
 @implementation ScoreDocument
 

@@ -129,6 +129,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (void)resetScoreSourceRangeCache;
 - (void)closeAuxiliaryWindows;
 - (void)refreshScoreSourceEditorFromScoreIfClean;
+- (void)positionScoreSourceEditorBesideDocument;
+- (void)positionAuxiliaryWindowBesideDocument:(NSWindow *)auxiliaryWindow;
 - (void)clearScoreSourceErrorHighlight;
 - (void)showScoreSourceError:(NSError *)error;
 - (void)showGenericAudioUnitEditor;
@@ -814,8 +816,14 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 {
   NSAssert ([NSThread isMainThread], @"ScoreMaker windows must close on the main thread");
   [_audioUnitEditorWindow close];
+  NSWindow *patchParent = [_patchEditorWindow parentWindow];
+  if (patchParent)
+    [patchParent removeChildWindow:_patchEditorWindow];
   [_patchEditorWindow close];
   [_patchBrowserWindow close];
+  NSWindow *sourceParent = [_scoreSourceEditorWindow parentWindow];
+  if (sourceParent)
+    [sourceParent removeChildWindow:_scoreSourceEditorWindow];
   [_scoreSourceEditorWindow close];
 }
 
@@ -1257,20 +1265,23 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [[self inspectorView] addSubview:notationLabel];
 
   _keySignaturePopUp = [[NSPopUpButton alloc]
-    initWithFrame:NSMakeRect (InspectorPadding, frame.size.height - 578.0, 132.0, 26.0)
+    initWithFrame:NSMakeRect (InspectorPadding, frame.size.height - 578.0, 128.0, 26.0)
         pullsDown:NO];
-  NSArray *keyNames =
-    [NSArray arrayWithObjects:@"C / A minor", @"1♯ G / E minor", @"2♯ D / B minor",
-                              @"3♯ A / F♯ minor", @"4♯ E / C♯ minor", @"5♯ B / G♯ minor",
-                              @"6♯ F♯ / D♯ minor", @"7♯ C♯ / A♯ minor", @"1♭ F / D minor",
-                              @"2♭ B♭ / G minor", @"3♭ E♭ / C minor", @"4♭ A♭ / F minor",
-                              @"5♭ D♭ / B♭ minor", @"6♭ G♭ / E♭ minor", @"7♭ C♭ / A♭ minor", nil];
-  NSInteger keyValues[] = { 0, 1, 2, 3, 4, 5, 6, 7, -1, -2, -3, -4, -5, -6, -7 };
+  NSArray *keyNames = [NSArray arrayWithObjects:
+    @"C major", @"G major", @"D major", @"A major", @"E major", @"B major", @"F♯ major",
+    @"C♯ major", @"F major", @"B♭ major", @"E♭ major", @"A♭ major", @"D♭ major",
+    @"G♭ major", @"C♭ major", @"A minor", @"E minor", @"B minor", @"F♯ minor",
+    @"C♯ minor", @"G♯ minor", @"D♯ minor", @"A♯ minor", @"D minor", @"G minor",
+    @"C minor", @"F minor", @"B♭ minor", @"E♭ minor", @"A♭ minor", nil];
+  NSInteger keyValues[] = { 0, 1, 2, 3, 4, 5, 6, 7, -1, -2, -3, -4, -5, -6, -7,
+                            0, 1, 2, 3, 4, 5, 6, 7, -1, -2, -3, -4, -5, -6, -7 };
   for (NSUInteger i = 0; i < [keyNames count]; i++)
     {
       [_keySignaturePopUp addItemWithTitle:[keyNames objectAtIndex:i]];
-      [[_keySignaturePopUp lastItem]
-        setRepresentedObject:[NSNumber numberWithInteger:keyValues[i]]];
+      [[_keySignaturePopUp lastItem] setRepresentedObject:
+        [NSDictionary dictionaryWithObjectsAndKeys:[NSNumber numberWithInteger:keyValues[i]],
+                                                   @"fifths", i < 15 ? @"major" : @"minor",
+                                                   @"mode", nil]];
     }
   [_keySignaturePopUp setTarget:self];
   [_keySignaturePopUp setAction:@selector (notationDidChange:)];
@@ -1493,7 +1504,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   if (selectedMeasure)
     {
       for (NSMenuItem *item in [_keySignaturePopUp itemArray])
-        if ([[item representedObject] integerValue] == [selectedMeasure keySignatureFifths])
+        if ([[[item representedObject] objectForKey:@"fifths"] integerValue]
+              == [selectedMeasure keySignatureFifths] &&
+            [[[item representedObject] objectForKey:@"mode"] isEqualToString:[selectedMeasure keyMode]])
           {
             [_keySignaturePopUp selectItem:item];
             break;
@@ -1922,8 +1935,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [self registerUndoSnapshotWithName:@"Edit Notation"];
   if (measure)
     {
-      [measure
-        setKeySignatureFifths:[[[_keySignaturePopUp selectedItem] representedObject] integerValue]];
+      NSDictionary *key = [[_keySignaturePopUp selectedItem] representedObject];
+      [measure setKeySignatureFifths:[[key objectForKey:@"fifths"] integerValue]];
+      [measure setKeyMode:[key objectForKey:@"mode"]];
       [measure setRepeatStart:[_repeatStartButton state] == NSOnState];
       [measure setRepeatEnd:[_repeatEndButton state] == NSOnState];
     }
@@ -3228,9 +3242,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [help setTextColor:[NSColor secondaryLabelColor]];
       [help setStringValue:@"Each score voice can use its own patch. Saved patches are global and can be loaded into any score."];
       [content addSubview:help];
-      [_patchEditorWindow center];
     }
   [self loadPatchEditorControls];
+  [self positionAuxiliaryWindowBesideDocument:_patchEditorWindow];
   [_patchEditorWindow makeKeyAndOrderFront:nil];
 }
 
@@ -4912,6 +4926,28 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [self resetScoreSourceRangeCache];
 }
 
+- (void)positionScoreSourceEditorBesideDocument
+{
+  [self positionAuxiliaryWindowBesideDocument:_scoreSourceEditorWindow];
+}
+
+- (void)positionAuxiliaryWindowBesideDocument:(NSWindow *)auxiliaryWindow
+{
+  NSWindow *documentWindow = [self window];
+  if (!documentWindow || !auxiliaryWindow)
+    return;
+  NSWindow *oldParent = [auxiliaryWindow parentWindow];
+  if (oldParent && oldParent != documentWindow)
+    [oldParent removeChildWindow:auxiliaryWindow];
+  NSRect documentFrame = [documentWindow frame];
+  NSRect auxiliaryFrame = [auxiliaryWindow frame];
+  auxiliaryFrame.origin.x = NSMaxX (documentFrame) + 10.0;
+  auxiliaryFrame.origin.y = NSMaxY (documentFrame) - auxiliaryFrame.size.height;
+  [auxiliaryWindow setFrame:auxiliaryFrame display:NO];
+  if ([auxiliaryWindow parentWindow] != documentWindow)
+    [documentWindow addChildWindow:auxiliaryWindow ordered:NSWindowAbove];
+}
+
 - (void)showScoreSourceEditor:(id)sender
 {
   (void)sender;
@@ -5011,6 +5047,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [self updateScoreSourceSyntaxHighlighting];
       [self resetScoreSourceRangeCache];
     }
+  [self positionScoreSourceEditorBesideDocument];
   [_scoreSourceEditorWindow makeKeyAndOrderFront:self];
 }
 

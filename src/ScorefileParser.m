@@ -193,6 +193,7 @@ ScoreMakerStructureComment (ScoreDocument *document, NSError **error)
                       [NSNumber numberWithUnsignedInteger:[measure timeSignatureDenominator]],
                       @"beatType", [NSNumber numberWithBool:[measure isImplicit]], @"implicit",
                       [NSNumber numberWithInteger:[measure keySignatureFifths]], @"keyFifths",
+                      [measure keyMode], @"keyMode",
                       [NSNumber numberWithBool:[measure repeatStart]], @"repeatStart",
                       [NSNumber numberWithBool:[measure repeatEnd]], @"repeatEnd", nil]];
     }
@@ -259,6 +260,7 @@ ApplyScoreMakerStructure (ScoreDocument *document, NSDictionary *structure)
                                                                      unsignedIntegerValue])];
           [measure setImplicit:[[item objectForKey:@"implicit"] boolValue]];
           [measure setKeySignatureFifths:[[item objectForKey:@"keyFifths"] integerValue]];
+          [measure setKeyMode:[item objectForKey:@"keyMode"]];
           [measure setRepeatStart:[[item objectForKey:@"repeatStart"] boolValue]];
           [measure setRepeatEnd:[[item objectForKey:@"repeatEnd"] boolValue]];
           [measures addObject:measure];

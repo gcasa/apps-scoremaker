@@ -15,6 +15,20 @@ explicit measures without breaking MusicKit-style .score files.
   MIDI files highlight correctly regardless of their ticks-per-quarter value.
 * Kept an open, unedited source editor synchronized as notes are added to a new
   blank document, allowing playback highlighting without manual regeneration.
+* Added professional key-signature handling: distinct major/minor semantics,
+  MusicXML and MIDI key metadata round trips, mid-system changes with
+  cancellation naturals, signature-aware accidental carry/reset rules, and
+  engraving space reserved for key changes and contextual accidentals.
+* Cached contextual accidental decisions in a single ordered pass, preventing
+  large scores from stalling during engraving and display.
+* Reserved dynamic opening-system space in clef/key/time order so key
+  signatures remain visible at the beginning of the score and later systems.
+* Added a compact G-major to E-flat-major example demonstrating visible key
+  signatures and cancellation at a measure-boundary change.
+* Anchored each score-source editor to the right of its document window so the
+  editor opens beside and moves with the score it represents.
+* Anchored the per-score Internal Synth Patch Editor beside its document using
+  the same top-aligned child-window behavior as the source editor.
 * Added independent voice numbers to notes; notes from legacy sources default
   to voice 1.
 * Added explicit measure objects containing measure number, starting tick,

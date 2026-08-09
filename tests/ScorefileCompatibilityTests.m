@@ -22,6 +22,7 @@
 #import "ScorefileParser.h"
 #import "ScoreProjectSerializer.h"
 #import "MusicXMLParser.h"
+#import "MidiParser.h"
 #import "NotationModel.h"
 #import "EngravingLayout.h"
 #import "MusicEngine.h"
@@ -485,6 +486,7 @@ main (void)
       [[voices notes] addObject:note];
     }
   [pickup setKeySignatureFifths:2];
+  [pickup setKeyMode:@"minor"];
   [pickup setRepeatStart:YES];
   [measure setKeySignatureFifths:-3];
   [measure setRepeatEnd:YES];
@@ -502,6 +504,7 @@ main (void)
   Require ([firstVoiceNote velocity] == 96 && [secondVoiceNote velocity] == 48,
            @"velocities did not round trip");
   Require ([[voiceRoundTrip measures][0] keySignatureFifths] == 2 &&
+             [[[voiceRoundTrip measures][0] keyMode] isEqualToString:@"minor"] &&
              [[voiceRoundTrip measures][0] repeatStart] && [[voiceRoundTrip measures][1] repeatEnd],
            @"scorefile signatures or repeats did not round trip");
   ScoreNote *scoreFeatureNote = [[voiceRoundTrip notes] objectAtIndex:0];
@@ -522,8 +525,50 @@ main (void)
   Require ([firstXMLNote voice] == 1 && [secondXMLNote voice] == 2,
            @"MusicXML voices did not round trip");
   Require ([[xmlRoundTrip measures][0] keySignatureFifths] == 2 &&
+             [[[xmlRoundTrip measures][0] keyMode] isEqualToString:@"minor"] &&
              [[xmlRoundTrip measures][0] repeatStart] && [[xmlRoundTrip measures][1] repeatEnd],
            @"MusicXML signatures or repeats did not round trip");
+
+  NSData *midiKeys = [MidiParser dataForDocument:voices error:&error];
+  NSString *midiKeyPath = [NSTemporaryDirectory () stringByAppendingPathComponent:@"scoremaker-keys.mid"];
+  Require ([midiKeys writeToFile:midiKeyPath atomically:YES], @"could not write MIDI key test");
+  ScoreDocument *midiKeyRoundTrip = [MidiParser parseFileAtPath:midiKeyPath error:&error];
+  Require ([[midiKeyRoundTrip measures][0] keySignatureFifths] == 2 &&
+             [[[midiKeyRoundTrip measures][0] keyMode] isEqualToString:@"minor"] &&
+             [[midiKeyRoundTrip measures] count] >= 2 &&
+             [[midiKeyRoundTrip measures][1] startTick] == 480 &&
+             [[midiKeyRoundTrip measures][1] keySignatureFifths] == -3 &&
+             [[[midiKeyRoundTrip measures][1] keyMode] isEqualToString:@"major"],
+           @"MIDI key signature or mode did not round trip");
+
+  ScoreDocument *accidentalScore = [[[ScoreDocument alloc] init] autorelease];
+  [accidentalScore setTotalTicks:3840];
+  [accidentalScore buildDefaultMeasures];
+  for (ScoreMeasure *keyMeasure in [accidentalScore measures])
+    [keyMeasure setKeySignatureFifths:1];
+  NSInteger pitches[] = { 66, 65, 65, 66, 66 };
+  NSInteger spellings[] = { 1, 0, 0, 1, 1 };
+  NSUInteger starts[] = { 0, 480, 960, 1440, 1920 };
+  NSMutableArray *accidentalNotes = [NSMutableArray array];
+  for (NSUInteger i = 0; i < 5; i++)
+    {
+      ScoreNote *keyNote = [[[ScoreNote alloc] init] autorelease];
+      [keyNote setPitch:pitches[i]];
+      [keyNote setAccidental:spellings[i]];
+      [keyNote setStartTick:starts[i]];
+      [keyNote setDurationTicks:240];
+      [[accidentalScore notes] addObject:keyNote];
+      [accidentalNotes addObject:keyNote];
+    }
+  Require (ScoreDisplayedAccidentalForNote ([accidentalNotes objectAtIndex:0], accidentalScore)
+             == NSIntegerMax &&
+             ScoreDisplayedAccidentalForNote ([accidentalNotes objectAtIndex:1], accidentalScore) == 0 &&
+             ScoreDisplayedAccidentalForNote ([accidentalNotes objectAtIndex:2], accidentalScore)
+               == NSIntegerMax &&
+             ScoreDisplayedAccidentalForNote ([accidentalNotes objectAtIndex:3], accidentalScore) == 1 &&
+             ScoreDisplayedAccidentalForNote ([accidentalNotes objectAtIndex:4], accidentalScore)
+               == NSIntegerMax,
+           @"key-aware accidental carry or measure reset is incorrect");
   ScoreNote *xmlFeatureNote = [[xmlRoundTrip notes] objectAtIndex:0];
   Require ([xmlFeatureNote tieStart] && [xmlFeatureNote tupletActual] == 3 &&
              [[xmlFeatureNote dynamic] isEqualToString:@"mf"] &&

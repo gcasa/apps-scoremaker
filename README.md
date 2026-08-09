@@ -41,7 +41,9 @@ therefore not enabled by default; it requires the Steinberg VST3 SDK and a separ
 before ScoreMaker targets systems or vendors that do not supply Audio Units.
 - Preserve independent note voices and explicit measure boundaries, including pickup measures and per-measure time signatures.
 - Reflow measures across systems and printed pages according to notation density, with collision-aware onset spacing, displaced seconds in chords, and staggered accidental columns.
-- Import, export, preserve, and render key signatures, ties, tuplets, dynamics, common articulations, and repeat barlines.
+- Import, export, preserve, and render major/minor key signatures, including mid-system changes,
+  cancellation naturals, contextual measure accidentals, ties, tuplets, dynamics, common
+  articulations, and repeat barlines.
 
 ## Screenshots
 
@@ -77,6 +79,9 @@ The GNUstep build expects `gnustep-config`, GNUstep GUI libraries, and an Object
 Open the app, then choose `File > Open...` to load a `.mid`, `.midi`, or `.score` file.
 
 The bundled `examples/neon-causeway.score` is an original, copyright-free synthwave composition demonstrating bass, pad, lead, chords, accidentals, parts, and playback.
+The bundled `examples/key-signature-change.score` is a short engraving example that changes
+from G major to E-flat major, demonstrating an opening signature, cancellation naturals, and a
+mid-score flat signature.
 The bundled `examples/time-rotor-study.score` is an original CC0 electronic science-fiction title study in 6/8. It is intentionally not an arrangement of any television theme.
 The bundled `examples/mozart-requiem/` collection contains fourteen independently openable complete multi-track scores, one for each commonly separated movement of Mozart's Requiem, K. 626.
 

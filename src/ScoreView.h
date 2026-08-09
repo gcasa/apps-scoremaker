@@ -33,6 +33,7 @@ extern NSString *const ScorePalettePasteboardType;
   NSUInteger _playbackTick;
   BOOL _showPlayback;
   ScoreEngravingLayout *_engravingLayout;
+  NSDictionary *_displayedAccidentals;
   BOOL _separateParts;
   NSNumber *_publicationTrack;
 }

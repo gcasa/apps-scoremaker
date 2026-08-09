@@ -94,6 +94,7 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
   NSString *_noteArticulation;
   NSString *_pendingDynamic;
   NSInteger _currentKeyFifths;
+  NSString *_currentKeyMode;
   BOOL _measureRepeatStart;
   BOOL _measureRepeatEnd;
   NSInteger _noteVoice;
@@ -126,6 +127,7 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
       _partPrograms = [[NSMutableDictionary alloc] init];
       _partIndexes = [[NSMutableDictionary alloc] init];
       _divisions = 1;
+      _currentKeyMode = [@"major" copy];
     }
   return self;
 }
@@ -144,6 +146,7 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
   [_scoreTitle release];
   [_scoreTitleFontName release];
   [_scoreComposer release];
+  [_currentKeyMode release];
   [super dealloc];
 }
 
@@ -384,6 +387,12 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
     {
       _currentKeyFifths = MIN (MAX ([value integerValue], (NSInteger)-7), (NSInteger)7);
     }
+  else if ([element isEqualToString:@"mode"])
+    {
+      [_currentKeyMode release];
+      NSString *mode = [[value lowercaseString] isEqualToString:@"minor"] ? @"minor" : @"major";
+      _currentKeyMode = [mode copy];
+    }
   else if (_inNote && [element isEqualToString:@"step"])
     {
       [_noteStep release];
@@ -493,6 +502,7 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
           [measure setTimeSignatureDenominator:[_document timeSignatureDenominator]];
           [measure setImplicit:_measureImplicit];
           [measure setKeySignatureFifths:_currentKeyFifths];
+          [measure setKeyMode:_currentKeyMode];
           [measure setRepeatStart:_measureRepeatStart];
           [measure setRepeatEnd:_measureRepeatEnd];
           [[_document measures] addObject:measure];
@@ -625,14 +635,15 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
                 [previous timeSignatureNumerator] != [measure timeSignatureNumerator] ||
                 [previous timeSignatureDenominator] != [measure timeSignatureDenominator];
               keyChanged = [previous keySignatureFifths] != [measure keySignatureFifths];
+              keyChanged = keyChanged || ![[previous keyMode] isEqualToString:[measure keyMode]];
             }
           if (timeChanged || keyChanged)
             {
               [xml
                 appendFormat:@"      <attributes><divisions>%lu</divisions>", (unsigned long)tpq];
               if (keyChanged)
-                [xml appendFormat:@"<key><fifths>%ld</fifths></key>",
-                                  (long)[measure keySignatureFifths]];
+                [xml appendFormat:@"<key><fifths>%ld</fifths><mode>%@</mode></key>",
+                                  (long)[measure keySignatureFifths], [measure keyMode]];
               if (timeChanged)
                 [xml appendFormat:@"<time><beats>%lu</beats><beat-type>%lu</beat-type></time>",
                                   (unsigned long)[measure timeSignatureNumerator],
