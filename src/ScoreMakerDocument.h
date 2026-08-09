@@ -109,6 +109,7 @@
   NSTimer *_playbackTimer;
   NSTimeInterval _playbackStartTime;
   NSTimeInterval _playbackPausedElapsed;
+  NSTimeInterval _playbackMIDIOriginTime;
   BOOL _playbackPaused;
   BOOL _loopSelectionEnabled;
   BOOL _updatingInspector;

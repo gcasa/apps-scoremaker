@@ -40,6 +40,43 @@ static CGFloat const PlaybackMonitorHeight = 150.0;
 static CGFloat const InspectorContentHeight = 1060.0;
 static NSString *const ScoreMakerInternalPatchPresetsKey = @"ScoreMakerInternalPatchPresets";
 
+static NSImage *
+ScoreMakerTransportImage (NSString *kind)
+{
+  NSImage *image = [[[NSImage alloc] initWithSize:NSMakeSize (16.0, 16.0)] autorelease];
+  [image lockFocus];
+  [[NSColor blackColor] setFill];
+  if ([kind isEqualToString:@"play"])
+    {
+      NSBezierPath *path = [NSBezierPath bezierPath];
+      [path moveToPoint:NSMakePoint (4.0, 2.0)];
+      [path lineToPoint:NSMakePoint (13.0, 8.0)];
+      [path lineToPoint:NSMakePoint (4.0, 14.0)];
+      [path closePath];
+      [path fill];
+    }
+  else if ([kind isEqualToString:@"resume"])
+    {
+      NSRectFill (NSMakeRect (2.0, 2.0, 2.5, 12.0));
+      NSBezierPath *path = [NSBezierPath bezierPath];
+      [path moveToPoint:NSMakePoint (6.0, 2.0)];
+      [path lineToPoint:NSMakePoint (14.0, 8.0)];
+      [path lineToPoint:NSMakePoint (6.0, 14.0)];
+      [path closePath];
+      [path fill];
+    }
+  else if ([kind isEqualToString:@"pause"])
+    {
+      NSRectFill (NSMakeRect (3.0, 2.0, 4.0, 12.0));
+      NSRectFill (NSMakeRect (9.0, 2.0, 4.0, 12.0));
+    }
+  else
+    NSRectFill (NSMakeRect (3.0, 3.0, 10.0, 10.0));
+  [image unlockFocus];
+  [image setTemplate:YES];
+  return image;
+}
+
 #if defined(__APPLE__)
 static NSString *
 ScoreMakerMIDIEndpointName (MIDIEndpointRef endpoint)
@@ -131,6 +168,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (void)refreshScoreSourceEditorFromScoreIfClean;
 - (void)positionScoreSourceEditorBesideDocument;
 - (void)positionAuxiliaryWindowBesideDocument:(NSWindow *)auxiliaryWindow;
+- (void)arrangeScoreAuxiliaryWindows;
+- (void)updatePauseButtonForPaused:(BOOL)paused;
 - (void)clearScoreSourceErrorHighlight;
 - (void)showScoreSourceError:(NSError *)error;
 - (void)showGenericAudioUnitEditor;
@@ -955,7 +994,11 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _playButton =
     [[NSButton alloc] initWithFrame:NSMakeRect (frame.size.width - InspectorPadding - 176.0,
                                                 frame.size.height - 42.0, 54.0, 28.0)];
-  [_playButton setTitle:@"Play"];
+  [_playButton setTitle:@""];
+  [_playButton setImage:ScoreMakerTransportImage (@"play")];
+  [_playButton setImagePosition:NSImageOnly];
+  [_playButton setToolTip:@"Play"];
+  [_playButton setAccessibilityLabel:@"Play"];
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -973,7 +1016,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _pauseButton =
     [[NSButton alloc] initWithFrame:NSMakeRect (frame.size.width - InspectorPadding - 118.0,
                                                 frame.size.height - 42.0, 62.0, 28.0)];
-  [_pauseButton setTitle:@"Pause"];
+  [_pauseButton setTitle:@""];
+  [_pauseButton setImagePosition:NSImageOnly];
+  [self updatePauseButtonForPaused:NO];
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -991,7 +1036,11 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _stopButton =
     [[NSButton alloc] initWithFrame:NSMakeRect (frame.size.width - InspectorPadding - 52.0,
                                                 frame.size.height - 42.0, 52.0, 28.0)];
-  [_stopButton setTitle:@"Stop"];
+  [_stopButton setTitle:@""];
+  [_stopButton setImage:ScoreMakerTransportImage (@"stop")];
+  [_stopButton setImagePosition:NSImageOnly];
+  [_stopButton setToolTip:@"Stop"];
+  [_stopButton setAccessibilityLabel:@"Stop"];
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -1534,6 +1583,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
                           : @"No articulation"];
   NSNumber *viewedPart = [[_partPopUp selectedItem] representedObject];
   NSMutableSet *partSet = [NSMutableSet set];
+  NSMutableSet *noteTrackSet = [NSMutableSet set];
   [partSet addObjectsFromArray:[[document partNames] allKeys]];
   [partSet addObjectsFromArray:[[document trackPrograms] allKeys]];
   NSEnumerator *partNoteEnumerator = [[document notes] objectEnumerator];
@@ -1542,6 +1592,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   while ((partNote = [partNoteEnumerator nextObject]) != nil)
     {
       [partSet addObject:[NSNumber numberWithInteger:[partNote track]]];
+      [noteTrackSet addObject:[NSNumber numberWithInteger:[partNote track]]];
       firstNoteTrack = MIN (firstNoteTrack, [partNote track]);
     }
   if ([partSet count] == 0)
@@ -1554,6 +1605,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
                            ? firstNoteTrack
                            : [[[[partSet allObjects] sortedArrayUsingSelector:@selector (compare:)]
                                objectAtIndex:0] integerValue]));
+  if (viewedPart && [noteTrackSet count] && ![noteTrackSet containsObject:viewedPart])
+    selectedPart = [[[[noteTrackSet allObjects] sortedArrayUsingSelector:@selector (compare:)]
+      objectAtIndex:0] integerValue];
   if (![partSet containsObject:[NSNumber numberWithInteger:selectedPart]])
     selectedPart = [[[[partSet allObjects] sortedArrayUsingSelector:@selector (compare:)]
       objectAtIndex:0] integerValue];
@@ -1911,6 +1965,23 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 {
   (void)notification;
   [self refreshInspector];
+  ScoreNote *note = [[self scoreView] selectedNote];
+  if (note && ![note isRest])
+    [_playbackMonitorView setInputPitch:[note pitch]];
+  else
+    [_playbackMonitorView resetInputPitch];
+  if (_scoreSourceEditorWindow && [_scoreSourceEditorWindow isVisible] &&
+      !_scoreSourceEditorDirty)
+    {
+      NSValue *value = [self sourceRangeForScoreNote:note];
+      if (value)
+        {
+          _updatingScoreSourceEditor = YES;
+          [_scoreSourceTextView setSelectedRange:[value rangeValue]];
+          [_scoreSourceTextView scrollRangeToVisible:[value rangeValue]];
+          _updatingScoreSourceEditor = NO;
+        }
+    }
 }
 
 - (void)noteValueDidChange:(id)sender
@@ -2300,6 +2371,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 
   ScoreScheduler *scheduler = [[[ScoreScheduler alloc] initWithDocument:source] autorelease];
   NSTimeInterval adjustedElapsed = [scheduler timeForTick:tick];
+  _playbackMIDIOriginTime = adjustedElapsed;
   _playbackStartTime = [NSDate timeIntervalSinceReferenceDate] - adjustedElapsed;
   _playbackPausedElapsed = adjustedElapsed;
 
@@ -2312,7 +2384,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
         }
       [_playbackSound pause];
       _playbackPaused = YES;
-      [_pauseButton setTitle:@"Resume"];
+      [self updatePauseButtonForPaused:YES];
     }
   return YES;
 }
@@ -2324,7 +2396,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _playbackTimer = nil;
   _playbackPaused = NO;
   _playbackPausedElapsed = 0.0;
-  [_pauseButton setTitle:@"Pause"];
+  _playbackMIDIOriginTime = 0.0;
+  [self updatePauseButtonForPaused:NO];
   [_pauseButton setEnabled:NO];
   [[self scoreView] clearPlayback];
   [_playbackMonitorView clearPlayback];
@@ -2334,6 +2407,14 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _scoreSourceLastPlaybackTick = NSNotFound;
   [self stopPlaybackAudioOnly];
   [self stopAudition];
+}
+
+- (void)updatePauseButtonForPaused:(BOOL)paused
+{
+  NSString *label = paused ? @"Resume" : @"Pause";
+  [_pauseButton setImage:ScoreMakerTransportImage (paused ? @"resume" : @"pause")];
+  [_pauseButton setToolTip:label];
+  [_pauseButton setAccessibilityLabel:label];
 }
 
 - (void)schedulePlaybackTimer
@@ -2358,6 +2439,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     }
 
   NSTimeInterval elapsed = [NSDate timeIntervalSinceReferenceDate] - _playbackStartTime;
+  if (_midiPlayer && [(AVMIDIPlayer *)_midiPlayer respondsToSelector:@selector (currentPosition)] &&
+      [(AVMIDIPlayer *)_midiPlayer isPlaying])
+    elapsed = _playbackMIDIOriginTime + [(AVMIDIPlayer *)_midiPlayer currentPosition];
   ScoreScheduler *scheduler = [[[ScoreScheduler alloc] initWithDocument:document] autorelease];
   NSUInteger tick = [scheduler tickForTime:elapsed];
 
@@ -2385,7 +2469,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [[self scoreView] clearPlayback];
       [_playbackMonitorView clearPlayback];
       [self clearScoreSourcePlaybackHighlight];
-      [_pauseButton setTitle:@"Pause"];
+      [self updatePauseButtonForPaused:NO];
       [_pauseButton setEnabled:NO];
       [_realtimeDSP allNotesOff];
       return;
@@ -2402,6 +2486,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   ScoreDocument *document = [self scoreDocument];
   ScoreScheduler *scheduler = [[[ScoreScheduler alloc] initWithDocument:document] autorelease];
   NSTimeInterval elapsed = [scheduler timeForTick:tick];
+  _playbackMIDIOriginTime = elapsed;
   _playbackStartTime = [NSDate timeIntervalSinceReferenceDate] - elapsed;
   [_scoreSourceActivePlaybackNotes removeAllObjects];
   _scoreSourcePlaybackNoteIndex = 0;
@@ -2412,7 +2497,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [self updateScoreSourcePlaybackHighlightAtTick:tick];
   _playbackPaused = NO;
   _playbackPausedElapsed = elapsed;
-  [_pauseButton setTitle:@"Pause"];
+  [self updatePauseButtonForPaused:NO];
   [_pauseButton setEnabled:YES];
   [self schedulePlaybackTimer];
 }
@@ -2447,7 +2532,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
           [_realtimeDSP stop];
         }
       _playbackPaused = YES;
-      [_pauseButton setTitle:@"Resume"];
+      [self updatePauseButtonForPaused:YES];
     }
   else
     {
@@ -2469,7 +2554,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
         }
       _playbackStartTime = [NSDate timeIntervalSinceReferenceDate] - _playbackPausedElapsed;
       _playbackPaused = NO;
-      [_pauseButton setTitle:@"Pause"];
+      [self updatePauseButtonForPaused:NO];
       [self schedulePlaybackTimer];
     }
 }
@@ -3246,6 +3331,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [self loadPatchEditorControls];
   [self positionAuxiliaryWindowBesideDocument:_patchEditorWindow];
   [_patchEditorWindow makeKeyAndOrderFront:nil];
+  [self arrangeScoreAuxiliaryWindows];
 }
 
 - (void)patchControlChanged:(id)sender
@@ -4948,6 +5034,28 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     [documentWindow addChildWindow:auxiliaryWindow ordered:NSWindowAbove];
 }
 
+- (void)arrangeScoreAuxiliaryWindows
+{
+  BOOL sourceVisible = _scoreSourceEditorWindow && [_scoreSourceEditorWindow isVisible];
+  BOOL patchVisible = _patchEditorWindow && [_patchEditorWindow isVisible];
+  if (!sourceVisible && !patchVisible)
+    return;
+  if (sourceVisible)
+    [self positionAuxiliaryWindowBesideDocument:_scoreSourceEditorWindow];
+  if (patchVisible)
+    {
+      [self positionAuxiliaryWindowBesideDocument:_patchEditorWindow];
+      if (sourceVisible)
+        {
+          NSRect sourceFrame = [_scoreSourceEditorWindow frame];
+          NSRect patchFrame = [_patchEditorWindow frame];
+          patchFrame.origin.x = sourceFrame.origin.x;
+          patchFrame.origin.y = NSMinY (sourceFrame) - 10.0 - patchFrame.size.height;
+          [_patchEditorWindow setFrame:patchFrame display:NO];
+        }
+    }
+}
+
 - (void)showScoreSourceEditor:(id)sender
 {
   (void)sender;
@@ -5049,6 +5157,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     }
   [self positionScoreSourceEditorBesideDocument];
   [_scoreSourceEditorWindow makeKeyAndOrderFront:self];
+  [self arrangeScoreAuxiliaryWindows];
 }
 
 - (void)scoreSourceTextDidChange:(NSNotification *)notification

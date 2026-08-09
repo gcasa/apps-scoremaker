@@ -138,6 +138,8 @@ main (void)
                                             suggestedTitle:@"Normalized MIDI"
                                                      error:&sourceError];
   ScoreNote *normalizedNote = [[normalized notes] objectAtIndex:0];
+  Require ([normalizedNote track] == 2 && [normalizedNote voice] == 3,
+           @"generated source did not restore the original MIDI track and voice");
   Require (llround ((double)[highResolutionNote startTick] * 1000000.0 /
                     (double)[highResolution ticksPerQuarter]) ==
              llround ((double)[normalizedNote startTick] * 1000000.0 /

@@ -227,8 +227,10 @@ ScoreMakerStructureComment (ScoreDocument *document, NSError **error)
       [noteDetails addObject:detail];
     }
   NSDictionary *structure =
-    [NSDictionary dictionaryWithObjectsAndKeys:[NSNumber numberWithInteger:2], @"version", measures,
-                                               @"measures", noteDetails, @"noteDetails", nil];
+    [NSDictionary dictionaryWithObjectsAndKeys:[NSNumber numberWithInteger:2], @"version",
+                                               [NSNumber numberWithUnsignedInteger:
+                                                 [document ticksPerQuarter]], @"ticksPerQuarter",
+                                               measures, @"measures", noteDetails, @"noteDetails", nil];
   NSData *data = [NSJSONSerialization dataWithJSONObject:structure options:0 error:error];
   if (!data)
     return nil;
@@ -269,14 +271,17 @@ ApplyScoreMakerStructure (ScoreDocument *document, NSDictionary *structure)
         [document setMeasures:measures];
     }
   NSArray *details = [structure objectForKey:@"noteDetails"];
+  NSUInteger storedTPQ = [[structure objectForKey:@"ticksPerQuarter"] unsignedIntegerValue];
+  storedTPQ = MAX ((NSUInteger)1, storedTPQ ?: [document ticksPerQuarter]);
+  NSUInteger documentTPQ = MAX ((NSUInteger)1, [document ticksPerQuarter]);
   NSMutableDictionary *notesByIdentity = [NSMutableDictionary dictionary];
   NSMutableDictionary *nextNoteByIdentity = [NSMutableDictionary dictionary];
   for (ScoreNote *candidate in [document notes])
     {
       NSString *identity = [NSString
-        stringWithFormat:@"%lu:%lu:%ld:%ld:%d", (unsigned long)[candidate startTick],
+        stringWithFormat:@"%lu:%lu:%ld:%d", (unsigned long)[candidate startTick],
                          (unsigned long)[candidate durationTicks], (long)[candidate pitch],
-                         (long)[candidate track], [candidate isRest]];
+                         [candidate isRest]];
       NSMutableArray *matches = [notesByIdentity objectForKey:identity];
       if (!matches)
         {
@@ -289,12 +294,14 @@ ApplyScoreMakerStructure (ScoreDocument *document, NSDictionary *structure)
     {
       if (![item isKindOfClass:[NSDictionary class]])
         continue;
+      NSUInteger storedStart = [[item objectForKey:@"startTick"] unsignedIntegerValue];
+      NSUInteger storedDuration = [[item objectForKey:@"durationTicks"] unsignedIntegerValue];
+      NSUInteger normalizedStart = (NSUInteger)llround ((double)storedStart * documentTPQ / storedTPQ);
+      NSUInteger normalizedDuration = (NSUInteger)llround ((double)storedDuration * documentTPQ / storedTPQ);
       NSString *identity = [NSString
-        stringWithFormat:@"%lu:%lu:%ld:%ld:%d",
-                         (unsigned long)[[item objectForKey:@"startTick"] unsignedIntegerValue],
-                         (unsigned long)[[item objectForKey:@"durationTicks"] unsignedIntegerValue],
+        stringWithFormat:@"%lu:%lu:%ld:%d",
+                         (unsigned long)normalizedStart, (unsigned long)normalizedDuration,
                          (long)[[item objectForKey:@"pitch"] integerValue],
-                         (long)[[item objectForKey:@"track"] integerValue],
                          [[item objectForKey:@"rest"] boolValue]];
       NSArray *matches = [notesByIdentity objectForKey:identity];
       NSUInteger matchIndex = [[nextNoteByIdentity objectForKey:identity] unsignedIntegerValue];
@@ -303,6 +310,7 @@ ApplyScoreMakerStructure (ScoreDocument *document, NSDictionary *structure)
       ScoreNote *note = [matches objectAtIndex:matchIndex];
       [nextNoteByIdentity setObject:[NSNumber numberWithUnsignedInteger:matchIndex + 1]
                              forKey:identity];
+      [note setTrack:[[item objectForKey:@"track"] integerValue]];
       [note setVoice:[[item objectForKey:@"voice"] integerValue]];
       [note setMeasureIndex:[[item objectForKey:@"measureIndex"] integerValue]];
       NSNumber *velocity = [item objectForKey:@"velocity"];
