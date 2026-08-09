@@ -48,6 +48,7 @@ extern NSString *const ScorePalettePasteboardType;
 - (void)setPlaybackTick:(NSUInteger)tick;
 - (void)clearPlayback;
 - (void)scrollPlaybackTickToVisible:(NSUInteger)tick;
+- (NSUInteger)pageCount;
 - (NSSize)printedPageContentSize;
 - (BOOL)separateParts;
 - (void)setSeparateParts:(BOOL)separate;

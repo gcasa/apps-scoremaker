@@ -40,6 +40,14 @@ static CGFloat const PlaybackMonitorHeight = 150.0;
 static CGFloat const InspectorContentHeight = 1060.0;
 static NSString *const ScoreMakerInternalPatchPresetsKey = @"ScoreMakerInternalPatchPresets";
 
+static void
+ScoreMakerSetAccessibilityLabel (id control, NSString *label)
+{
+  SEL selector = NSSelectorFromString (@"setAccessibilityLabel:");
+  if ([control respondsToSelector:selector])
+    [control performSelector:selector withObject:label];
+}
+
 static NSImage *
 ScoreMakerTransportImage (NSString *kind)
 {
@@ -73,7 +81,10 @@ ScoreMakerTransportImage (NSString *kind)
   else
     NSRectFill (NSMakeRect (3.0, 3.0, 10.0, 10.0));
   [image unlockFocus];
-  [image setTemplate:YES];
+#if defined(__APPLE__)
+  if ([image respondsToSelector:@selector (setTemplate:)])
+    [image setTemplate:YES];
+#endif
   return image;
 }
 
@@ -998,7 +1009,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_playButton setImage:ScoreMakerTransportImage (@"play")];
   [_playButton setImagePosition:NSImageOnly];
   [_playButton setToolTip:@"Play"];
-  [_playButton setAccessibilityLabel:@"Play"];
+  ScoreMakerSetAccessibilityLabel (_playButton, @"Play");
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -1040,7 +1051,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_stopButton setImage:ScoreMakerTransportImage (@"stop")];
   [_stopButton setImagePosition:NSImageOnly];
   [_stopButton setToolTip:@"Stop"];
-  [_stopButton setAccessibilityLabel:@"Stop"];
+  ScoreMakerSetAccessibilityLabel (_stopButton, @"Stop");
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -2414,7 +2425,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   NSString *label = paused ? @"Resume" : @"Pause";
   [_pauseButton setImage:ScoreMakerTransportImage (paused ? @"resume" : @"pause")];
   [_pauseButton setToolTip:label];
-  [_pauseButton setAccessibilityLabel:label];
+  ScoreMakerSetAccessibilityLabel (_pauseButton, label);
 }
 
 - (void)schedulePlaybackTimer
@@ -5602,6 +5613,16 @@ ScoreSourceNoteIdentity (ScoreNote *note, ScoreDocument *document)
   return YES;
 }
 
+- (BOOL)readFromURL:(NSURL *)url ofType:(NSString *)typeName
+{
+  return [self readFromURL:url ofType:typeName error:NULL];
+}
+
+- (BOOL)readFromFile:(NSString *)fileName ofType:(NSString *)typeName
+{
+  return [self readFromURL:[NSURL fileURLWithPath:fileName] ofType:typeName error:NULL];
+}
+
 - (NSData *)dataOfType:(NSString *)typeName error:(NSError **)error
 {
   ScoreDocument *document = [self scoreDocument];
@@ -5684,6 +5705,16 @@ ScoreSourceNoteIdentity (ScoreNote *note, ScoreDocument *document)
   if (!data)
     return NO;
   return [data writeToURL:url options:NSDataWritingAtomic error:error];
+}
+
+- (BOOL)writeToURL:(NSURL *)url ofType:(NSString *)typeName
+{
+  return [self writeToURL:url ofType:typeName error:NULL];
+}
+
+- (BOOL)writeToFile:(NSString *)fileName ofType:(NSString *)typeName
+{
+  return [self writeToURL:[NSURL fileURLWithPath:fileName] ofType:typeName error:NULL];
 }
 
 - (NSArray *)writableTypesForSaveOperation:(NSSaveOperationType)saveOperation

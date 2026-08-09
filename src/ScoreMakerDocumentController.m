@@ -21,6 +21,7 @@
 #import "ScoreMakerDocument.h"
 
 static NSString *const ScoreMakerScorefileType = @"MusicKit Scorefile";
+static NSString *const ScoreMakerProjectType = @"ScoreMaker Project";
 static NSString *const ScoreMakerMidiType = @"MIDI File";
 static NSString *const ScoreMakerMusicXMLType = @"MusicXML File";
 
@@ -38,7 +39,8 @@ static NSString *const ScoreMakerMusicXMLType = @"MusicXML File";
 
 - (Class)documentClassForType:(NSString *)type
 {
-  if ([type isEqualToString:ScoreMakerScorefileType] || [type isEqualToString:ScoreMakerMidiType] ||
+  if ([type isEqualToString:ScoreMakerProjectType] ||
+      [type isEqualToString:ScoreMakerScorefileType] || [type isEqualToString:ScoreMakerMidiType] ||
       [type isEqualToString:ScoreMakerMusicXMLType])
     {
       return [ScoreMakerDocument class];
@@ -49,6 +51,10 @@ static NSString *const ScoreMakerMusicXMLType = @"MusicXML File";
 - (NSString *)typeFromFileExtension:(NSString *)fileExtension
 {
   NSString *extension = [fileExtension lowercaseString];
+  if ([extension isEqualToString:@"scoremaker"])
+    {
+      return ScoreMakerProjectType;
+    }
   if ([extension isEqualToString:@"score"])
     {
       return ScoreMakerScorefileType;
@@ -66,6 +72,10 @@ static NSString *const ScoreMakerMusicXMLType = @"MusicXML File";
 
 - (NSArray *)fileExtensionsFromType:(NSString *)type
 {
+  if ([type isEqualToString:ScoreMakerProjectType])
+    {
+      return [NSArray arrayWithObject:@"scoremaker"];
+    }
   if ([type isEqualToString:ScoreMakerScorefileType])
     {
       return [NSArray arrayWithObject:@"score"];
@@ -83,7 +93,8 @@ static NSString *const ScoreMakerMusicXMLType = @"MusicXML File";
 
 - (NSString *)displayNameForType:(NSString *)type
 {
-  if ([type isEqualToString:ScoreMakerScorefileType] || [type isEqualToString:ScoreMakerMidiType] ||
+  if ([type isEqualToString:ScoreMakerProjectType] ||
+      [type isEqualToString:ScoreMakerScorefileType] || [type isEqualToString:ScoreMakerMidiType] ||
       [type isEqualToString:ScoreMakerMusicXMLType])
     {
       return type;

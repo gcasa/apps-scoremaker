@@ -53,10 +53,10 @@
 	"src/MIDIInputManager.h"
     );
     IMAGES = (
-	"Resources/bass_clef.png",
-	"Resources/ScoreMakerAppIcon.png",
-	"Resources/ScoreMakerDocumentIcon.png",
-	"Resources/treble_clef.png"
+	"bass_clef.png",
+	"ScoreMakerAppIcon.png",
+	"ScoreMakerDocumentIcon.png",
+	"treble_clef.png"
     );
     INSTALLDIR = "$(HOME)/GNUstep";
     INTERFACES = (
@@ -75,8 +75,8 @@
     );
     "OBJC_COMPILEROPTIONS" = "";
     "OTHER_RESOURCES" = (
-	"Resources/ScoreMakerAppIcon.icns",
-	"Resources/ScoreMakerDocumentIcon.icns"
+	"ScoreMakerAppIcon.icns",
+	"ScoreMakerDocumentIcon.icns"
     );
     "OTHER_SOURCES" = (
     );
