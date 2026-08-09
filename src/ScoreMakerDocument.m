@@ -127,6 +127,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (void)updateScoreSourcePlaybackHighlightAtTick:(NSUInteger)tick;
 - (void)clearScoreSourcePlaybackHighlight;
 - (void)resetScoreSourceRangeCache;
+- (void)closeAuxiliaryWindows;
 - (void)showGenericAudioUnitEditor;
 - (ScorePartDefinition *)selectedStructuredPartCreatingIfNeeded:(BOOL)create;
 - (NSDictionary *)patchForPart:(ScorePartDefinition *)part;
@@ -717,18 +718,11 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (void)dealloc
 {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
-  [self stopCurrentPlayback];
-  [self stopAudition];
-  [self stopMIDIRecording];
-  [_midiInputManager disconnect];
-  [_midiInputManager setTarget:nil];
   [_scoreDocument release];
   [_realtimeDSP stop];
   [_realtimeDSP release];
-  [_audioUnitEditorWindow close];
   [_audioUnitEditorWindow release];
   [_audioUnitParameterAddresses release];
-  [_patchEditorWindow close];
   [_patchEditorWindow release];
   [_patchWaveformPopUp release];
   [_patchVoicePopUp release];
@@ -737,7 +731,6 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_patchValueLabels release];
   [_patchFilterValues release];
   [_patchEnvelopeView release];
-  [_patchBrowserWindow close];
   [_patchBrowserWindow release];
   [_patchBrowserTable release];
   [_patchBrowserCategoryPopUp release];
@@ -785,7 +778,6 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_undoBaseline release];
   [_midiRecordingUndoSnapshot release];
   [_annotationTextView release];
-  [_scoreSourceEditorWindow close];
   [_scoreSourceEditorWindow release];
   [_scoreSourceTextView release];
   [_scoreSourceStatusLabel release];
@@ -802,13 +794,33 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (void)close
 {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
-  [_scoreSourceEditorWindow orderOut:self];
+  [self closeAuxiliaryWindows];
   [self stopCurrentPlayback];
   [self stopAudition];
   [self stopMIDIRecording];
   [_midiInputManager disconnect];
   [_midiInputManager setTarget:nil];
   [super close];
+}
+
+- (void)closeAuxiliaryWindows
+{
+  NSAssert ([NSThread isMainThread], @"ScoreMaker windows must close on the main thread");
+  [_audioUnitEditorWindow close];
+  [_patchEditorWindow close];
+  [_patchBrowserWindow close];
+  [_scoreSourceEditorWindow close];
+}
+
+- (void)prepareForApplicationTermination
+{
+  NSAssert ([NSThread isMainThread], @"Application termination must run on the main thread");
+  [self stopCurrentPlayback];
+  [self stopAudition];
+  [self stopMIDIRecording];
+  [_midiInputManager disconnect];
+  [_midiInputManager setTarget:nil];
+  [self closeAuxiliaryWindows];
 }
 
 - (void)makeWindowControllers

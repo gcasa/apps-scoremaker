@@ -227,3 +227,6 @@ notation capabilities.
 * Replaced playback-time source prefix reparsing and full-score note scans with a
   single-pass parser source map, constant-time range lookups, and an incremental
   active-note cursor to keep large scores responsive during source highlighting.
+* Prevented a quit-time AppKit crash by closing document-owned editor and plug-in
+  windows explicitly on the main thread instead of from document deallocation,
+  which macOS file coordination may perform on a background queue.

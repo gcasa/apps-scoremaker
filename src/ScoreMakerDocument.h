@@ -157,6 +157,7 @@
 - (void)tempoSliderDidChange:(id)sender;
 - (void)addNote:(id)sender;
 - (void)stopCurrentPlayback;
+- (void)prepareForApplicationTermination;
 - (void)stopPlayback:(id)sender;
 - (void)pausePlayback:(id)sender;
 - (void)playScore:(id)sender;

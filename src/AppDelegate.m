@@ -78,7 +78,7 @@
     {
       if ([document isKindOfClass:[ScoreMakerDocument class]])
         {
-          [(ScoreMakerDocument *)document stopCurrentPlayback];
+          [(ScoreMakerDocument *)document prepareForApplicationTermination];
         }
     }
 }
