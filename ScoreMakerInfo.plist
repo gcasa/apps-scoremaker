@@ -46,36 +46,10 @@
     NSPrincipalClass = NSApplication;
     NSRole = Application;
     NSTypes = (
-	{
-	    NSDocumentClass = ScoreMakerDocument;
-	    NSHumanReadableName = "MusicKit Scorefile";
-	    NSIcon = "ScoreMakerDocumentIcon.png";
-	    NSName = "MusicKit Scorefile";
-	    NSRole = Editor;
-	    NSUnixExtensions = (
-		score
-	    );
-	},
-	{
-	    NSDocumentClass = ScoreMakerDocument;
-	    NSHumanReadableName = "MIDI File";
-	    NSIcon = "ScoreMakerDocumentIcon.png";
-	    NSName = "MIDI File";
-	    NSRole = Editor;
-	    NSUnixExtensions = (
-		mid,
-		midi
-	    );
-	},
-	{
-	    NSDocumentClass = ScoreMakerDocument;
-	    NSHumanReadableName = "MusicXML File";
-	    NSName = "MusicXML File";
-	    NSRole = Editor;
-	    NSUnixExtensions = (
-		musicxml,
-		xml
-	    );
-	}
+	score,
+	mid,
+	midi,
+	musicxml,
+	xml
     );
 }
