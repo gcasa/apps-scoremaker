@@ -21,6 +21,9 @@
 #import <math.h>
 
 static NSString *const ScorefileParserErrorDomain = @"ScoreMakerScorefileParser";
+NSString *const ScorefileErrorRangeKey = @"ScorefileErrorRange";
+NSString *const ScorefileErrorLineKey = @"ScorefileErrorLine";
+NSString *const ScorefileErrorColumnKey = @"ScorefileErrorColumn";
 static NSString *const ScoreMakerMetadataMarker = @"ScoreMaker Metadata V1";
 static NSString *const ScoreMakerStructureMarker = @"ScoreMaker Structure V2";
 
@@ -29,6 +32,92 @@ ScorefileError (NSString *message)
 {
   NSDictionary *info = [NSDictionary dictionaryWithObject:message forKey:NSLocalizedDescriptionKey];
   return [NSError errorWithDomain:ScorefileParserErrorDomain code:1 userInfo:info];
+}
+
+static NSError *
+ScorefileErrorAtRange (NSString *message, NSString *source, NSRange range)
+{
+  range.location = MIN (range.location, [source length]);
+  range.length = MIN (range.length, [source length] - range.location);
+  NSCharacterSet *whitespace = [NSCharacterSet whitespaceAndNewlineCharacterSet];
+  while (range.length && [whitespace characterIsMember:[source characterAtIndex:range.location]])
+    {
+      range.location++;
+      range.length--;
+    }
+  while (range.length &&
+         [whitespace characterIsMember:[source characterAtIndex:NSMaxRange (range) - 1]])
+    range.length--;
+  NSUInteger line = 1;
+  NSUInteger column = 1;
+  for (NSUInteger i = 0; i < range.location; i++)
+    {
+      if ([source characterAtIndex:i] == '\n')
+        {
+          line++;
+          column = 1;
+        }
+      else
+        column++;
+    }
+  NSDictionary *info = [NSDictionary dictionaryWithObjectsAndKeys:
+    message, NSLocalizedDescriptionKey, [NSValue valueWithRange:range], ScorefileErrorRangeKey,
+    [NSNumber numberWithUnsignedInteger:line], ScorefileErrorLineKey,
+    [NSNumber numberWithUnsignedInteger:column], ScorefileErrorColumnKey, nil];
+  return [NSError errorWithDomain:ScorefileParserErrorDomain code:1 userInfo:info];
+}
+
+static NSError *
+ScorefileLexicalError (NSString *source)
+{
+  BOOL inComment = NO;
+  BOOL inQuote = NO;
+  BOOL escaping = NO;
+  NSUInteger constructStart = 0;
+  for (NSUInteger i = 0; i < [source length]; i++)
+    {
+      unichar c = [source characterAtIndex:i];
+      unichar next = i + 1 < [source length] ? [source characterAtIndex:i + 1] : 0;
+      if (inComment)
+        {
+          if (c == '*' && next == '/')
+            {
+              inComment = NO;
+              i++;
+            }
+          continue;
+        }
+      if (escaping)
+        {
+          escaping = NO;
+          continue;
+        }
+      if (inQuote && c == '\\')
+        {
+          escaping = YES;
+          continue;
+        }
+      if (!inQuote && c == '/' && next == '*')
+        {
+          inComment = YES;
+          constructStart = i;
+          i++;
+          continue;
+        }
+      if (c == '"')
+        {
+          if (!inQuote)
+            constructStart = i;
+          inQuote = !inQuote;
+        }
+    }
+  if (inComment)
+    return ScorefileErrorAtRange (@"Unterminated block comment.", source,
+                                  NSMakeRange (constructStart, [source length] - constructStart));
+  if (inQuote)
+    return ScorefileErrorAtRange (@"Unterminated quoted string.", source,
+                                  NSMakeRange (constructStart, [source length] - constructStart));
+  return nil;
 }
 
 static NSDictionary *
@@ -1101,9 +1190,17 @@ ScorefileIdentifierForPartName (NSString *name)
       return nil;
     }
 
+  NSError *lexicalError = ScorefileLexicalError (raw);
+  if (lexicalError)
+    {
+      if (error)
+        *error = lexicalError;
+      return nil;
+    }
+
   NSString *content = StripComments (raw);
   NSArray *statements = ScorefileStatements (content);
-  NSArray *statementRanges = noteRanges ? ScorefileStatementRanges (raw) : nil;
+  NSArray *statementRanges = ScorefileStatementRanges (raw);
   NSMutableArray *capturedNoteRanges = noteRanges ? [NSMutableArray array] : nil;
   NSMutableDictionary *variables = [NSMutableDictionary dictionary];
   NSMutableDictionary *activeNotes = [NSMutableDictionary dictionary];
@@ -1307,10 +1404,18 @@ ScorefileIdentifierForPartName (NSString *name)
               if (currentTime < 0.0)
                 currentTime = 0.0;
             }
+          else
+            {
+              if (error)
+                *error = ScorefileErrorAtRange (@"Invalid time expression.", raw,
+                                                [sourceRange rangeValue]);
+              return nil;
+            }
           continue;
         }
 
       NSRange open = [statement rangeOfString:@"("];
+      NSRange anyClose = [statement rangeOfString:@")"];
       NSRange close = [statement
         rangeOfString:@")"
               options:0
@@ -1320,6 +1425,13 @@ ScorefileIdentifierForPartName (NSString *name)
       if (open.location == NSNotFound || close.location == NSNotFound
           || close.location <= open.location)
         {
+          if ((open.location == NSNotFound) != (anyClose.location == NSNotFound))
+            {
+              if (error)
+                *error = ScorefileErrorAtRange (@"Unmatched event parenthesis.", raw,
+                                                [sourceRange rangeValue]);
+              return nil;
+            }
           continue;
         }
 
@@ -1388,6 +1500,13 @@ ScorefileIdentifierForPartName (NSString *name)
         {
           pitch = pitchIsFrequency ? PitchForFrequency (pitchString, variables, &pitchOK)
                                    : PitchForName (pitchString, &pitchOK);
+        }
+      if (pitchString && !pitchOK)
+        {
+          if (error)
+            *error = ScorefileErrorAtRange (@"Invalid pitch value.", raw,
+                                            [sourceRange rangeValue]);
+          return nil;
         }
       double ticksPerBeat = (double)[document ticksPerQuarter];
       NSUInteger currentTick = (NSUInteger)llround (currentTime * ticksPerBeat);
@@ -1620,7 +1739,7 @@ ScorefileIdentifierForPartName (NSString *name)
       if ([note startTick] != lastTick)
         {
           double time = (double)[note startTick] / (double)[document ticksPerQuarter];
-          [output appendFormat:@"t %.6g;\n", time];
+          [output appendFormat:@"t %.12g;\n", time];
           lastTick = [note startTick];
         }
       double duration
@@ -1633,11 +1752,11 @@ ScorefileIdentifierForPartName (NSString *name)
         }
       if ([note isRest])
         {
-          [output appendFormat:@"%@ (%.6g);\n", identifier, duration];
+          [output appendFormat:@"%@ (%.12g);\n", identifier, duration];
         }
       else
         {
-          [output appendFormat:@"%@ (%.6g) keyNum:%@k%@%@;\n", identifier, duration,
+          [output appendFormat:@"%@ (%.12g) keyNum:%@k%@%@;\n", identifier, duration,
                                NoteNameForPitch ([note pitch], [note accidental]),
                                [note slurStart] ? @" slurStart:1" : @"",
                                [note slurEnd] ? @" slurStop:1" : @""];

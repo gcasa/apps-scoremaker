@@ -11,6 +11,10 @@ explicit measures without breaking MusicKit-style .score files.
   playback retained when no note is selected.
 * Kept playback audio, highlighting, scrolling, pause, resume, tempo changes,
   and MIDI-output changes synchronized when playback starts after tick zero.
+* Matched source-editor playback highlights in musical beat units so imported
+  MIDI files highlight correctly regardless of their ticks-per-quarter value.
+* Kept an open, unedited source editor synchronized as notes are added to a new
+  blank document, allowing playback highlighting without manual regeneration.
 * Added independent voice numbers to notes; notes from legacy sources default
   to voice 1.
 * Added explicit measure objects containing measure number, starting tick,
@@ -230,3 +234,5 @@ notation capabilities.
 * Prevented a quit-time AppKit crash by closing document-owned editor and plug-in
   windows explicitly on the main thread instead of from document deallocation,
   which macOS file coordination may perform on a background queue.
+* Added ranged source diagnostics on Apply, including line/column reporting and
+  red editor highlighting for lexical, timing, parenthesis, and pitch errors.

@@ -102,6 +102,50 @@ main (void)
            @"source parser returned an incorrect note character range");
   Require ([ScorefileParser parseString:@"" suggestedTitle:@"Empty" error:&sourceError] == nil,
            @"empty editor source should fail validation");
+  NSString *badTimeSource = @"part P;\nBEGIN;\nt one+;\nP (1) keyNum:c4k;\nEND;\n";
+  sourceError = nil;
+  Require ([ScorefileParser parseString:badTimeSource suggestedTitle:@"Bad Time"
+                                  error:&sourceError] == nil,
+           @"invalid time expression should fail source validation");
+  Require ([[sourceError userInfo] objectForKey:ScorefileErrorRangeKey] != nil &&
+             [[[sourceError userInfo] objectForKey:ScorefileErrorLineKey] unsignedIntegerValue] == 3,
+           @"syntax error did not report its source range and line");
+  NSRange badTimeRange = [[[sourceError userInfo] objectForKey:ScorefileErrorRangeKey] rangeValue];
+  Require ([[badTimeSource substringWithRange:badTimeRange] rangeOfString:@"t one+;"].location
+             != NSNotFound,
+           @"invalid time expression highlighted the wrong statement");
+  sourceError = nil;
+  Require ([ScorefileParser parseString:@"string scoreTitle = \"broken;"
+                         suggestedTitle:@"Bad Quote" error:&sourceError] == nil &&
+             [[sourceError userInfo] objectForKey:ScorefileErrorRangeKey] != nil,
+           @"unterminated string did not produce a ranged syntax error");
+
+  ScoreDocument *highResolution = [[[ScoreDocument alloc] init] autorelease];
+  [highResolution setTicksPerQuarter:960];
+  ScoreNote *highResolutionNote = [[[ScoreNote alloc] init] autorelease];
+  [highResolutionNote setPitch:67];
+  [highResolutionNote setTrack:2];
+  [highResolutionNote setVoice:3];
+  [highResolutionNote setStartTick:320];
+  [highResolutionNote setDurationTicks:160];
+  [[highResolution notes] addObject:highResolutionNote];
+  [highResolution setTotalTicks:480];
+  NSData *highResolutionData = [ScorefileParser dataForDocument:highResolution error:&sourceError];
+  NSString *highResolutionSource = [[[NSString alloc]
+    initWithData:highResolutionData encoding:NSUTF8StringEncoding] autorelease];
+  ScoreDocument *normalized = [ScorefileParser parseString:highResolutionSource
+                                            suggestedTitle:@"Normalized MIDI"
+                                                     error:&sourceError];
+  ScoreNote *normalizedNote = [[normalized notes] objectAtIndex:0];
+  Require (llround ((double)[highResolutionNote startTick] * 1000000.0 /
+                    (double)[highResolution ticksPerQuarter]) ==
+             llround ((double)[normalizedNote startTick] * 1000000.0 /
+                    (double)[normalized ticksPerQuarter]) &&
+             llround ((double)[highResolutionNote durationTicks] * 1000000.0 /
+                    (double)[highResolution ticksPerQuarter]) ==
+             llround ((double)[normalizedNote durationTicks] * 1000000.0 /
+                    (double)[normalized ticksPerQuarter]),
+           @"generated source changed high-resolution MIDI note timing");
 
   NSDirectoryEnumerator *examples = [[NSFileManager defaultManager] enumeratorAtPath:@"examples"];
   for (NSString *name in examples)

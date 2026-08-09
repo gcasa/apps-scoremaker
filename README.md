@@ -91,6 +91,8 @@ note statement selects that note in the rendered score and scrolls it into view.
 the editor highlights and follows the source statements for all currently sounding notes; this
 temporary highlight does not move the insertion caret or modify the source. Highlight colors use
 the same per-voice palette as the rendered score, velocity meters, and virtual keyboard.
+If **Apply** encounters a ranged syntax error, the editor reports its line and column, underlines
+the offending source in red, and scrolls the diagnostic into view.
 
 Choose a connected device under **MIDI Input** for live entry. With recording stopped, played notes are entered at the inspector's Start position and simultaneous held notes form a chord. Choose a Grid value and press **Record** for a one-measure count-in followed by real-time recording; press **Stop** to quantize and insert the captured performance. MIDI velocity and sustain-pedal note lengths are preserved.
 The input menu updates when MIDI devices are connected or removed. **Selected Part** routing sends all channels to the inspector's current part; **MIDI Channel → Part** maps channel 1 to Part 1, channel 2 to Part 2, and so on. Use **Edit → Undo/Redo** or Command-Z/Command-Shift-Z to reverse and restore edits; one recording take is one undo operation.
