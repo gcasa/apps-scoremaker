@@ -18,6 +18,7 @@
  */
 
 #import "ScoreView.h"
+#import "PlaybackMonitorView.h"
 #import <math.h>
 
 static CGFloat const PageWidth = 980.0;
@@ -124,6 +125,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
       [_document release];
       _document = [document retain];
       _selectedNote = nil;
+      _loopEndNote = nil;
       [_engravingLayout release];
       _engravingLayout = nil;
       [self reloadDocument];
@@ -133,6 +135,42 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 - (ScoreNote *)selectedNote
 {
   return _selectedNote;
+}
+
+- (void)selectNote:(ScoreNote *)note scrollToVisible:(BOOL)scroll
+{
+  if (note && ![[_document notes] containsObject:note])
+    return;
+  _selectedNote = note;
+  _loopEndNote = nil;
+  [self setNeedsDisplay:YES];
+  if (scroll && note)
+    [self scrollPlaybackTickToVisible:[note startTick]];
+  [[NSNotificationCenter defaultCenter] postNotificationName:ScoreViewSelectionDidChangeNotification
+                                                      object:self];
+}
+
+- (BOOL)hasLoopSelection
+{
+  return _selectedNote && _loopEndNote && _selectedNote != _loopEndNote
+         && [[_document notes] containsObject:_selectedNote]
+         && [[_document notes] containsObject:_loopEndNote];
+}
+
+- (NSUInteger)loopStartTick
+{
+  if (![self hasLoopSelection])
+    return 0;
+  return MIN ([_selectedNote startTick], [_loopEndNote startTick]);
+}
+
+- (NSUInteger)loopEndTick
+{
+  if (![self hasLoopSelection])
+    return 0;
+  ScoreNote *later = [_selectedNote startTick] > [_loopEndNote startTick] ? _selectedNote
+                                                                         : _loopEndNote;
+  return [later startTick] + MAX ((NSUInteger)1, [later durationTicks]);
 }
 
 - (void)setPlaybackTick:(NSUInteger)tick
@@ -550,6 +588,43 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   [path stroke];
 }
 
+- (void)drawLoopSelectionAtY:(CGFloat)y
+                 systemStart:(NSUInteger)systemStart
+                   systemEnd:(NSUInteger)systemEnd
+                        left:(CGFloat)left
+                       right:(CGFloat)right
+{
+  if (![self hasLoopSelection] || ![[NSGraphicsContext currentContext] isDrawingToScreen])
+    return;
+  NSUInteger loopStart = [self loopStartTick], loopEnd = [self loopEndTick];
+  if (loopEnd <= systemStart || loopStart >= systemEnd)
+    return;
+
+  NSUInteger visibleStart = MAX (loopStart, systemStart);
+  NSUInteger visibleEnd = MIN (loopEnd, systemEnd);
+  CGFloat x1 = [self xForTick:visibleStart
+                        start:systemStart
+                          end:systemEnd
+                         left:left
+                        right:right];
+  CGFloat x2 = [self xForTick:visibleEnd
+                        start:systemStart
+                          end:systemEnd
+                         left:left
+                        right:right];
+  NSUInteger parts = _separateParts ? MAX ((NSUInteger)1, [[self scoreTracks] count]) : 1;
+  CGFloat partStride = [self partGrandStaffHeight] + PartStaffSpacing;
+  CGFloat top = y - 11.0;
+  CGFloat bottom = y + (CGFloat)(parts - 1) * partStride + [self partGrandStaffHeight] + 11.0;
+  NSRect rect = NSMakeRect (x1, top, MAX ((CGFloat)8.0, x2 - x1), bottom - top);
+  NSBezierPath *path = [NSBezierPath bezierPathWithRoundedRect:rect xRadius:5.0 yRadius:5.0];
+  [[NSColor colorWithCalibratedRed:0.38 green:0.30 blue:0.88 alpha:0.09] setFill];
+  [path fill];
+  [[NSColor colorWithCalibratedRed:0.32 green:0.24 blue:0.78 alpha:0.28] setStroke];
+  [path setLineWidth:1.0];
+  [path stroke];
+}
+
 - (void)drawSystemAtY:(CGFloat)y systemIndex:(NSUInteger)systemIndex
 {
   CGFloat left = Margin + PartLabelWidth;
@@ -563,6 +638,11 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   NSArray *tracks = _separateParts ? [self scoreTracks] : [NSArray arrayWithObject:@-1];
   CGFloat partStride = [self partGrandStaffHeight] + PartStaffSpacing;
   NSUInteger perPage = [self systemsPerPage];
+  [self drawLoopSelectionAtY:y
+                 systemStart:startTick
+                   systemEnd:endTick
+                        left:musicLeft
+                       right:musicRight];
   [self drawPlaybackCartoucheAtY:y
                      systemStart:startTick
                        systemEnd:endTick
@@ -927,9 +1007,10 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                      && _playbackTick < [note startTick] + [note durationTicks];
       if (playing && [[NSGraphicsContext currentContext] isDrawingToScreen])
         {
-          [self drawPlaybackHighlightAtX:x y:y];
+          [self drawPlaybackHighlightAtX:x y:y voice:[note voice]];
         }
-      if (note == _selectedNote && [[NSGraphicsContext currentContext] isDrawingToScreen])
+      if ((note == _selectedNote || note == _loopEndNote)
+          && [[NSGraphicsContext currentContext] isDrawingToScreen])
         {
           [self drawSelectionAtX:x y:y];
         }
@@ -1179,10 +1260,10 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
     }
 }
 
-- (void)drawPlaybackHighlightAtX:(CGFloat)x y:(CGFloat)y
+- (void)drawPlaybackHighlightAtX:(CGFloat)x y:(CGFloat)y voice:(NSInteger)voice
 {
   NSRect glowRect = NSMakeRect (x - 12.0, y - 10.0, 24.0, 20.0);
-  NSColor *glow = [NSColor colorWithCalibratedRed:1.0 green:0.72 blue:0.12 alpha:0.55];
+  NSColor *glow = [ScoreVoiceColor (voice, NO) colorWithAlphaComponent:0.55];
   [glow setFill];
   [[NSBezierPath bezierPathWithOvalInRect:glowRect] fill];
 }
@@ -1817,7 +1898,14 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 - (void)mouseDown:(NSEvent *)event
 {
   NSPoint point = [self convertPoint:[event locationInWindow] fromView:nil];
-  _selectedNote = [self noteAtPoint:point];
+  ScoreNote *clickedNote = [self noteAtPoint:point];
+  if (([event modifierFlags] & NSShiftKeyMask) && _selectedNote && clickedNote)
+    _loopEndNote = clickedNote;
+  else
+    {
+      _selectedNote = clickedNote;
+      _loopEndNote = nil;
+    }
   [[self window] makeFirstResponder:self];
   [self setNeedsDisplay:YES];
   [[NSNotificationCenter defaultCenter] postNotificationName:ScoreViewSelectionDidChangeNotification
@@ -1837,6 +1925,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
         {
           [[_document notes] removeObject:_selectedNote];
           _selectedNote = nil;
+          _loopEndNote = nil;
           [self updateTotalTicksFromNotes];
           [[NSNotificationCenter defaultCenter]
             postNotificationName:ScoreViewDidEditScoreNotification

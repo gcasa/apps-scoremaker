@@ -27,7 +27,7 @@
 #import <CoreMIDI/CoreMIDI.h>
 #endif
 
-@interface ScoreMakerDocument : NSDocument <NSTextFieldDelegate>
+@interface ScoreMakerDocument : NSDocument <NSTextFieldDelegate, NSTableViewDataSource, NSTableViewDelegate>
 {
   NSWindow *_documentWindow;
   NSWindowController *_windowController;
@@ -48,6 +48,7 @@
   NSPopUpButton *_noteValuePopUp;
   NSPopUpButton *_partPopUp;
   NSPopUpButton *_instrumentPopUp;
+  NSPopUpButton *_instrumentVoicePopUp;
   NSButton *_addPartButton;
   NSButton *_separatePartsButton;
   NSButton *_addNoteButton;
@@ -67,6 +68,21 @@
   NSPopUpButton *_midiRoutingPopUp;
   NSButton *_recordButton;
   NSTextView *_annotationTextView;
+  NSWindow *_scoreSourceEditorWindow;
+  NSTextView *_scoreSourceTextView;
+  NSTextField *_scoreSourceStatusLabel;
+  NSString *_scoreSourceText;
+  BOOL _scoreSourceIsAuthoritative;
+  BOOL _scoreSourceEditorDirty;
+  BOOL _updatingScoreSourceEditor;
+  BOOL _applyingScoreSource;
+  NSMutableDictionary *_scoreSourceNoteRangeCache;
+  NSArray *_scoreSourceRangeMappings;
+  NSArray *_scoreSourcePlaybackRanges;
+  NSString *_scoreSourcePlaybackSignature;
+  NSMutableSet *_scoreSourceActivePlaybackNotes;
+  NSUInteger _scoreSourcePlaybackNoteIndex;
+  NSUInteger _scoreSourceLastPlaybackTick;
   NSSound *_playbackSound;
   id _midiPlayer;
   NSSound *_auditionSound;
@@ -93,13 +109,28 @@
   NSTimeInterval _playbackStartTime;
   NSTimeInterval _playbackPausedElapsed;
   BOOL _playbackPaused;
+  BOOL _loopSelectionEnabled;
   BOOL _updatingInspector;
   ScoreRealtimeDSP *_realtimeDSP;
   BOOL _useRealtimeDSP;
   NSInteger _realtimeDSPPitch;
+  NSInteger _realtimeDSPVoice;
   NSInteger _audioUnitPartTrack;
   NSWindow *_audioUnitEditorWindow;
   NSMutableDictionary *_audioUnitParameterAddresses;
+  NSWindow *_patchEditorWindow;
+  NSPopUpButton *_patchWaveformPopUp;
+  NSPopUpButton *_patchVoicePopUp;
+  NSPopUpButton *_patchPresetPopUp;
+  NSMutableDictionary *_patchControls;
+  NSMutableDictionary *_patchValueLabels;
+  NSMutableDictionary *_patchFilterValues;
+  NSView *_patchEnvelopeView;
+  BOOL _applyingNamedPatch;
+  NSWindow *_patchBrowserWindow;
+  NSTableView *_patchBrowserTable;
+  NSPopUpButton *_patchBrowserCategoryPopUp;
+  NSArray *_patchBrowserRows;
 #if defined(__APPLE__)
   MIDIEndpointRef _midiOutputEndpoint;
   NSString *_midiOutputName;
@@ -126,9 +157,11 @@
 - (void)tempoSliderDidChange:(id)sender;
 - (void)addNote:(id)sender;
 - (void)stopCurrentPlayback;
+- (void)prepareForApplicationTermination;
 - (void)stopPlayback:(id)sender;
 - (void)pausePlayback:(id)sender;
 - (void)playScore:(id)sender;
+- (void)toggleLoopSelection:(id)sender;
 - (void)printDocument:(id)sender;
 - (void)editScoreTitle:(id)sender;
 - (void)chooseTitleFont:(id)sender;
@@ -136,10 +169,14 @@
 - (void)chooseMIDIOutput:(id)sender;
 - (void)toggleRealtimeDSP:(id)sender;
 - (void)chooseAudioUnitInstrument:(id)sender;
+- (void)showInternalSynthPatchEditor:(id)sender;
 - (void)showAudioUnitEditor:(id)sender;
 - (void)manageAudioUnitPresets:(id)sender;
 - (void)relinkAudioUnitInstrument:(id)sender;
 - (void)showAudioUnitCompatibilityReport:(id)sender;
 - (void)editEffects:(id)sender;
 - (void)renderOfflineAudio:(id)sender;
+- (void)showScoreSourceEditor:(id)sender;
+- (void)applyScoreSource:(id)sender;
+- (void)revertScoreSource:(id)sender;
 @end

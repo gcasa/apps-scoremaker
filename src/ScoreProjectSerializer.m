@@ -114,7 +114,7 @@ ScoreProjectDecode (id encoded)
   if ([type isEqualToString:@"NSData"])
     return [[[NSData alloc] initWithBase64EncodedString:[encoded objectForKey:@"base64"]
                                                 options:0] autorelease];
-  if (!type)
+  if (!type || ![ScoreProjectSchemas () objectForKey:type])
     {
       NSMutableDictionary *items = [NSMutableDictionary dictionary];
       for (id key in encoded)

@@ -22,6 +22,13 @@
 
 @interface ScorefileParser : NSObject
 + (ScoreDocument *)parseFileAtPath:(NSString *)path error:(NSError **)error;
++ (ScoreDocument *)parseString:(NSString *)source
+                suggestedTitle:(NSString *)title
+                         error:(NSError **)error;
++ (ScoreDocument *)parseString:(NSString *)source
+                suggestedTitle:(NSString *)title
+               noteSourceRanges:(NSArray **)noteRanges
+                         error:(NSError **)error;
 + (NSData *)dataForDocument:(ScoreDocument *)document error:(NSError **)error;
 + (BOOL)writeDocument:(ScoreDocument *)document
          toFileAtPath:(NSString *)path

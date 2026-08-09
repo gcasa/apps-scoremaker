@@ -29,6 +29,7 @@ extern NSString *const ScorePalettePasteboardType;
 {
   ScoreDocument *_document;
   ScoreNote *_selectedNote;
+  ScoreNote *_loopEndNote;
   NSUInteger _playbackTick;
   BOOL _showPlayback;
   ScoreEngravingLayout *_engravingLayout;
@@ -39,6 +40,10 @@ extern NSString *const ScorePalettePasteboardType;
 - (void)setDocument:(ScoreDocument *)document;
 - (void)reloadDocument;
 - (ScoreNote *)selectedNote;
+- (void)selectNote:(ScoreNote *)note scrollToVisible:(BOOL)scroll;
+- (BOOL)hasLoopSelection;
+- (NSUInteger)loopStartTick;
+- (NSUInteger)loopEndTick;
 - (void)setPlaybackTick:(NSUInteger)tick;
 - (void)clearPlayback;
 - (void)scrollPlaybackTickToVisible:(NSUInteger)tick;

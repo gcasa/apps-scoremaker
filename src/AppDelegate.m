@@ -26,28 +26,12 @@
 {
   (void)notification;
   [self buildMenu];
-  [self performSelector:@selector (openUntitledDocumentIfNeeded) withObject:nil afterDelay:0.0];
-}
-
-- (void)openUntitledDocumentIfNeeded
-{
-  NSDocumentController *controller = [NSDocumentController sharedDocumentController];
-  if (!_receivedOpenRequest && [[controller documents] count] == 0)
-    {
-      NSError *error = nil;
-      NSDocument *document = [controller openUntitledDocumentAndDisplay:YES error:&error];
-      if (!document && error)
-        {
-          [controller presentError:error];
-        }
-    }
 }
 
 - (BOOL)openDocumentAtPath:(NSString *)path
 {
   if ([path length] == 0)
     return NO;
-  _receivedOpenRequest = YES;
   NSError *error = nil;
   NSDocumentController *controller = [NSDocumentController sharedDocumentController];
   NSDocument *document = [controller openDocumentWithContentsOfURL:[NSURL fileURLWithPath:path]
@@ -83,7 +67,8 @@
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender
 {
-  return YES;
+  (void)sender;
+  return NO;
 }
 
 - (void)applicationWillTerminate:(NSNotification *)notification
@@ -93,7 +78,7 @@
     {
       if ([document isKindOfClass:[ScoreMakerDocument class]])
         {
-          [(ScoreMakerDocument *)document stopCurrentPlayback];
+          [(ScoreMakerDocument *)document prepareForApplicationTermination];
         }
     }
 }
@@ -257,6 +242,10 @@
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Stop"
                                                  action:@selector (stopPlayback:)
                                           keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Loop Selection"
+                                                 action:@selector (toggleLoopSelection:)
+                                          keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[NSMenuItem separatorItem]];
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"MIDI Output..."
                                                  action:@selector (chooseMIDIOutput:)
                                           keyEquivalent:@""] autorelease]];
@@ -265,6 +254,9 @@
                                              keyEquivalent:@""] autorelease];
   [dspItem setTarget:nil];
   [scoreMenu addItem:dspItem];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Internal Synth Patch Editor..."
+                                                 action:@selector (showInternalSynthPatchEditor:)
+                                          keyEquivalent:@""] autorelease]];
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Choose Audio Unit Instrument..."
                                                  action:@selector (chooseAudioUnitInstrument:)
                                           keyEquivalent:@""] autorelease]];
@@ -285,6 +277,10 @@
                                           keyEquivalent:@""] autorelease]];
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Render Internal DSP Audio..."
                                                  action:@selector (renderOfflineAudio:)
+                                          keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[NSMenuItem separatorItem]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Edit Score Source..."
+                                                 action:@selector (showScoreSourceEditor:)
                                           keyEquivalent:@""] autorelease]];
   [scoreMenu addItem:[NSMenuItem separatorItem]];
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Edit Title..."
