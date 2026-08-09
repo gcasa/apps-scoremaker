@@ -45,11 +45,4 @@
     NSIcon = "Resources/ScoreMakerAppIcon.png";
     NSPrincipalClass = NSApplication;
     NSRole = Application;
-    NSTypes = (
-	score,
-	mid,
-	midi,
-	musicxml,
-	xml
-    );
 }
