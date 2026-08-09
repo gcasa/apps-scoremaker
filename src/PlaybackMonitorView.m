@@ -29,14 +29,14 @@ IsBlackKey (NSInteger pitch)
          || pitchClass == 10;
 }
 
-static NSColor *
-VoiceColor (NSInteger voice, BOOL blackKey)
+NSColor *
+ScoreVoiceColor (NSInteger voice, BOOL darkVariant)
 {
   static CGFloat hues[] = { 0.57, 0.36, 0.08, 0.78, 0.96, 0.48 };
   NSUInteger index = (NSUInteger)labs (MAX ((NSInteger)1, voice) - 1) % 6;
   return [NSColor colorWithCalibratedHue:hues[index]
-                              saturation:blackKey ? 0.78 : 0.62
-                              brightness:blackKey ? 0.78 : 0.94
+                              saturation:darkVariant ? 0.78 : 0.62
+                              brightness:darkVariant ? 0.78 : 0.94
                                    alpha:1.0];
 }
 
@@ -218,7 +218,7 @@ VoiceColor (NSInteger voice, BOOL blackKey)
       NSRect key = NSMakeRect (x, NSMinY (rect), whiteWidth, NSHeight (rect));
       BOOL active = [activePitches containsObject:[NSNumber numberWithInteger:pitch]];
       NSNumber *voice = [voicesByPitch objectForKey:[NSNumber numberWithInteger:pitch]];
-      [(active ? VoiceColor (voice ? [voice integerValue] : 1, NO) : [NSColor whiteColor]) setFill];
+      [(active ? ScoreVoiceColor (voice ? [voice integerValue] : 1, NO) : [NSColor whiteColor]) setFill];
       NSRectFill (key);
       if (pitch == 60)
         {
@@ -256,7 +256,7 @@ VoiceColor (NSInteger voice, BOOL blackKey)
       NSRect key = NSMakeRect (x, NSMinY (rect), blackWidth, blackHeight);
       BOOL active = [activePitches containsObject:[NSNumber numberWithInteger:pitch]];
       NSNumber *voice = [voicesByPitch objectForKey:[NSNumber numberWithInteger:pitch]];
-      [(active ? VoiceColor (voice ? [voice integerValue] : 1, YES)
+      [(active ? ScoreVoiceColor (voice ? [voice integerValue] : 1, YES)
                : [NSColor colorWithCalibratedWhite:0.08 alpha:1.0]) setFill];
       NSRectFill (key);
       [[NSColor blackColor] setStroke];
@@ -375,7 +375,7 @@ VoiceColor (NSInteger voice, BOOL blackKey)
       NSRectFill (meter);
       NSRect level = meter;
       level.size.width *= (CGFloat)velocity / 127.0;
-      [VoiceColor ([voice integerValue], NO) setFill];
+      [ScoreVoiceColor ([voice integerValue], NO) setFill];
       NSRectFill (level);
       NSString *value = [NSString stringWithFormat:@"%lu", (unsigned long)velocity];
       [value drawInRect:NSMakeRect (NSMaxX (meter) + 5.0, y + 3.0, 30.0, rowHeight)

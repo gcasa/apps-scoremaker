@@ -279,6 +279,10 @@
                                                  action:@selector (renderOfflineAudio:)
                                           keyEquivalent:@""] autorelease]];
   [scoreMenu addItem:[NSMenuItem separatorItem]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Edit Score Source..."
+                                                 action:@selector (showScoreSourceEditor:)
+                                          keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[NSMenuItem separatorItem]];
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Edit Title..."
                                                  action:@selector (editScoreTitle:)
                                           keyEquivalent:@""] autorelease]];

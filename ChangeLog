@@ -215,3 +215,15 @@ notation capabilities.
 * Fixed an early regression.
 * Added General MIDI instrument names.
 * Added initial treble- and bass-clef support.
+2026-08-09
+
+* Added a per-document, syntax-highlighted MusicKit score source editor, available
+  from both the score inspector and Score menu, with atomic validation/apply,
+  regeneration from the visual score, undo integration, source-preserving saves,
+  source-caret navigation that highlights the corresponding rendered note, and
+  live playback highlighting of the source statements currently producing sound.
+  Playback colors now share one per-voice palette across the score, source editor,
+  velocity meters, and virtual keyboard.
+* Replaced playback-time source prefix reparsing and full-score note scans with a
+  single-pass parser source map, constant-time range lookups, and an incremental
+  active-note cursor to keep large scores responsive during source highlighting.

@@ -76,6 +76,33 @@ int
 main (void)
 {
   NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+  NSError *sourceError = nil;
+  NSString *editableSource = @"/* retained editor comment */\n"
+                              @"info tempo:96 timeSignature:3/4;\n"
+                              @"part Editor_Part;\nBEGIN;\nt 0;\n"
+                              @"Editor_Part (1) keyNum:cs4k;\nEND;\n";
+  NSArray *sourceRanges = nil;
+  ScoreDocument *sourceDocument = [ScorefileParser parseString:editableSource
+                                                suggestedTitle:@"Editor Test"
+                                              noteSourceRanges:&sourceRanges
+                                                         error:&sourceError];
+  Require (sourceDocument != nil,
+           [NSString stringWithFormat:@"could not parse editor source: %@", sourceError]);
+  ScoreNote *sourceNote = [[sourceDocument notes] count]
+                            ? [[sourceDocument notes] objectAtIndex:0] : nil;
+  Require ([[sourceDocument notes] count] == 1 && [sourceNote pitch] == 61,
+           [NSString stringWithFormat:@"in-memory editor source produced %lu notes at pitch %ld",
+                                      (unsigned long)[[sourceDocument notes] count],
+                                      (long)[sourceNote pitch]]);
+  Require ([sourceRanges count] == 1, @"source parser did not produce one note range");
+  NSRange editorNoteRange = [[[sourceRanges objectAtIndex:0] objectForKey:@"range"] rangeValue];
+  NSString *rangedStatement = [editableSource substringWithRange:editorNoteRange];
+  Require ([rangedStatement rangeOfString:@"Editor_Part (1) keyNum:cs4k;"].location
+             != NSNotFound,
+           @"source parser returned an incorrect note character range");
+  Require ([ScorefileParser parseString:@"" suggestedTitle:@"Empty" error:&sourceError] == nil,
+           @"empty editor source should fail validation");
+
   NSDirectoryEnumerator *examples = [[NSFileManager defaultManager] enumeratorAtPath:@"examples"];
   for (NSString *name in examples)
     {

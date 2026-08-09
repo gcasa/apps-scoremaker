@@ -68,6 +68,21 @@
   NSPopUpButton *_midiRoutingPopUp;
   NSButton *_recordButton;
   NSTextView *_annotationTextView;
+  NSWindow *_scoreSourceEditorWindow;
+  NSTextView *_scoreSourceTextView;
+  NSTextField *_scoreSourceStatusLabel;
+  NSString *_scoreSourceText;
+  BOOL _scoreSourceIsAuthoritative;
+  BOOL _scoreSourceEditorDirty;
+  BOOL _updatingScoreSourceEditor;
+  BOOL _applyingScoreSource;
+  NSMutableDictionary *_scoreSourceNoteRangeCache;
+  NSArray *_scoreSourceRangeMappings;
+  NSArray *_scoreSourcePlaybackRanges;
+  NSString *_scoreSourcePlaybackSignature;
+  NSMutableSet *_scoreSourceActivePlaybackNotes;
+  NSUInteger _scoreSourcePlaybackNoteIndex;
+  NSUInteger _scoreSourceLastPlaybackTick;
   NSSound *_playbackSound;
   id _midiPlayer;
   NSSound *_auditionSound;
@@ -160,4 +175,7 @@
 - (void)showAudioUnitCompatibilityReport:(id)sender;
 - (void)editEffects:(id)sender;
 - (void)renderOfflineAudio:(id)sender;
+- (void)showScoreSourceEditor:(id)sender;
+- (void)applyScoreSource:(id)sender;
+- (void)revertScoreSource:(id)sender;
 @end

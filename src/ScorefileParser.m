@@ -323,6 +323,59 @@ ScorefileStatements (NSString *input)
   return statements;
 }
 
+static NSArray *
+ScorefileStatementRanges (NSString *input)
+{
+  NSMutableArray *ranges = [NSMutableArray array];
+  BOOL inQuote = NO;
+  BOOL inComment = NO;
+  BOOL escaping = NO;
+  NSUInteger start = 0;
+  for (NSUInteger i = 0; i < [input length]; i++)
+    {
+      unichar c = [input characterAtIndex:i];
+      unichar next = i + 1 < [input length] ? [input characterAtIndex:i + 1] : 0;
+      if (inComment)
+        {
+          if (c == '*' && next == '/')
+            {
+              inComment = NO;
+              i++;
+            }
+          continue;
+        }
+      if (escaping)
+        {
+          escaping = NO;
+          continue;
+        }
+      if (c == '\\' && inQuote)
+        {
+          escaping = YES;
+          continue;
+        }
+      if (!inQuote && c == '/' && next == '*')
+        {
+          inComment = YES;
+          i++;
+          continue;
+        }
+      if (c == '"')
+        {
+          inQuote = !inQuote;
+          continue;
+        }
+      if (c == ';' && !inQuote)
+        {
+          [ranges addObject:[NSValue valueWithRange:NSMakeRange (start, i + 1 - start)]];
+          start = i + 1;
+        }
+    }
+  if (start < [input length])
+    [ranges addObject:[NSValue valueWithRange:NSMakeRange (start, [input length] - start)]];
+  return ranges;
+}
+
 static NSString *
 Trim (NSString *input)
 {
@@ -1022,12 +1075,40 @@ ScorefileIdentifierForPartName (NSString *name)
       return nil;
     }
 
+  return [self parseString:raw
+            suggestedTitle:[[path lastPathComponent] stringByDeletingPathExtension]
+                     error:error];
+}
+
++ (ScoreDocument *)parseString:(NSString *)raw
+                suggestedTitle:(NSString *)title
+                         error:(NSError **)error
+{
+  return [self parseString:raw suggestedTitle:title noteSourceRanges:NULL error:error];
+}
+
++ (ScoreDocument *)parseString:(NSString *)raw
+                suggestedTitle:(NSString *)title
+              noteSourceRanges:(NSArray **)noteRanges
+                         error:(NSError **)error
+{
+  if (noteRanges)
+    *noteRanges = nil;
+  if (![raw length])
+    {
+      if (error)
+        *error = ScorefileError (@"The score source is empty.");
+      return nil;
+    }
+
   NSString *content = StripComments (raw);
   NSArray *statements = ScorefileStatements (content);
+  NSArray *statementRanges = noteRanges ? ScorefileStatementRanges (raw) : nil;
+  NSMutableArray *capturedNoteRanges = noteRanges ? [NSMutableArray array] : nil;
   NSMutableDictionary *variables = [NSMutableDictionary dictionary];
   NSMutableDictionary *activeNotes = [NSMutableDictionary dictionary];
   ScoreDocument *document = [[[ScoreDocument alloc] init] autorelease];
-  [document setTitle:[[path lastPathComponent] stringByDeletingPathExtension]];
+  [document setTitle:[title length] ? title : @"Untitled"];
   [document setTicksPerQuarter:480];
   NSDictionary *metadata = ScoreMakerMetadataFromScorefile (raw);
   NSDictionary *structure = ScoreMakerJSONCommentFromScorefile (raw, ScoreMakerStructureMarker);
@@ -1050,10 +1131,11 @@ ScorefileIdentifierForPartName (NSString *name)
   NSUInteger trackForPart = 0;
   NSMutableDictionary *partTracks = [NSMutableDictionary dictionary];
 
-  NSEnumerator *statementEnumerator = [statements objectEnumerator];
-  NSString *rawStatement = nil;
-  while ((rawStatement = [statementEnumerator nextObject]) != nil)
+  for (NSUInteger statementIndex = 0; statementIndex < [statements count]; statementIndex++)
     {
+      NSString *rawStatement = [statements objectAtIndex:statementIndex];
+      NSValue *sourceRange = statementIndex < [statementRanges count]
+                               ? [statementRanges objectAtIndex:statementIndex] : nil;
       NSString *statement = Trim (rawStatement);
       if ([statement length] == 0)
         {
@@ -1350,6 +1432,9 @@ ScorefileIdentifierForPartName (NSString *name)
               [note setStartTick:currentTick];
               [note setDurationTicks:[document ticksPerQuarter]];
               [[document notes] addObject:note];
+              if (sourceRange)
+                [capturedNoteRanges addObject:[NSDictionary dictionaryWithObjectsAndKeys:
+                  note, @"note", sourceRange, @"range", nil]];
               [activeNotes setObject:note forKey:key];
             }
           continue;
@@ -1378,6 +1463,9 @@ ScorefileIdentifierForPartName (NSString *name)
                               .location
                             != NSNotFound)];
           [[document notes] addObject:note];
+          if (sourceRange)
+            [capturedNoteRanges addObject:[NSDictionary dictionaryWithObjectsAndKeys:
+              note, @"note", sourceRange, @"range", nil]];
           if ([note startTick] + [note durationTicks] > [document totalTicks])
             {
               [document setTotalTicks:[note startTick] + [note durationTicks]];
@@ -1416,6 +1504,8 @@ ScorefileIdentifierForPartName (NSString *name)
       [document buildDefaultMeasures];
     }
   [document rebuildStructuredPartsFromLegacyTracks];
+  if (noteRanges)
+    *noteRanges = [[capturedNoteRanges copy] autorelease];
   return document;
 }
 

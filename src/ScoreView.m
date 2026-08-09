@@ -18,6 +18,7 @@
  */
 
 #import "ScoreView.h"
+#import "PlaybackMonitorView.h"
 #import <math.h>
 
 static CGFloat const PageWidth = 980.0;
@@ -134,6 +135,19 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 - (ScoreNote *)selectedNote
 {
   return _selectedNote;
+}
+
+- (void)selectNote:(ScoreNote *)note scrollToVisible:(BOOL)scroll
+{
+  if (note && ![[_document notes] containsObject:note])
+    return;
+  _selectedNote = note;
+  _loopEndNote = nil;
+  [self setNeedsDisplay:YES];
+  if (scroll && note)
+    [self scrollPlaybackTickToVisible:[note startTick]];
+  [[NSNotificationCenter defaultCenter] postNotificationName:ScoreViewSelectionDidChangeNotification
+                                                      object:self];
 }
 
 - (BOOL)hasLoopSelection
@@ -993,7 +1007,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                      && _playbackTick < [note startTick] + [note durationTicks];
       if (playing && [[NSGraphicsContext currentContext] isDrawingToScreen])
         {
-          [self drawPlaybackHighlightAtX:x y:y];
+          [self drawPlaybackHighlightAtX:x y:y voice:[note voice]];
         }
       if ((note == _selectedNote || note == _loopEndNote)
           && [[NSGraphicsContext currentContext] isDrawingToScreen])
@@ -1246,10 +1260,10 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
     }
 }
 
-- (void)drawPlaybackHighlightAtX:(CGFloat)x y:(CGFloat)y
+- (void)drawPlaybackHighlightAtX:(CGFloat)x y:(CGFloat)y voice:(NSInteger)voice
 {
   NSRect glowRect = NSMakeRect (x - 12.0, y - 10.0, 24.0, 20.0);
-  NSColor *glow = [NSColor colorWithCalibratedRed:1.0 green:0.72 blue:0.12 alpha:0.55];
+  NSColor *glow = [ScoreVoiceColor (voice, NO) colorWithAlphaComponent:0.55];
   [glow setFill];
   [[NSBezierPath bezierPathWithOvalInRect:glowRect] fill];
 }

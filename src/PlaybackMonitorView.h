@@ -20,6 +20,8 @@
 #import <AppKit/AppKit.h>
 #import "ScoreModel.h"
 
+NSColor *ScoreVoiceColor (NSInteger voice, BOOL darkVariant);
+
 @interface PlaybackMonitorView : NSView
 {
   ScoreDocument *_document;

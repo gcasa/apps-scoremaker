@@ -40,6 +40,7 @@ extern NSString *const ScorePalettePasteboardType;
 - (void)setDocument:(ScoreDocument *)document;
 - (void)reloadDocument;
 - (ScoreNote *)selectedNote;
+- (void)selectNote:(ScoreNote *)note scrollToVisible:(BOOL)scroll;
 - (BOOL)hasLoopSelection;
 - (NSUInteger)loopStartTick;
 - (NSUInteger)loopEndTick;

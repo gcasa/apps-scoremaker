@@ -10,6 +10,8 @@ The renderer is intentionally lightweight. It focuses on extracting timing, pitc
 - Import uncompressed MusicXML `.musicxml` and `.xml` files.
 - Open MusicKit text scorefiles with the `.score` extension.
 - Save the currently loaded score as a MusicKit-style `.score` file.
+- Edit each score's MusicKit source in its own syntax-highlighted window, validate and apply it
+  atomically, and preserve applied comments and statements when saving `.score` files.
 - Export scores as uncompressed MusicXML.
 - Render notes across treble and bass staves with measure lines.
 - Read MIDI tempo and time-signature metadata when available.
@@ -80,6 +82,15 @@ The bundled `examples/mozart-requiem/` collection contains fourteen independentl
 
 Use the inspector on the right side of the sheet to add pitched notes, add freeform score notes, change the tempo in BPM, or change the time signature.
 The inspector scrolls vertically when the window is not tall enough to show its complete palette and score-notes editor.
+
+Choose **Edit Source...** in the inspector or **Score > Edit Score Source...** to open the source
+editor belonging to that score. Changes remain isolated in the editor until **Apply** successfully
+parses them; **Regenerate from Score** discards the editor buffer and recreates it from the visual
+score. Applying source is undoable as one document edit. Placing the source-editor caret inside a
+note statement selects that note in the rendered score and scrolls it into view. During playback,
+the editor highlights and follows the source statements for all currently sounding notes; this
+temporary highlight does not move the insertion caret or modify the source. Highlight colors use
+the same per-voice palette as the rendered score, velocity meters, and virtual keyboard.
 
 Choose a connected device under **MIDI Input** for live entry. With recording stopped, played notes are entered at the inspector's Start position and simultaneous held notes form a chord. Choose a Grid value and press **Record** for a one-measure count-in followed by real-time recording; press **Stop** to quantize and insert the captured performance. MIDI velocity and sustain-pedal note lengths are preserved.
 The input menu updates when MIDI devices are connected or removed. **Selected Part** routing sends all channels to the inspector's current part; **MIDI Channel → Part** maps channel 1 to Part 1, channel 2 to Part 2, and so on. Use **Edit → Undo/Redo** or Command-Z/Command-Shift-Z to reverse and restore edits; one recording take is one undo operation.
