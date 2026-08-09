@@ -6,7 +6,7 @@
   <key>CFBundleExecutable</key>
   <string>ScoreMaker</string>
   <key>CFBundleIdentifier</key>
-  <string>local.scoremaker</string>
+  <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
   <key>CFBundleName</key>
   <string>ScoreMaker</string>
   <key>CFBundlePackageType</key>
