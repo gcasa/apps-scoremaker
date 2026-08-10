@@ -22,5 +22,6 @@
 @interface AppDelegate : NSObject <NSApplicationDelegate, NSMenuDelegate>
 {
   NSMenu *_recentDocumentsMenu;
+  NSPanel *_infoPanel;
 }
 @end

@@ -20,6 +20,140 @@
 #import "AppDelegate.h"
 #import "ScoreMakerDocument.h"
 
+@interface ScoreMakerInfoView : NSView
+@end
+
+static void
+ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
+                    NSTextAlignment alignment)
+{
+  NSMutableParagraphStyle *style = [[[NSMutableParagraphStyle alloc] init] autorelease];
+  [style setAlignment:alignment];
+  [style setLineBreakMode:NSLineBreakByWordWrapping];
+  NSDictionary *attributes = [NSDictionary dictionaryWithObjectsAndKeys:
+    font, NSFontAttributeName, color, NSForegroundColorAttributeName,
+    style, NSParagraphStyleAttributeName, nil];
+  [text drawInRect:rect withAttributes:attributes];
+}
+
+@implementation ScoreMakerInfoView
+
+- (BOOL)isFlipped
+{
+  return YES;
+}
+
+- (void)drawRect:(NSRect)dirtyRect
+{
+  (void)dirtyRect;
+  NSRect bounds = [self bounds];
+  [[NSColor colorWithCalibratedRed:0.965 green:0.945 blue:0.895 alpha:1.0] setFill];
+  NSRectFill (bounds);
+
+  /* A dark concert-poster header, softened by a small warm color field. */
+  [[NSColor colorWithCalibratedRed:0.075 green:0.078 blue:0.095 alpha:1.0] setFill];
+  NSRectFill (NSMakeRect (0.0, 0.0, NSWidth (bounds), 238.0));
+  [[NSColor colorWithCalibratedRed:0.91 green:0.29 blue:0.22 alpha:1.0] setFill];
+  NSRectFill (NSMakeRect (0.0, 0.0, 9.0, 238.0));
+
+  /* Oversized staff: the lines continue behind the title like a score cover. */
+  NSColor *staffColor = [NSColor colorWithCalibratedWhite:1.0 alpha:0.15];
+  [staffColor setStroke];
+  for (NSInteger line = 0; line < 5; line++)
+    {
+      NSBezierPath *staff = [NSBezierPath bezierPath];
+      [staff setLineWidth:1.0];
+      [staff moveToPoint:NSMakePoint (286.0, 58.5 + line * 18.0)];
+      [staff lineToPoint:NSMakePoint (620.0, 58.5 + line * 18.0)];
+      [staff stroke];
+    }
+
+  /* Hand-drawn note constellation. */
+  NSArray *notes = [NSArray arrayWithObjects:
+    [NSValue valueWithPoint:NSMakePoint (328.0, 112.0)],
+    [NSValue valueWithPoint:NSMakePoint (397.0, 76.0)],
+    [NSValue valueWithPoint:NSMakePoint (466.0, 130.0)],
+    [NSValue valueWithPoint:NSMakePoint (542.0, 94.0)], nil];
+  NSArray *noteColors = [NSArray arrayWithObjects:
+    [NSColor colorWithCalibratedRed:0.96 green:0.36 blue:0.28 alpha:1.0],
+    [NSColor colorWithCalibratedRed:0.33 green:0.58 blue:0.98 alpha:1.0],
+    [NSColor colorWithCalibratedRed:0.96 green:0.72 blue:0.22 alpha:1.0],
+    [NSColor colorWithCalibratedRed:0.62 green:0.42 blue:0.95 alpha:1.0], nil];
+  for (NSUInteger index = 0; index < [notes count]; index++)
+    {
+      NSPoint point = [[notes objectAtIndex:index] pointValue];
+      NSColor *color = [noteColors objectAtIndex:index];
+      [color setFill];
+      NSBezierPath *head = [NSBezierPath bezierPathWithOvalInRect:NSMakeRect (point.x, point.y, 24.0, 16.0)];
+      NSAffineTransform *rotation = [NSAffineTransform transform];
+      [rotation translateXBy:point.x + 12.0 yBy:point.y + 8.0];
+      [rotation rotateByDegrees:-18.0];
+      [rotation translateXBy:-(point.x + 12.0) yBy:-(point.y + 8.0)];
+      [head transformUsingAffineTransform:rotation];
+      [head fill];
+      NSBezierPath *stem = [NSBezierPath bezierPath];
+      [stem setLineWidth:3.0];
+      [color setStroke];
+      [stem moveToPoint:NSMakePoint (point.x + 21.0, point.y + 5.0)];
+      [stem lineToPoint:NSMakePoint (point.x + 21.0, point.y - 48.0)];
+      [stem stroke];
+    }
+
+  NSColor *paper = [NSColor colorWithCalibratedRed:0.965 green:0.945 blue:0.895 alpha:1.0];
+  ScoreMakerDrawText (@"SCORE", NSMakeRect (44.0, 42.0, 230.0, 54.0),
+                      [NSFont boldSystemFontOfSize:46.0], paper, NSTextAlignmentLeft);
+  ScoreMakerDrawText (@"MAKER", NSMakeRect (44.0, 89.0, 230.0, 54.0),
+                      [NSFont boldSystemFontOfSize:46.0], paper, NSTextAlignmentLeft);
+  ScoreMakerDrawText (@"COMPOSE  ·  ENGRAVE  ·  PLAY",
+                      NSMakeRect (47.0, 161.0, 260.0, 22.0),
+                      [NSFont boldSystemFontOfSize:11.0],
+                      [NSColor colorWithCalibratedRed:0.96 green:0.54 blue:0.39 alpha:1.0],
+                      NSTextAlignmentLeft);
+
+  NSColor *ink = [NSColor colorWithCalibratedRed:0.10 green:0.105 blue:0.12 alpha:1.0];
+  ScoreMakerDrawText (@"A studio for ideas in motion.", NSMakeRect (44.0, 278.0, 520.0, 38.0),
+                      [NSFont boldSystemFontOfSize:27.0], ink, NSTextAlignmentLeft);
+  ScoreMakerDrawText (@"Shape notation, sculpt sound, and hear every phrase take flight — from the first mark on the staff to the final resonance.",
+                      NSMakeRect (44.0, 326.0, 510.0, 52.0),
+                      [NSFont systemFontOfSize:14.0],
+                      [NSColor colorWithCalibratedWhite:0.25 alpha:1.0], NSTextAlignmentLeft);
+
+  [[NSColor colorWithCalibratedRed:0.80 green:0.76 blue:0.67 alpha:1.0] setStroke];
+  NSBezierPath *rule = [NSBezierPath bezierPath];
+  [rule moveToPoint:NSMakePoint (44.0, 405.5)];
+  [rule lineToPoint:NSMakePoint (576.0, 405.5)];
+  [rule stroke];
+
+  ScoreMakerDrawText (@"VERSION", NSMakeRect (44.0, 430.0, 80.0, 18.0),
+                      [NSFont boldSystemFontOfSize:10.0],
+                      [NSColor colorWithCalibratedRed:0.55 green:0.27 blue:0.22 alpha:1.0], NSTextAlignmentLeft);
+  NSString *version = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleShortVersionString"];
+  ScoreMakerDrawText (version ? version : @"1.0", NSMakeRect (44.0, 450.0, 80.0, 22.0),
+                      [NSFont systemFontOfSize:14.0], ink, NSTextAlignmentLeft);
+  ScoreMakerDrawText (@"CRAFT", NSMakeRect (178.0, 430.0, 80.0, 18.0),
+                      [NSFont boldSystemFontOfSize:10.0],
+                      [NSColor colorWithCalibratedRed:0.55 green:0.27 blue:0.22 alpha:1.0], NSTextAlignmentLeft);
+  ScoreMakerDrawText (@"Native AppKit", NSMakeRect (178.0, 450.0, 130.0, 22.0),
+                      [NSFont systemFontOfSize:14.0], ink, NSTextAlignmentLeft);
+  ScoreMakerDrawText (@"LICENSE", NSMakeRect (338.0, 430.0, 80.0, 18.0),
+                      [NSFont boldSystemFontOfSize:10.0],
+                      [NSColor colorWithCalibratedRed:0.55 green:0.27 blue:0.22 alpha:1.0], NSTextAlignmentLeft);
+  ScoreMakerDrawText (@"GNU LGPL 2.1+", NSMakeRect (338.0, 450.0, 150.0, 22.0),
+                      [NSFont systemFontOfSize:14.0], ink, NSTextAlignmentLeft);
+  ScoreMakerDrawText (@"♪", NSMakeRect (535.0, 426.0, 40.0, 50.0),
+                      [NSFont systemFontOfSize:34.0],
+                      [NSColor colorWithCalibratedRed:0.91 green:0.29 blue:0.22 alpha:1.0], NSTextAlignmentCenter);
+
+  ScoreMakerDrawText (@"Designed for musicians who think in color, gesture, and time.",
+                      NSMakeRect (44.0, 498.0, 532.0, 22.0),
+                      [[NSFontManager sharedFontManager]
+                        convertFont:[NSFont systemFontOfSize:12.0]
+                        toHaveTrait:NSItalicFontMask],
+                      [NSColor colorWithCalibratedWhite:0.38 alpha:1.0], NSTextAlignmentCenter);
+}
+
+@end
+
 @implementation AppDelegate
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification
@@ -86,7 +220,30 @@
 - (void)dealloc
 {
   [_recentDocumentsMenu release];
+  [_infoPanel release];
   [super dealloc];
+}
+
+- (void)showInfoPanel:(id)sender
+{
+  (void)sender;
+  if (!_infoPanel)
+    {
+      NSRect frame = NSMakeRect (0.0, 0.0, 620.0, 540.0);
+      _infoPanel = [[NSPanel alloc] initWithContentRect:frame
+                                             styleMask:(NSTitledWindowMask | NSClosableWindowMask)
+                                               backing:NSBackingStoreBuffered
+                                                 defer:NO];
+      [_infoPanel setTitle:@"About ScoreMaker"];
+      [_infoPanel setReleasedWhenClosed:NO];
+      [_infoPanel setFloatingPanel:YES];
+      [_infoPanel setHidesOnDeactivate:NO];
+      [_infoPanel setContentView:[[[ScoreMakerInfoView alloc] initWithFrame:frame] autorelease]];
+      if ([_infoPanel respondsToSelector:@selector (setAccessibilityTitle:)])
+        [_infoPanel setAccessibilityTitle:@"About ScoreMaker"];
+    }
+  [_infoPanel center];
+  [_infoPanel makeKeyAndOrderFront:self];
 }
 
 - (void)openRecentDocument:(id)sender
@@ -172,6 +329,12 @@
   [mainMenu addItem:appItem];
 
   NSMenu *appMenu = [[[NSMenu alloc] initWithTitle:@"ScoreMaker"] autorelease];
+  NSMenuItem *aboutItem = [[[NSMenuItem alloc] initWithTitle:@"About ScoreMaker"
+                                                      action:@selector (showInfoPanel:)
+                                               keyEquivalent:@""] autorelease];
+  [aboutItem setTarget:self];
+  [appMenu addItem:aboutItem];
+  [appMenu addItem:[NSMenuItem separatorItem]];
   NSMenuItem *quitItem = [[[NSMenuItem alloc] initWithTitle:@"Quit ScoreMaker"
                                                      action:@selector (terminate:)
                                               keyEquivalent:@"q"] autorelease];
