@@ -9,6 +9,15 @@
     CFBundleDocumentTypes = (
 	{
 	    CFBundleTypeExtensions = (
+		scoremaker
+	    );
+	    CFBundleTypeIconFile = "ScoreMakerDocumentIcon.png";
+	    CFBundleTypeName = "ScoreMaker Project";
+	    CFBundleTypeRole = Editor;
+	    NSDocumentClass = ScoreMakerDocument;
+	},
+	{
+	    CFBundleTypeExtensions = (
 		score
 	    );
 	    CFBundleTypeIconFile = "ScoreMakerDocumentIcon.png";
@@ -45,11 +54,4 @@
     NSIcon = "Resources/ScoreMakerAppIcon.png";
     NSPrincipalClass = NSApplication;
     NSRole = Application;
-    NSTypes = (
-	score,
-	mid,
-	midi,
-	musicxml,
-	xml
-    );
 }

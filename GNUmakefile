@@ -18,6 +18,7 @@ ifeq ($(GNUSTEP_MAKEFILES),)
 endif
 
 include $(GNUSTEP_MAKEFILES)/common.make
+.DEFAULT_GOAL := all
 
 #
 # Application
@@ -32,15 +33,15 @@ ScoreMaker_APPLICATION_ICON = Resources/ScoreMakerAppIcon.png
 # Resource files
 #
 ScoreMaker_RESOURCE_FILES = \
-Resources/Resources/bass_clef.png \
-Resources/Resources/ScoreMakerAppIcon.png \
-Resources/Resources/ScoreMakerDocumentIcon.png \
-Resources/Resources/treble_clef.png \
+Resources/bass_clef.png \
+Resources/ScoreMakerAppIcon.png \
+Resources/ScoreMakerDocumentIcon.png \
+Resources/treble_clef.png \
 Resources/README.md \
 Resources/ChangeLog \
 Resources/LICENSE \
-Resources/Resources/ScoreMakerAppIcon.icns \
-Resources/Resources/ScoreMakerDocumentIcon.icns 
+Resources/ScoreMakerAppIcon.icns \
+Resources/ScoreMakerDocumentIcon.icns 
 
 
 #
@@ -85,6 +86,12 @@ src/EngravingLayout.m \
 src/ScoreView.m \
 src/PlaybackMonitorView.m \
 src/MIDIInputManager.m
+
+.PHONY: test
+test: all
+	mkdir -p build/tests
+	clang $$(gnustep-config --objc-flags) -Wall -Wextra -fobjc-exceptions -Isrc tests/DocumentOpenCompatibilityTests.m src/RealtimeDSP.m src/ScoreMakerDocumentController.m src/ScoreMakerDocument.m src/MidiParser.m src/MusicXMLParser.m src/ScorefileParser.m src/ScoreProjectSerializer.m src/ScoreModel.m src/MusicPlatformModel.m src/MusicEngine.m src/NotationModel.m src/EngravingLayout.m src/ScoreView.m src/PlaybackMonitorView.m src/MIDIInputManager.m $$(gnustep-config --gui-libs) -lAVFoundation -o build/tests/document-open-tests
+	build/tests/document-open-tests
 
 #
 # Makefiles

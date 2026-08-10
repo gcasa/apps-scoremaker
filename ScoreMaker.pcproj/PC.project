@@ -2,6 +2,8 @@
     APPLICATIONICON = "Resources/ScoreMakerAppIcon.png";
     "APP_DOCUMENT_BASED" = YES;
     "APP_TYPE" = GORM;
+    "BUILDER_ARGS" = (
+    );
     "BUNDLE_IDENTIFIER" = "com.gnustep.ScoreMaker";
     "CLASS_FILES" = (
 	"src/RealtimeDSP.m",
@@ -51,10 +53,10 @@
 	"src/MIDIInputManager.h"
     );
     IMAGES = (
-	"Resources/bass_clef.png",
-	"Resources/ScoreMakerAppIcon.png",
-	"Resources/ScoreMakerDocumentIcon.png",
-	"Resources/treble_clef.png"
+	"bass_clef.png",
+	"ScoreMakerAppIcon.png",
+	"ScoreMakerDocumentIcon.png",
+	"treble_clef.png"
     );
     INSTALLDIR = "$(HOME)/GNUstep";
     INTERFACES = (
@@ -69,10 +71,12 @@
     );
     MAININTERFACE = "";
     MAKEFILEDIR = "$(GNUSTEP_MAKEFILES)";
+    "NON_PROJECT_FILES" = (
+    );
     "OBJC_COMPILEROPTIONS" = "";
     "OTHER_RESOURCES" = (
-	"Resources/ScoreMakerAppIcon.icns",
-	"Resources/ScoreMakerDocumentIcon.icns"
+	"ScoreMakerAppIcon.icns",
+	"ScoreMakerDocumentIcon.icns"
     );
     "OTHER_SOURCES" = (
     );
@@ -85,11 +89,6 @@
     "PROJECT_CREATOR" = "Gregory Casamento";
     "PROJECT_DESCRIPTION" = "A cross-platform AppKit score viewer, editor, and playback application.";
     "PROJECT_DOCUMENTTYPES" = (
-	score,
-	mid,
-	midi,
-	musicxml,
-	xml
     );
     "PROJECT_GROUP" = "GNUstep Applications";
     "PROJECT_MAINTAINER" = "Gregory Casamento";

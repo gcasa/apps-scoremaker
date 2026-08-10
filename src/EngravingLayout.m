@@ -129,6 +129,52 @@
     }
   return MAX (minimum, contentWidth);
 }
+- (CGFloat)widthForMeasure:(ScoreMeasure *)measure
+                  document:(ScoreDocument *)document
+                   minimum:(CGFloat)minimum
+             notesByMeasure:(NSDictionary *)notesByMeasure
+                   previous:(ScoreMeasure *)previous
+{
+  [self prepareAccidentalsForDocument:document];
+  NSMutableDictionary *notesByOnset = [NSMutableDictionary dictionary];
+  NSArray *measureNotes =
+    [notesByMeasure objectForKey:[NSValue valueWithPointer:measure]];
+  for (ScoreNote *note in measureNotes)
+    {
+      NSNumber *onset = [NSNumber numberWithUnsignedInteger:[note startTick]];
+      NSMutableArray *notes = [notesByOnset objectForKey:onset];
+      if (!notes)
+        {
+          notes = [NSMutableArray array];
+          [notesByOnset setObject:notes forKey:onset];
+        }
+      [notes addObject:note];
+    }
+  CGFloat contentWidth = 42.0;
+  if (previous &&
+      ([previous keySignatureFifths] != [measure keySignatureFifths] ||
+       ![[previous keyMode] isEqualToString:[measure keyMode]]))
+    {
+      contentWidth += 8.0 * (labs ([previous keySignatureFifths]) +
+                             labs ([measure keySignatureFifths])) + 12.0;
+    }
+  for (NSArray *notes in [notesByOnset allValues])
+    {
+      NSUInteger accidentals = 0;
+      CGFloat annotationWidth = 0.0;
+      for (ScoreNote *note in notes)
+        {
+          if ([[self->_displayedAccidentals objectForKey:[NSValue valueWithPointer:note]]
+                integerValue] != NSIntegerMax)
+            accidentals++;
+          annotationWidth = MAX (annotationWidth, (CGFloat)[[note dynamic] length] * 7.0);
+        }
+      CGFloat chordWidth = 17.0 + MAX ((CGFloat)0.0, ((CGFloat)[notes count] - 1.0) * 4.5);
+      CGFloat accidentalWidth = accidentals ? 10.0 + (CGFloat)(accidentals - 1) * 8.0 : 0.0;
+      contentWidth += MAX (chordWidth + accidentalWidth, annotationWidth + 8.0);
+    }
+  return MAX (minimum, contentWidth);
+}
 - (ScoreEngravingSystem *)systemForDocument:(ScoreDocument *)document
                                       first:(NSUInteger)first
                                        last:(NSUInteger)last
@@ -179,6 +225,65 @@
   [system setFractions:fractions];
   return system;
 }
+- (ScoreEngravingSystem *)systemForDocument:(ScoreDocument *)document
+                                      first:(NSUInteger)first
+                                       last:(NSUInteger)last
+                             notesByMeasure:(NSDictionary *)notesByMeasure
+{
+  NSArray *measures = [document measures];
+  ScoreMeasure *a = [measures objectAtIndex:first], *b = [measures objectAtIndex:last];
+  NSUInteger start = [a startTick], end = [b startTick] + [b durationTicks];
+  NSMutableSet *tickSet =
+    [NSMutableSet setWithObjects:[NSNumber numberWithUnsignedInteger:start],
+                                 [NSNumber numberWithUnsignedInteger:end], nil];
+  NSMutableDictionary *countsByTick = [NSMutableDictionary dictionary];
+  for (NSUInteger i = first; i <= last; i++)
+    {
+      ScoreMeasure *measure = [measures objectAtIndex:i];
+      [tickSet addObject:[NSNumber numberWithUnsignedInteger:[measure startTick]]];
+      NSArray *measureNotes =
+        [notesByMeasure objectForKey:[NSValue valueWithPointer:measure]];
+      for (ScoreNote *note in measureNotes)
+        {
+          NSNumber *tick = [NSNumber numberWithUnsignedInteger:[note startTick]];
+          [tickSet addObject:tick];
+          NSNumber *count = [countsByTick objectForKey:tick];
+          [countsByTick setObject:[NSNumber numberWithUnsignedInteger:[count unsignedIntegerValue] + 1]
+                            forKey:tick];
+        }
+    }
+  NSArray *ticks = [[tickSet allObjects] sortedArrayUsingSelector:@selector (compare:)];
+  NSMutableArray *weights = [NSMutableArray array];
+  CGFloat total = 0;
+  for (NSUInteger i = 0; i + 1 < [ticks count]; i++)
+    {
+      NSUInteger ta = [[ticks objectAtIndex:i] unsignedIntegerValue],
+                 tb = [[ticks objectAtIndex:i + 1] unsignedIntegerValue];
+      NSUInteger count = [[countsByTick objectForKey:[ticks objectAtIndex:i]] unsignedIntegerValue];
+      CGFloat w = MAX (
+        10.0
+          + 18.0
+              * sqrt ((double)(tb - ta) / (double)MAX ((NSUInteger)1, [document ticksPerQuarter])),
+        15.0 + count * 3.5);
+      [weights addObject:[NSNumber numberWithDouble:w]];
+      total += w;
+    }
+  NSMutableArray *fractions = [NSMutableArray arrayWithObject:@0.0];
+  CGFloat sum = 0;
+  for (NSNumber *w in weights)
+    {
+      sum += [w doubleValue];
+      [fractions addObject:[NSNumber numberWithDouble:total ? sum / total : 1]];
+    }
+  ScoreEngravingSystem *system = [[[ScoreEngravingSystem alloc] init] autorelease];
+  [system setStartTick:start];
+  [system setEndTick:end];
+  [system setFirstMeasureIndex:first];
+  [system setLastMeasureIndex:last];
+  [system setTicks:ticks];
+  [system setFractions:fractions];
+  return system;
+}
 - (ScoreEngravingLayout *)layoutDocument:(ScoreDocument *)document
                               musicWidth:(CGFloat)musicWidth
                      minimumMeasureWidth:(CGFloat)minimum
@@ -189,22 +294,53 @@
   NSArray *measures = [document measures];
   if ([measures count])
     {
+      NSMutableDictionary *notesByMeasure = [NSMutableDictionary dictionary];
+      NSUInteger measureIndex = 0;
+      for (ScoreNote *note in [[document notes] sortedArrayUsingSelector:@selector (compareScoreNote:)])
+        {
+          NSUInteger onset = [note startTick];
+          while (measureIndex + 1 < [measures count] &&
+                 onset >= [[measures objectAtIndex:measureIndex + 1] startTick])
+            measureIndex++;
+          ScoreMeasure *measure = [measures objectAtIndex:measureIndex];
+          NSUInteger end = [measure startTick] + [measure durationTicks];
+          if (onset < [measure startTick] || onset >= end)
+            continue;
+          NSValue *key = [NSValue valueWithPointer:measure];
+          NSMutableArray *measureNotes = [notesByMeasure objectForKey:key];
+          if (!measureNotes)
+            {
+              measureNotes = [NSMutableArray array];
+              [notesByMeasure setObject:measureNotes forKey:key];
+            }
+          [measureNotes addObject:note];
+        }
       NSUInteger first = 0;
       CGFloat used = 0;
       for (NSUInteger i = 0; i < [measures count]; i++)
         {
-          CGFloat width = [self widthForMeasure:[measures objectAtIndex:i]
+          ScoreMeasure *measure = [measures objectAtIndex:i];
+          ScoreMeasure *previous = i > 0 ? [measures objectAtIndex:i - 1] : nil;
+          CGFloat width = [self widthForMeasure:measure
                                        document:document
-                                        minimum:minimum];
+                                        minimum:minimum
+                                 notesByMeasure:notesByMeasure
+                                       previous:previous];
           if (i > first && used + width > musicWidth)
             {
-              [systems addObject:[self systemForDocument:document first:first last:i - 1]];
+              [systems addObject:[self systemForDocument:document
+                                                   first:first
+                                                    last:i - 1
+                                          notesByMeasure:notesByMeasure]];
               first = i;
               used = 0;
             }
           used += MIN (width, musicWidth);
         }
-      [systems addObject:[self systemForDocument:document first:first last:[measures count] - 1]];
+      [systems addObject:[self systemForDocument:document
+                                           first:first
+                                            last:[measures count] - 1
+                                  notesByMeasure:notesByMeasure]];
     }
   ScoreEngravingLayout *layout = [[[ScoreEngravingLayout alloc] init] autorelease];
   [layout setSystems:systems];
