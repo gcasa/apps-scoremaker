@@ -48,7 +48,8 @@ before ScoreMaker targets systems or vendors that do not supply Audio Units.
 ## Screenshots
 
 ### macOS
-<img width="1672" height="941" alt="c352a5ae-9607-4982-a898-d833cbdb2619" src="https://github.com/user-attachments/assets/f0ae44c1-9252-483e-bef1-ec147bffc70c" />
+<img width="2303" height="1397" alt="msuic2" src="https://github.com/user-attachments/assets/57c758d3-eb8c-46e6-9bb5-527605c512ad" />
+
 
 ### GNUstep
 <img width="1572" height="1105" alt="scoremaker-gnustep" src="https://github.com/user-attachments/assets/d338857c-d2fa-4711-ad0d-8f0963ff4d41" />
