@@ -40,6 +40,17 @@ ScoreVoiceColor (NSInteger voice, BOOL darkVariant)
                                    alpha:1.0];
 }
 
+static NSColor *
+ScorePartColor (NSInteger track, BOOL darkVariant)
+{
+  static CGFloat hues[] = { 0.57, 0.02, 0.32, 0.76, 0.12, 0.46, 0.90, 0.66 };
+  NSUInteger index = (NSUInteger)labs (track) % 8;
+  return [NSColor colorWithCalibratedHue:hues[index]
+                              saturation:darkVariant ? 0.82 : 0.68
+                              brightness:darkVariant ? 0.76 : 0.94
+                                   alpha:1.0];
+}
+
 @implementation PlaybackMonitorView
 
 - (id)initWithFrame:(NSRect)frame
@@ -50,6 +61,7 @@ ScoreVoiceColor (NSInteger voice, BOOL darkVariant)
       _inputPitch = -1;
       _liveNotes = [[NSMutableDictionary alloc] init];
       _pinnedTracks = [[NSMutableSet alloc] init];
+      _showAllParts = NO;
     }
   return self;
 }
@@ -184,15 +196,27 @@ ScoreVoiceColor (NSInteger voice, BOOL darkVariant)
   return result;
 }
 
-- (void)drawKeyboardInRect:(NSRect)rect activeNotes:(NSArray *)activeNotes track:(NSInteger)track
+- (void)drawKeyboardInRect:(NSRect)rect
+               activeNotes:(NSArray *)activeNotes
+                     track:(NSInteger)track
+          distinguishParts:(BOOL)distinguishParts
 {
   NSMutableSet *activePitches = [NSMutableSet set];
   NSMutableDictionary *voicesByPitch = [NSMutableDictionary dictionary];
+  NSMutableDictionary *tracksByPitch = [NSMutableDictionary dictionary];
   for (ScoreNote *note in activeNotes)
     {
-      [activePitches addObject:[NSNumber numberWithInteger:[note pitch]]];
+      NSNumber *pitch = [NSNumber numberWithInteger:[note pitch]];
+      [activePitches addObject:pitch];
       [voicesByPitch setObject:[NSNumber numberWithInteger:[note voice]]
-                        forKey:[NSNumber numberWithInteger:[note pitch]]];
+                        forKey:pitch];
+      NSMutableSet *tracks = [tracksByPitch objectForKey:pitch];
+      if (!tracks)
+        {
+          tracks = [NSMutableSet set];
+          [tracksByPitch setObject:tracks forKey:pitch];
+        }
+      [tracks addObject:[NSNumber numberWithInteger:[note track]]];
     }
   if (_inputPitch >= 21 && _inputPitch <= 108)
     [activePitches addObject:[NSNumber numberWithInteger:_inputPitch]];
@@ -218,8 +242,23 @@ ScoreVoiceColor (NSInteger voice, BOOL darkVariant)
       NSRect key = NSMakeRect (x, NSMinY (rect), whiteWidth, NSHeight (rect));
       BOOL active = [activePitches containsObject:[NSNumber numberWithInteger:pitch]];
       NSNumber *voice = [voicesByPitch objectForKey:[NSNumber numberWithInteger:pitch]];
-      [(active ? ScoreVoiceColor (voice ? [voice integerValue] : 1, NO) : [NSColor whiteColor]) setFill];
+      NSArray *tracks = [[[tracksByPitch objectForKey:[NSNumber numberWithInteger:pitch]] allObjects]
+        sortedArrayUsingSelector:@selector (compare:)];
+      NSColor *activeColor = distinguishParts && [tracks count] > 0
+                               ? ScorePartColor ([[tracks objectAtIndex:0] integerValue], NO)
+                               : ScoreVoiceColor (voice ? [voice integerValue] : 1, NO);
+      [(active ? activeColor : [NSColor whiteColor]) setFill];
       NSRectFill (key);
+      if (active && distinguishParts && [tracks count] > 1)
+        {
+          CGFloat segmentWidth = NSWidth (key) / (CGFloat)[tracks count];
+          for (NSUInteger partIndex = 0; partIndex < [tracks count]; partIndex++)
+            {
+              [ScorePartColor ([[tracks objectAtIndex:partIndex] integerValue], NO) setFill];
+              NSRectFill (NSMakeRect (NSMinX (key) + partIndex * segmentWidth,
+                                      NSMaxY (key) - 6.0, segmentWidth, 6.0));
+            }
+        }
       if (pitch == 60)
         {
           NSMutableParagraphStyle *centered = [[[NSMutableParagraphStyle alloc] init] autorelease];
@@ -256,9 +295,24 @@ ScoreVoiceColor (NSInteger voice, BOOL darkVariant)
       NSRect key = NSMakeRect (x, NSMinY (rect), blackWidth, blackHeight);
       BOOL active = [activePitches containsObject:[NSNumber numberWithInteger:pitch]];
       NSNumber *voice = [voicesByPitch objectForKey:[NSNumber numberWithInteger:pitch]];
-      [(active ? ScoreVoiceColor (voice ? [voice integerValue] : 1, YES)
+      NSArray *tracks = [[[tracksByPitch objectForKey:[NSNumber numberWithInteger:pitch]] allObjects]
+        sortedArrayUsingSelector:@selector (compare:)];
+      NSColor *activeColor = distinguishParts && [tracks count] > 0
+                               ? ScorePartColor ([[tracks objectAtIndex:0] integerValue], YES)
+                               : ScoreVoiceColor (voice ? [voice integerValue] : 1, YES);
+      [(active ? activeColor
                : [NSColor colorWithCalibratedWhite:0.08 alpha:1.0]) setFill];
       NSRectFill (key);
+      if (active && distinguishParts && [tracks count] > 1)
+        {
+          CGFloat segmentWidth = NSWidth (key) / (CGFloat)[tracks count];
+          for (NSUInteger partIndex = 0; partIndex < [tracks count]; partIndex++)
+            {
+              [ScorePartColor ([[tracks objectAtIndex:partIndex] integerValue], YES) setFill];
+              NSRectFill (NSMakeRect (NSMinX (key) + partIndex * segmentWidth,
+                                      NSMaxY (key) - 4.0, segmentWidth, 4.0));
+            }
+        }
       [[NSColor blackColor] setStroke];
       NSFrameRect (key);
     }
@@ -308,6 +362,13 @@ ScoreVoiceColor (NSInteger voice, BOOL darkVariant)
   CGFloat split = floor (NSWidth ([self bounds]) * 0.7);
   NSRect rackButton = NSMakeRect (split - 82.0, 5.0, 72.0, 18.0);
   NSRect pinButton = NSMakeRect (split - 158.0, 5.0, 70.0, 18.0);
+  NSRect allPartsButton = NSMakeRect (split - 234.0, 5.0, 70.0, 18.0);
+  if (NSPointInRect (point, allPartsButton))
+    {
+      _showAllParts = !_showAllParts;
+      [self setNeedsDisplay:YES];
+      return;
+    }
   if (NSPointInRect (point, rackButton))
     {
       _rackVisible = !_rackVisible;
@@ -425,7 +486,8 @@ ScoreVoiceColor (NSInteger voice, BOOL darkVariant)
       [self drawKeyboardInRect:NSMakeRect (NSMinX (rect) + 86.0, y, NSWidth (rect) - 86.0,
                                            rowHeight - 4.0)
                    activeNotes:[self activeNotesForTrack:track]
-                         track:track];
+                         track:track
+              distinguishParts:NO];
     }
 }
 
@@ -441,11 +503,16 @@ ScoreVoiceColor (NSInteger voice, BOOL darkVariant)
     dictionaryWithObjectsAndKeys:[NSFont boldSystemFontOfSize:11.0], NSFontAttributeName,
                                  [NSColor controlTextColor], NSForegroundColorAttributeName, nil];
   CGFloat split = floor (NSWidth ([self bounds]) * 0.7);
-  NSString *heading = [NSString stringWithFormat:@"%@ — %@", [self nameForTrack:_selectedTrack],
-                                                 [self instrumentForTrack:_selectedTrack]];
-  [heading drawInRect:NSMakeRect (12.0, 7.0, MAX ((CGFloat)80.0, split - 178.0), 17.0)
+  NSString *heading = _showAllParts
+                        ? @"All Parts"
+                        : [NSString stringWithFormat:@"%@ — %@", [self nameForTrack:_selectedTrack],
+                                                     [self instrumentForTrack:_selectedTrack]];
+  [heading drawInRect:NSMakeRect (12.0, 7.0, MAX ((CGFloat)80.0, split - 254.0), 17.0)
        withAttributes:headingAttributes];
   NSNumber *selected = [NSNumber numberWithInteger:_selectedTrack];
+  [self drawButtonTitle:_showAllParts ? @"Selected" : @"All Parts"
+                   rect:NSMakeRect (split - 234.0, 5.0, 70.0, 18.0)
+                 active:_showAllParts];
   [self drawButtonTitle:[_pinnedTracks containsObject:selected] ? @"Unpin Part" : @"Pin Part"
                    rect:NSMakeRect (split - 158.0, 5.0, 70.0, 18.0)
                  active:[_pinnedTracks containsObject:selected]];
@@ -454,20 +521,22 @@ ScoreVoiceColor (NSInteger voice, BOOL darkVariant)
                  active:_rackVisible];
   [@"Voices / MIDI velocity" drawAtPoint:NSMakePoint (split + 14.0, 8.0)
                           withAttributes:headingAttributes];
-  NSArray *activeNotes = [self activeNotesForTrack:_selectedTrack];
+  NSArray *selectedActiveNotes = [self activeNotesForTrack:_selectedTrack];
+  NSArray *keyboardActiveNotes = _showAllParts ? [self activeNotes] : selectedActiveNotes;
   CGFloat availableHeight = NSHeight ([self bounds]) - 38.0;
   CGFloat primaryHeight
     = _rackVisible ? MAX ((CGFloat)34.0, floor (availableHeight * 0.48)) : availableHeight;
   [self drawKeyboardInRect:NSMakeRect (12.0, 28.0, split - 24.0, primaryHeight)
-               activeNotes:activeNotes
-                     track:_selectedTrack];
+               activeNotes:keyboardActiveNotes
+                     track:_selectedTrack
+          distinguishParts:_showAllParts];
   if (_rackVisible)
     [self drawKeyboardRackInRect:NSMakeRect (12.0, 32.0 + primaryHeight, split - 24.0,
                                              availableHeight - primaryHeight - 4.0)];
   [self
     drawVoiceMetersInRect:NSMakeRect (split + 14.0, 28.0, NSWidth ([self bounds]) - split - 26.0,
                                       NSHeight ([self bounds]) - 38.0)
-              activeNotes:activeNotes];
+              activeNotes:selectedActiveNotes];
 }
 
 - (void)dealloc

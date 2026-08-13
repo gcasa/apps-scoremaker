@@ -34,6 +34,7 @@ NSColor *ScoreVoiceColor (NSInteger voice, BOOL darkVariant);
   NSInteger _selectedTrack;
   NSMutableSet *_pinnedTracks;
   BOOL _rackVisible;
+  BOOL _showAllParts;
 }
 - (void)setDocument:(ScoreDocument *)document;
 - (void)setPlaybackTick:(NSUInteger)tick;
