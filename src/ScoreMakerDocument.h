@@ -138,6 +138,8 @@
   NSWindow *_routingMatrixWindow;
   NSView *_routingMatrixRowsView;
   NSTextField *_routingMatrixSummaryLabel;
+  NSMutableIndexSet *_routingMatrixSelection;
+  NSPopUpButton *_routingBulkDevicePopUp;
 #if defined(__APPLE__)
   NSMutableArray *_externalMIDIPlaybacks;
   MusicTimeStamp _externalPlaybackTime;

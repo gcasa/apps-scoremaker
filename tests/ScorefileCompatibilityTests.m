@@ -277,6 +277,9 @@ main (void)
   ScorePartDefinition *persistentPart = [[platform parts] objectAtIndex:0];
   [persistentPart setMidiOutputUniqueID:4242];
   [persistentPart setMidiOutputName:@"Studio MIDI Interface"];
+  [persistentPart setMidiFallbackMode:@"device"];
+  [persistentPart setMidiFallbackUniqueID:8484];
+  [persistentPart setMidiFallbackName:@"Backup MIDI Interface"];
   projectData = [ScoreProjectSerializer dataForDocument:platform error:&platformError];
   projectRoundTrip = [ScoreProjectSerializer documentFromData:projectData error:&platformError];
   restoredInstrument = [[[projectRoundTrip parts] objectAtIndex:0] instrument];
@@ -284,6 +287,10 @@ main (void)
   Require ([restoredPart midiOutputUniqueID] == 4242
              && [[restoredPart midiOutputName] isEqualToString:@"Studio MIDI Interface"],
            @"native project persistence lost the per-part MIDI output assignment");
+  Require ([[restoredPart midiFallbackMode] isEqualToString:@"device"]
+             && [restoredPart midiFallbackUniqueID] == 8484
+             && [[restoredPart midiFallbackName] isEqualToString:@"Backup MIDI Interface"],
+           @"native project persistence lost the per-part MIDI fallback assignment");
   Require (
     [[restoredInstrument backendIdentifier]
       isEqualToString:@"audio-unit:1635085685:1935764848:1634758764"]

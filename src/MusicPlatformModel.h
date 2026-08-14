@@ -81,6 +81,9 @@ typedef NS_ENUM (NSInteger, ScoreStaffClef) {
   BOOL _visible;
   NSInteger _midiOutputUniqueID;
   NSString *_midiOutputName;
+  NSString *_midiFallbackMode;
+  NSInteger _midiFallbackUniqueID;
+  NSString *_midiFallbackName;
   ScoreInstrumentDefinition *_instrument;
   NSMutableArray *_staves;
   ScoreSynthesisGraph *_synthesisGraph;
@@ -94,6 +97,10 @@ typedef NS_ENUM (NSInteger, ScoreStaffClef) {
    physical destination on macOS; other platforms preserve the assignment without using it. */
 @property (nonatomic) NSInteger midiOutputUniqueID;
 @property (nonatomic, copy) NSString *midiOutputName;
+/* Fallback modes are "builtin", "silent", and "device". */
+@property (nonatomic, copy) NSString *midiFallbackMode;
+@property (nonatomic) NSInteger midiFallbackUniqueID;
+@property (nonatomic, copy) NSString *midiFallbackName;
 @property (nonatomic, retain) ScoreInstrumentDefinition *instrument;
 @property (nonatomic, retain) NSMutableArray *staves;
 @property (nonatomic, retain) ScoreSynthesisGraph *synthesisGraph;

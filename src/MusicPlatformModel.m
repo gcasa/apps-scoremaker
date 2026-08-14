@@ -123,6 +123,8 @@ ScoreNewIdentifier (void)
 @synthesize legacyTrack = _legacyTrack, visible = _visible, instrument = _instrument,
             staves = _staves;
 @synthesize midiOutputUniqueID = _midiOutputUniqueID, midiOutputName = _midiOutputName;
+@synthesize midiFallbackMode = _midiFallbackMode, midiFallbackUniqueID = _midiFallbackUniqueID,
+            midiFallbackName = _midiFallbackName;
 @synthesize synthesisGraph = _synthesisGraph;
 - (id)init
 {
@@ -130,6 +132,7 @@ ScoreNewIdentifier (void)
     {
       _identifier = [ScoreNewIdentifier () copy];
       _visible = YES;
+      _midiFallbackMode = [@"builtin" copy];
       _staves = [[NSMutableArray alloc] init];
       _synthesisGraph = [[ScoreSynthesisGraph alloc] init];
     }
@@ -145,6 +148,9 @@ ScoreNewIdentifier (void)
   copy.visible = _visible;
   copy.midiOutputUniqueID = _midiOutputUniqueID;
   copy.midiOutputName = _midiOutputName;
+  copy.midiFallbackMode = _midiFallbackMode;
+  copy.midiFallbackUniqueID = _midiFallbackUniqueID;
+  copy.midiFallbackName = _midiFallbackName;
   copy.instrument = [[_instrument copy] autorelease];
   copy.staves = [[[NSMutableArray alloc] initWithArray:_staves copyItems:YES] autorelease];
   copy.synthesisGraph = [[_synthesisGraph copy] autorelease];
@@ -156,6 +162,8 @@ ScoreNewIdentifier (void)
   [_name release];
   [_abbreviatedName release];
   [_midiOutputName release];
+  [_midiFallbackMode release];
+  [_midiFallbackName release];
   [_instrument release];
   [_staves release];
   [_synthesisGraph release];

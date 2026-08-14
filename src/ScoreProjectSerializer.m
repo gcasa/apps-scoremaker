@@ -28,6 +28,7 @@ ScoreProjectSchemas (void)
                              @[
                                @"identifier", @"name", @"abbreviatedName", @"legacyTrack",
                                @"visible", @"midiOutputUniqueID", @"midiOutputName",
+                               @"midiFallbackMode", @"midiFallbackUniqueID", @"midiFallbackName",
                                @"instrument", @"staves", @"synthesisGraph"
                              ],
                              @"ScorePartDefinition", @[ @"tick", @"microsecondsPerQuarter" ],

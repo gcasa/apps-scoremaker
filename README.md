@@ -110,7 +110,10 @@ Choose `Score > Play` or the Play button in the inspector to hear the current sc
 On macOS, choose **Score > Routing Matrix...** to see and edit every part's output device, MIDI
 channel, General MIDI program, connection state, and fallback in one place. The matrix stays open
 while you work, updates when MIDI hardware changes, and preserves missing device assignments so
-they can reconnect later. Assignments are saved in ScoreMaker project files. Multiple physical destinations can play together; if an assigned device
+they can reconnect later. Each external route can fall back to the built-in synthesizer, mute the
+part, or use a second MIDI device. Duplicate device/channel assignments are flagged as conflicts.
+Select multiple rows to route them together, assign sequential channels, or reset their routing.
+Assignments are saved in ScoreMaker project files. Multiple physical destinations can play together; if an assigned device
 is disconnected, that part falls back to the built-in synthesizer. GNUstep builds preserve these
 project assignments but continue to use their configured system MIDI player.
 
