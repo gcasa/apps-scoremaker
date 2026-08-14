@@ -40,6 +40,68 @@ static CGFloat const PlaybackMonitorHeight = 150.0;
 static CGFloat const InspectorContentHeight = 1060.0;
 static NSString *const ScoreMakerInternalPatchPresetsKey = @"ScoreMakerInternalPatchPresets";
 
+static NSRange
+ScoreMakerSourceLineRangeForRange (NSString *source, NSRange range)
+{
+  NSUInteger length = [source length];
+  if (length == 0)
+    return NSMakeRange (0, 0);
+
+  if (range.location > length)
+    range.location = length;
+  if (NSMaxRange (range) > length)
+    range.length = length - range.location;
+
+  NSCharacterSet *whitespace = [NSCharacterSet whitespaceAndNewlineCharacterSet];
+  while (range.length > 0 &&
+         [whitespace characterIsMember:[source characterAtIndex:range.location]])
+    {
+      range.location++;
+      range.length--;
+    }
+  while (range.length > 0 &&
+         [whitespace characterIsMember:[source characterAtIndex:NSMaxRange (range) - 1]])
+    range.length--;
+
+  if (range.location >= length)
+    return NSMakeRange (length, 0);
+  return [source lineRangeForRange:range];
+}
+
+static NSRange
+ScoreMakerSourceRangeCoveringRanges (NSArray *ranges)
+{
+  if (![ranges count])
+    return NSMakeRange (0, 0);
+
+  NSRange covered = [[ranges objectAtIndex:0] rangeValue];
+  for (NSUInteger index = 1; index < [ranges count]; index++)
+    covered = NSUnionRange (covered, [[ranges objectAtIndex:index] rangeValue]);
+  return covered;
+}
+
+static NSRange
+ScoreMakerSourceRangeWithLookahead (NSString *source, NSRange range, NSUInteger lineCount)
+{
+  NSUInteger length = [source length];
+  if (range.location > length)
+    range.location = length;
+  if (NSMaxRange (range) > length)
+    range.length = length - range.location;
+
+  NSUInteger end = NSMaxRange (range);
+  for (NSUInteger line = 0; line < lineCount && end < length; line++)
+    {
+      NSRange lineRange = [source lineRangeForRange:NSMakeRange (end, 0)];
+      NSUInteger nextEnd = NSMaxRange (lineRange);
+      if (nextEnd <= end)
+        break;
+      end = nextEnd;
+    }
+  range.length = end - range.location;
+  return range;
+}
+
 static void
 ScoreMakerSetAccessibilityLabel (id control, NSString *label)
 {
@@ -175,6 +237,13 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (void)updateScoreSourcePlaybackHighlightAtTick:(NSUInteger)tick;
 - (void)updateScoreSourceMIDIInputHighlight;
 - (void)clearScoreSourcePlaybackHighlight;
+#if !defined(__APPLE__)
+- (void)setScoreSourceSelectedRange:(NSRange)range
+                     selectionColor:(NSColor *)color
+        preservingHorizontalScroll:(BOOL)preserveHorizontalScroll;
+- (void)scrollScoreSourceRangesToVisible:(NSArray *)ranges
+              preservingHorizontalScroll:(BOOL)preserveHorizontalScroll;
+#endif
 - (void)resetScoreSourceRangeCache;
 - (void)closeAuxiliaryWindows;
 - (void)refreshScoreSourceEditorFromScoreIfClean;
@@ -1994,8 +2063,14 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       if (value)
         {
           _updatingScoreSourceEditor = YES;
+#if defined(__APPLE__)
           [_scoreSourceTextView setSelectedRange:[value rangeValue]];
           [_scoreSourceTextView scrollRangeToVisible:[value rangeValue]];
+#else
+          [self setScoreSourceSelectedRange:[value rangeValue]
+                             selectionColor:nil
+                preservingHorizontalScroll:YES];
+#endif
           _updatingScoreSourceEditor = NO;
         }
     }
@@ -5482,7 +5557,9 @@ ScoreSourceNoteIdentity (ScoreNote *note, ScoreDocument *document)
         continue;
       ScoreNote *documentNote = [[[notes objectAtIndex:0] retain] autorelease];
       [notes removeObjectAtIndex:0];
-      NSValue *range = [entry objectForKey:@"range"];
+      NSRange sourceRange = [[entry objectForKey:@"range"] rangeValue];
+      NSValue *range = [NSValue valueWithRange:
+        ScoreMakerSourceLineRangeForRange ([_scoreSourceTextView string], sourceRange)];
       NSDictionary *mapping = [NSDictionary dictionaryWithObjectsAndKeys:
         documentNote, @"note", range, @"range", nil];
       [mappings addObject:mapping];
@@ -5502,6 +5579,69 @@ ScoreSourceNoteIdentity (ScoreNote *note, ScoreDocument *document)
   return [_scoreSourceNoteRangeCache objectForKey:targetIdentity];
 }
 
+#if !defined(__APPLE__)
+- (void)setScoreSourceSelectedRange:(NSRange)range
+                     selectionColor:(NSColor *)color
+        preservingHorizontalScroll:(BOOL)preserveHorizontalScroll
+{
+  if (!_scoreSourceTextView)
+    return;
+
+  NSClipView *clipView = nil;
+  NSView *superview = [_scoreSourceTextView superview];
+  if (preserveHorizontalScroll && [superview isKindOfClass:[NSClipView class]])
+    clipView = (NSClipView *)superview;
+
+  NSColor *selectionBackground = color ?: [NSColor selectedTextBackgroundColor];
+  NSColor *selectionForeground = [NSColor selectedTextColor] ?: [NSColor textColor];
+  [_scoreSourceTextView
+    setSelectedTextAttributes:[NSDictionary dictionaryWithObjectsAndKeys:
+                                selectionBackground, NSBackgroundColorAttributeName,
+                                selectionForeground, NSForegroundColorAttributeName, nil]];
+
+  NSPoint originalOrigin = clipView ? [clipView bounds].origin : NSZeroPoint;
+  [_scoreSourceTextView setSelectedRange:range];
+  [_scoreSourceTextView scrollRangeToVisible:
+    ScoreMakerSourceRangeWithLookahead ([_scoreSourceTextView string], range, 4)];
+
+  if (clipView)
+    {
+      NSPoint adjustedOrigin = [clipView bounds].origin;
+      adjustedOrigin.x = originalOrigin.x;
+      [clipView scrollToPoint:adjustedOrigin];
+      if ([[clipView superview] respondsToSelector:@selector (reflectScrolledClipView:)])
+        [(NSScrollView *)[clipView superview] reflectScrolledClipView:clipView];
+    }
+}
+
+- (void)scrollScoreSourceRangesToVisible:(NSArray *)ranges
+              preservingHorizontalScroll:(BOOL)preserveHorizontalScroll
+{
+  if (!_scoreSourceTextView || ![ranges count])
+    return;
+
+  NSClipView *clipView = nil;
+  NSView *superview = [_scoreSourceTextView superview];
+  if (preserveHorizontalScroll && [superview isKindOfClass:[NSClipView class]])
+    clipView = (NSClipView *)superview;
+
+  NSPoint originalOrigin = clipView ? [clipView bounds].origin : NSZeroPoint;
+  NSRange coveredRange = ScoreMakerSourceRangeCoveringRanges (ranges);
+  NSRange scrollRange = ScoreMakerSourceRangeWithLookahead ([_scoreSourceTextView string],
+                                                            coveredRange, 4);
+  [_scoreSourceTextView scrollRangeToVisible:scrollRange];
+
+  if (clipView)
+    {
+      NSPoint adjustedOrigin = [clipView bounds].origin;
+      adjustedOrigin.x = originalOrigin.x;
+      [clipView scrollToPoint:adjustedOrigin];
+      if ([[clipView superview] respondsToSelector:@selector (reflectScrolledClipView:)])
+        [(NSScrollView *)[clipView superview] reflectScrolledClipView:clipView];
+    }
+}
+#endif
+
 - (void)clearScoreSourcePlaybackHighlight
 {
   if (_scoreSourceTextView)
@@ -5510,6 +5650,14 @@ ScoreSourceNoteIdentity (ScoreNote *note, ScoreDocument *document)
       for (NSValue *value in _scoreSourcePlaybackRanges)
         [layout removeTemporaryAttribute:NSBackgroundColorAttributeName
                        forCharacterRange:[value rangeValue]];
+#if !defined(__APPLE__)
+      [_scoreSourceTextView
+        setSelectedTextAttributes:[NSDictionary dictionaryWithObjectsAndKeys:
+                                    [NSColor selectedTextBackgroundColor],
+                                    NSBackgroundColorAttributeName,
+                                    [NSColor selectedTextColor], NSForegroundColorAttributeName,
+                                    nil]];
+#endif
     }
   [_scoreSourcePlaybackRanges release];
   _scoreSourcePlaybackRanges = nil;
@@ -5546,7 +5694,8 @@ ScoreSourceNoteIdentity (ScoreNote *note, ScoreDocument *document)
   [previouslyActive release];
   _scoreSourceLastPlaybackTick = tick;
 
-  NSArray *active = [_scoreSourceActivePlaybackNotes allObjects];
+  NSArray *active =
+    [[_scoreSourceActivePlaybackNotes allObjects] sortedArrayUsingSelector:@selector (compareScoreNote:)];
   NSMutableArray *identities = [NSMutableArray array];
   for (ScoreNote *note in active)
     [identities addObject:ScoreSourceNoteIdentity (note, [self scoreDocument])];
@@ -5559,6 +5708,9 @@ ScoreSourceNoteIdentity (ScoreNote *note, ScoreDocument *document)
   if (![active count])
     return;
   NSMutableArray *ranges = [NSMutableArray array];
+#if !defined(__APPLE__)
+  NSColor *selectedPlaybackColor = nil;
+#endif
   NSLayoutManager *layout = [_scoreSourceTextView layoutManager];
   for (ScoreNote *note in active)
     {
@@ -5567,6 +5719,10 @@ ScoreSourceNoteIdentity (ScoreNote *note, ScoreDocument *document)
         {
           [ranges addObject:value];
           NSColor *color = [ScoreVoiceColor ([note voice], NO) colorWithAlphaComponent:0.34];
+#if !defined(__APPLE__)
+          if (!selectedPlaybackColor)
+            selectedPlaybackColor = color;
+#endif
           [layout addTemporaryAttribute:NSBackgroundColorAttributeName
                                  value:color
                      forCharacterRange:[value rangeValue]];
@@ -5575,7 +5731,17 @@ ScoreSourceNoteIdentity (ScoreNote *note, ScoreDocument *document)
   if (![ranges count])
     return;
   _scoreSourcePlaybackRanges = [ranges copy];
+#if defined(__APPLE__)
   [_scoreSourceTextView scrollRangeToVisible:[[ranges objectAtIndex:0] rangeValue]];
+#else
+  _updatingScoreSourceEditor = YES;
+  [self setScoreSourceSelectedRange:[[ranges objectAtIndex:0] rangeValue]
+                     selectionColor:selectedPlaybackColor
+        preservingHorizontalScroll:YES];
+  [self scrollScoreSourceRangesToVisible:ranges
+              preservingHorizontalScroll:YES];
+  _updatingScoreSourceEditor = NO;
+#endif
 }
 
 - (void)updateScoreSourceMIDIInputHighlight

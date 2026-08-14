@@ -323,12 +323,21 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
 - (void)buildMenu
 {
   NSMenu *mainMenu = [[[NSMenu alloc] initWithTitle:@"ScoreMaker"] autorelease];
+#ifdef GNUSTEP
+  NSMenuItem *appItem = [[[NSMenuItem alloc] initWithTitle:@"Info"
+                                                    action:NULL
+                                             keyEquivalent:@""] autorelease];
+  [mainMenu addItem:appItem];
+
+  NSMenu *appMenu = [[[NSMenu alloc] initWithTitle:@"Info"] autorelease];
+#else
   NSMenuItem *appItem = [[[NSMenuItem alloc] initWithTitle:@"ScoreMaker"
                                                     action:NULL
                                              keyEquivalent:@""] autorelease];
   [mainMenu addItem:appItem];
 
   NSMenu *appMenu = [[[NSMenu alloc] initWithTitle:@"ScoreMaker"] autorelease];
+#endif
   NSMenuItem *aboutItem = [[[NSMenuItem alloc] initWithTitle:@"About ScoreMaker"
                                                       action:@selector (showInfoPanel:)
                                                keyEquivalent:@""] autorelease];
