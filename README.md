@@ -107,9 +107,10 @@ The input menu updates when MIDI devices are connected or removed. **Selected Pa
 
 Choose `Score > Play` or the Play button in the inspector to hear the current score. ScoreMaker sends the generated MIDI data directly to AVFoundation, using the platform AVFoundation implementation on macOS or GNUstep.
 
-On macOS, select a part in the inspector and choose **Score > Part MIDI Output...** to send that
-part to the built-in synthesizer or a connected CoreMIDI destination. Assignments are saved in
-ScoreMaker project files. Multiple physical destinations can play together; if an assigned device
+On macOS, choose **Score > Routing Matrix...** to see and edit every part's output device, MIDI
+channel, General MIDI program, connection state, and fallback in one place. The matrix stays open
+while you work, updates when MIDI hardware changes, and preserves missing device assignments so
+they can reconnect later. Assignments are saved in ScoreMaker project files. Multiple physical destinations can play together; if an assigned device
 is disconnected, that part falls back to the built-in synthesizer. GNUstep builds preserve these
 project assignments but continue to use their configured system MIDI player.
 

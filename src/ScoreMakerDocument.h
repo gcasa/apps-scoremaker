@@ -135,6 +135,9 @@
   NSTableView *_patchBrowserTable;
   NSPopUpButton *_patchBrowserCategoryPopUp;
   NSArray *_patchBrowserRows;
+  NSWindow *_routingMatrixWindow;
+  NSView *_routingMatrixRowsView;
+  NSTextField *_routingMatrixSummaryLabel;
 #if defined(__APPLE__)
   NSMutableArray *_externalMIDIPlaybacks;
   MusicTimeStamp _externalPlaybackTime;

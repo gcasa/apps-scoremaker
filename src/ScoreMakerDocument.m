@@ -213,6 +213,16 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (NSString *)palettePayloadForItem:(NSString *)item denominator:(NSUInteger)denominator;
 @end
 
+@interface ScoreRoutingRowsView : NSView
+@end
+
+@implementation ScoreRoutingRowsView
+- (BOOL)isFlipped
+{
+  return YES;
+}
+@end
+
 @interface ScoreMakerDocument (Playback)
 - (BOOL)restartPlaybackAtTick:(NSUInteger)tick;
 - (void)startPlaybackHighlightAtTick:(NSUInteger)tick;
@@ -223,6 +233,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (void)stopMIDIRecording;
 - (void)handleMIDIInputEvent:(NSDictionary *)event;
 - (void)midiDevicesChanged:(id)sender;
+- (void)refreshRoutingMatrix;
 - (void)registerUndoSnapshotWithName:(NSString *)name;
 - (void)restoreScoreSnapshot:(ScoreDocument *)snapshot;
 - (void)commitUndoBaseline;
@@ -863,6 +874,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_patchBrowserTable release];
   [_patchBrowserCategoryPopUp release];
   [_patchBrowserRows release];
+  [_routingMatrixWindow release];
+  [_routingMatrixRowsView release];
+  [_routingMatrixSummaryLabel release];
   [_scrollView release];
   [_scoreView release];
   [_inspectorScrollView release];
@@ -945,6 +959,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     [patchParent removeChildWindow:_patchEditorWindow];
   [_patchEditorWindow close];
   [_patchBrowserWindow close];
+  [_routingMatrixWindow close];
   NSWindow *sourceParent = [_scoreSourceEditorWindow parentWindow];
   if (sourceParent)
     [sourceParent removeChildWindow:_scoreSourceEditorWindow];
@@ -2223,59 +2238,16 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   return 0;
 }
 
-- (void)chooseMIDIOutput:(id)sender
+- (NSInteger)routingChannelForPart:(ScorePartDefinition *)part
 {
-  (void)sender;
-  NSArray *outputs = [self availableMIDIOutputs];
-  ScorePartDefinition *part = [self selectedStructuredPartCreatingIfNeeded:YES];
-  NSPopUpButton *outputPopUp =
-    [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (0.0, 0.0, 360.0, 26.0)
-                                pullsDown:NO] autorelease];
-  [outputPopUp addItemWithTitle:@"Built-in Synthesizer (fallback)"];
-  [[outputPopUp lastItem] setRepresentedObject:@{ @"uniqueID" : @0, @"name" : @"" }];
-  BOOL foundSavedOutput = ([part midiOutputUniqueID] == 0);
-  for (NSDictionary *output in outputs)
-    {
-      [outputPopUp addItemWithTitle:[output objectForKey:@"name"]];
-      [[outputPopUp lastItem] setRepresentedObject:output];
-      if ([[output objectForKey:@"uniqueID"] integerValue] == [part midiOutputUniqueID])
-        {
-          foundSavedOutput = YES;
-          [outputPopUp selectItem:[outputPopUp lastItem]];
-        }
-    }
-  if (!foundSavedOutput)
-    {
-      NSString *name = [[part midiOutputName] length] ? [part midiOutputName]
-                                                       : @"Unknown MIDI device";
-      [outputPopUp addItemWithTitle:[NSString stringWithFormat:@"Missing: %@ (uses fallback)", name]];
-      [[outputPopUp lastItem]
-        setRepresentedObject:@{ @"uniqueID" : [NSNumber numberWithInteger:[part midiOutputUniqueID]],
-                                @"name" : name }];
-      [outputPopUp selectItem:[outputPopUp lastItem]];
-    }
-  if ([part midiOutputUniqueID] == 0)
-    [outputPopUp selectItemAtIndex:0];
+  for (ScoreNote *note in [[self scoreDocument] notes])
+    if ([note track] == [part legacyTrack])
+      return MIN ((NSInteger)15, MAX ((NSInteger)0, [note channel]));
+  return MIN ((NSInteger)15, MAX ((NSInteger)0, [part legacyTrack] % 16));
+}
 
-  NSAlert *alert = [[[NSAlert alloc] init] autorelease];
-  [alert setMessageText:[NSString stringWithFormat:@"MIDI Output for %@", [part name]]];
-  [alert setInformativeText:
-           [outputs count]
-             ? @"Choose a connected MIDI instrument or the built-in synthesizer."
-             : @"No external MIDI instruments were detected. Connect one and reopen this chooser."];
-  [alert setAccessoryView:outputPopUp];
-  [alert addButtonWithTitle:@"Use Output"];
-  [alert addButtonWithTitle:@"Cancel"];
-  if ([alert runModal] != NSAlertFirstButtonReturn)
-    return;
-
-  NSDictionary *selection = [[outputPopUp selectedItem] representedObject];
-  [self registerUndoSnapshotWithName:@"Change Part MIDI Output"];
-  [part setMidiOutputUniqueID:[[selection objectForKey:@"uniqueID"] integerValue]];
-  [part setMidiOutputName:[[selection objectForKey:@"name"] length]
-                            ? [selection objectForKey:@"name"] : nil];
-  [self updateChangeCount:NSChangeDone];
-  [self commitUndoBaseline];
+- (void)restartPlaybackAfterRoutingChange
+{
   if (_playbackTimer || _playbackPaused)
     {
       NSTimeInterval elapsed = _playbackPaused
@@ -2283,9 +2255,269 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
                                  : ([NSDate timeIntervalSinceReferenceDate] - _playbackStartTime);
       ScoreScheduler *scheduler =
         [[[ScoreScheduler alloc] initWithDocument:[self scoreDocument]] autorelease];
-      NSUInteger tick = [scheduler tickForTime:elapsed];
-      [self restartPlaybackAtTick:tick];
+      [self restartPlaybackAtTick:[scheduler tickForTime:elapsed]];
     }
+}
+
+- (void)routingDeviceChanged:(NSPopUpButton *)sender
+{
+  NSInteger row = [sender tag];
+  if (row < 0 || row >= (NSInteger)[[[self scoreDocument] parts] count])
+    return;
+  ScorePartDefinition *part = [[[self scoreDocument] parts] objectAtIndex:(NSUInteger)row];
+  NSDictionary *selection = [[sender selectedItem] representedObject];
+  NSInteger uniqueID = [[selection objectForKey:@"uniqueID"] integerValue];
+  NSString *name = [selection objectForKey:@"name"];
+  if ([part midiOutputUniqueID] == uniqueID
+      && ((![[part midiOutputName] length] && ![name length])
+          || [[part midiOutputName] isEqualToString:name]))
+    return;
+  [self registerUndoSnapshotWithName:@"Change MIDI Routing"];
+  [part setMidiOutputUniqueID:uniqueID];
+  [part setMidiOutputName:[name length] ? name : nil];
+  [self updateChangeCount:NSChangeDone];
+  [self commitUndoBaseline];
+  [self refreshRoutingMatrix];
+  [self restartPlaybackAfterRoutingChange];
+}
+
+- (void)routingChannelChanged:(NSPopUpButton *)sender
+{
+  NSInteger row = [sender tag];
+  if (row < 0 || row >= (NSInteger)[[[self scoreDocument] parts] count])
+    return;
+  ScorePartDefinition *part = [[[self scoreDocument] parts] objectAtIndex:(NSUInteger)row];
+  NSInteger channel = [sender indexOfSelectedItem];
+  if ([self routingChannelForPart:part] == channel)
+    return;
+  [self registerUndoSnapshotWithName:@"Change MIDI Channel"];
+  for (ScoreNote *note in [[self scoreDocument] notes])
+    if ([note track] == [part legacyTrack])
+      [note setChannel:channel];
+  for (ScoreMIDIRoute *route in [[self scoreDocument] midiRoutes])
+    if ([[route destinationPartIdentifier] isEqualToString:[part identifier]])
+      [route setDestinationChannel:channel];
+  [self updateChangeCount:NSChangeDone];
+  [self commitUndoBaseline];
+  [[self scoreView] reloadDocument];
+  [self restartPlaybackAfterRoutingChange];
+}
+
+- (void)routingProgramChanged:(NSPopUpButton *)sender
+{
+  NSInteger row = [sender tag];
+  if (row < 0 || row >= (NSInteger)[[[self scoreDocument] parts] count])
+    return;
+  ScorePartDefinition *part = [[[self scoreDocument] parts] objectAtIndex:(NSUInteger)row];
+  NSInteger program = [sender indexOfSelectedItem];
+  if ([[[self scoreDocument] programForTrack:[part legacyTrack]] integerValue] == program)
+    return;
+  [self registerUndoSnapshotWithName:@"Change MIDI Program"];
+  [[self scoreDocument] setProgram:[NSNumber numberWithInteger:program]
+                          forTrack:[part legacyTrack]];
+  [[part instrument] setProgram:program];
+  [self updateChangeCount:NSChangeDone];
+  [self commitUndoBaseline];
+  [self refreshInspector];
+  [self restartPlaybackAfterRoutingChange];
+}
+
+- (NSTextField *)routingLabelWithFrame:(NSRect)frame
+                                  text:(NSString *)text
+                                  font:(NSFont *)font
+                                 color:(NSColor *)color
+{
+  NSTextField *label = [[[NSTextField alloc] initWithFrame:frame] autorelease];
+  [label setStringValue:text ?: @""];
+  [label setEditable:NO];
+  [label setSelectable:NO];
+  [label setBordered:NO];
+  [label setDrawsBackground:NO];
+  [label setFont:font];
+  [label setTextColor:color ?: [NSColor labelColor]];
+  return label;
+}
+
+- (void)refreshRoutingMatrix
+{
+  if (!_routingMatrixRowsView)
+    return;
+  for (NSView *view in [[[_routingMatrixRowsView subviews] copy] autorelease])
+    [view removeFromSuperview];
+
+  NSArray *parts = [[self scoreDocument] parts];
+  NSArray *outputs = [self availableMIDIOutputs];
+  NSArray *programNames = [MidiParser generalMidiProgramNames];
+  CGFloat rowHeight = 48.0;
+  CGFloat width = 1080.0;
+  [_routingMatrixRowsView setFrameSize:NSMakeSize (width, MAX (rowHeight, rowHeight * [parts count]))];
+  NSUInteger connectedCount = 0;
+  for (NSUInteger row = 0; row < [parts count]; row++)
+    {
+      ScorePartDefinition *part = [parts objectAtIndex:row];
+      CGFloat y = row * rowHeight;
+      if (row % 2)
+        {
+          NSBox *stripe = [[[NSBox alloc] initWithFrame:NSMakeRect (0, y, width, rowHeight)] autorelease];
+          [stripe setBoxType:NSBoxCustom];
+          [stripe setBorderType:NSNoBorder];
+          NSArray *alternatingColors = [NSColor alternatingContentBackgroundColors];
+          [stripe setFillColor:[alternatingColors count] > 1
+                                 ? [alternatingColors objectAtIndex:1]
+                                 : [NSColor controlBackgroundColor]];
+          [stripe setTitlePosition:NSNoTitle];
+          [_routingMatrixRowsView addSubview:stripe];
+        }
+      NSString *partName = [[part name] length] ? [part name]
+                                                 : [NSString stringWithFormat:@"Part %lu", (unsigned long)row + 1];
+      [_routingMatrixRowsView addSubview:[self routingLabelWithFrame:NSMakeRect (12, y + 14, 172, 20)
+                                                               text:partName
+                                                               font:[NSFont systemFontOfSize:13.0]
+                                                              color:nil]];
+
+      NSPopUpButton *device = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (184, y + 9, 250, 28)
+                                                          pullsDown:NO] autorelease];
+      [device addItemWithTitle:@"Built-in Synthesizer"];
+      [[device lastItem] setRepresentedObject:@{ @"uniqueID" : @0, @"name" : @"" }];
+      BOOL found = ([part midiOutputUniqueID] == 0);
+      for (NSDictionary *output in outputs)
+        {
+          [device addItemWithTitle:[output objectForKey:@"name"]];
+          [[device lastItem] setRepresentedObject:output];
+          if ([[output objectForKey:@"uniqueID"] integerValue] == [part midiOutputUniqueID])
+            {
+              found = YES;
+              [device selectItem:[device lastItem]];
+            }
+        }
+      if (!found)
+        {
+          NSString *name = [[part midiOutputName] length] ? [part midiOutputName] : @"Unknown device";
+          [device addItemWithTitle:[NSString stringWithFormat:@"Missing — %@", name]];
+          [[device lastItem] setRepresentedObject:@{ @"uniqueID" : @([part midiOutputUniqueID]),
+                                                      @"name" : name }];
+          [device selectItem:[device lastItem]];
+        }
+      else if ([part midiOutputUniqueID] == 0)
+        [device selectItemAtIndex:0];
+      [device setTag:(NSInteger)row];
+      [device setTarget:self];
+      [device setAction:@selector (routingDeviceChanged:)];
+      [_routingMatrixRowsView addSubview:device];
+
+      NSPopUpButton *channel = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (446, y + 9, 88, 28)
+                                                           pullsDown:NO] autorelease];
+      for (NSInteger index = 1; index <= 16; index++)
+        [channel addItemWithTitle:[NSString stringWithFormat:@"Ch %ld", (long)index]];
+      [channel selectItemAtIndex:[self routingChannelForPart:part]];
+      [channel setTag:(NSInteger)row];
+      [channel setTarget:self];
+      [channel setAction:@selector (routingChannelChanged:)];
+      [_routingMatrixRowsView addSubview:channel];
+
+      NSPopUpButton *program = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (546, y + 9, 216, 28)
+                                                           pullsDown:NO] autorelease];
+      for (NSUInteger index = 0; index < [programNames count]; index++)
+        [program addItemWithTitle:[NSString stringWithFormat:@"%lu · %@", (unsigned long)index + 1,
+                                                            [programNames objectAtIndex:index]]];
+      NSInteger selectedProgram = [[[self scoreDocument] programForTrack:[part legacyTrack]] integerValue];
+      [program selectItemAtIndex:MIN ((NSInteger)127, MAX ((NSInteger)0, selectedProgram))];
+      [program setTag:(NSInteger)row];
+      [program setTarget:self];
+      [program setAction:@selector (routingProgramChanged:)];
+      [_routingMatrixRowsView addSubview:program];
+
+      BOOL internal = [part midiOutputUniqueID] == 0;
+      BOOL connected = internal || [self resolvedMIDIOutputForPart:part] != 0;
+      if (connected)
+        connectedCount++;
+      NSString *status = internal ? @"●  Internal" : (connected ? @"●  Connected" : @"●  Disconnected");
+      NSColor *statusColor = connected ? [NSColor colorWithCalibratedRed:0.12 green:0.52 blue:0.27 alpha:1.0]
+                                       : [NSColor colorWithCalibratedRed:0.78 green:0.20 blue:0.16 alpha:1.0];
+      [_routingMatrixRowsView addSubview:[self routingLabelWithFrame:NSMakeRect (778, y + 14, 126, 20)
+                                                               text:status
+                                                               font:[NSFont systemFontOfSize:12.0]
+                                                              color:statusColor]];
+      [_routingMatrixRowsView addSubview:[self routingLabelWithFrame:NSMakeRect (914, y + 14, 154, 20)
+                                                               text:internal ? @"—" : @"Built-in Synth"
+                                                               font:[NSFont systemFontOfSize:12.0]
+                                                              color:[NSColor secondaryLabelColor]]];
+    }
+  [_routingMatrixSummaryLabel
+    setStringValue:[NSString stringWithFormat:@"%lu parts  ·  %lu active routes  ·  %lu external devices available",
+                                              (unsigned long)[parts count], (unsigned long)connectedCount,
+                                              (unsigned long)[outputs count]]];
+}
+
+- (void)chooseMIDIOutput:(id)sender
+{
+  (void)sender;
+  if (!_routingMatrixWindow)
+    {
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+      NSUInteger style = NSTitledWindowMask | NSClosableWindowMask | NSResizableWindowMask;
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+      _routingMatrixWindow = [[NSWindow alloc] initWithContentRect:NSMakeRect (160, 160, 1080, 560)
+                                                         styleMask:style
+                                                           backing:NSBackingStoreBuffered
+                                                             defer:NO];
+      [_routingMatrixWindow setReleasedWhenClosed:NO];
+      [_routingMatrixWindow setMinSize:NSMakeSize (900, 360)];
+      [_routingMatrixWindow setTitle:@"Routing Matrix"];
+      NSView *content = [_routingMatrixWindow contentView];
+      NSTextField *title = [self routingLabelWithFrame:NSMakeRect (20, 516, 500, 28)
+                                                  text:@"Score routing"
+                                                  font:[NSFont boldSystemFontOfSize:20.0]
+                                                 color:nil];
+      [title setAutoresizingMask:NSViewMinYMargin];
+      [content addSubview:title];
+      NSTextField *subtitle = [self routingLabelWithFrame:NSMakeRect (20, 492, 760, 20)
+                                                     text:@"Route every part without leaving the score. Changes are saved with this project."
+                                                     font:[NSFont systemFontOfSize:12.0]
+                                                    color:[NSColor secondaryLabelColor]];
+      [subtitle setAutoresizingMask:NSViewMinYMargin];
+      [content addSubview:subtitle];
+      NSArray *headers = @[ @[ @"PART", @12, @172 ], @[ @"DEVICE", @184, @250 ],
+                             @[ @"CHANNEL", @446, @88 ], @[ @"PROGRAM", @546, @216 ],
+                             @[ @"CONNECTION", @778, @126 ], @[ @"FALLBACK", @914, @154 ] ];
+      for (NSArray *header in headers)
+        {
+          NSTextField *label = [self routingLabelWithFrame:NSMakeRect ([[header objectAtIndex:1] doubleValue], 460,
+                                                                       [[header objectAtIndex:2] doubleValue], 18)
+                                                       text:[header objectAtIndex:0]
+                                                       font:[NSFont boldSystemFontOfSize:10.0]
+                                                      color:[NSColor secondaryLabelColor]];
+          [label setAutoresizingMask:NSViewMinYMargin];
+          [content addSubview:label];
+        }
+      NSScrollView *scroll = [[[NSScrollView alloc] initWithFrame:NSMakeRect (0, 54, 1080, 400)] autorelease];
+      [scroll setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
+      [scroll setHasVerticalScroller:YES];
+      [scroll setHasHorizontalScroller:YES];
+      [scroll setBorderType:NSBezelBorder];
+      _routingMatrixRowsView = [[ScoreRoutingRowsView alloc] initWithFrame:NSMakeRect (0, 0, 1080, 400)];
+      [scroll setDocumentView:_routingMatrixRowsView];
+      [content addSubview:scroll];
+      _routingMatrixSummaryLabel = [[self routingLabelWithFrame:NSMakeRect (20, 18, 760, 20)
+                                                           text:@""
+                                                           font:[NSFont systemFontOfSize:12.0]
+                                                          color:[NSColor secondaryLabelColor]] retain];
+      [_routingMatrixSummaryLabel setAutoresizingMask:NSViewMaxYMargin];
+      [content addSubview:_routingMatrixSummaryLabel];
+      NSButton *refresh = [[[NSButton alloc] initWithFrame:NSMakeRect (930, 12, 130, 30)] autorelease];
+      [refresh setTitle:@"Refresh Devices"];
+      [refresh setTarget:self];
+      [refresh setAction:@selector (chooseMIDIOutput:)];
+      [refresh setAutoresizingMask:NSViewMinXMargin | NSViewMaxYMargin];
+      [content addSubview:refresh];
+    }
+  [self refreshRoutingMatrix];
+  [_routingMatrixWindow makeKeyAndOrderFront:self];
 }
 
 - (BOOL)playMIDIData:(NSData *)midiData toOutput:(MIDIEndpointRef)endpoint error:(NSError **)error
@@ -4837,6 +5069,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   unsigned int selectedEndpoint =
     [[[_midiInputPopUp selectedItem] representedObject] unsignedIntValue];
   [self reloadMIDIInputs];
+  if (_routingMatrixWindow && [_routingMatrixWindow isVisible])
+    [self refreshRoutingMatrix];
   NSMenuItem *matchingItem = nil;
   for (NSMenuItem *item in [_midiInputPopUp itemArray])
     {

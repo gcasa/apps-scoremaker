@@ -418,7 +418,7 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
                                                  action:@selector (toggleLoopSelection:)
                                           keyEquivalent:@""] autorelease]];
   [scoreMenu addItem:[NSMenuItem separatorItem]];
-  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Part MIDI Output..."
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Routing Matrix..."
                                                  action:@selector (chooseMIDIOutput:)
                                           keyEquivalent:@""] autorelease]];
   NSMenuItem *dspItem = [[[NSMenuItem alloc] initWithTitle:@"Use Real-Time DSP"
