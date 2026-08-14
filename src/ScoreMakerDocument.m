@@ -40,6 +40,24 @@ static CGFloat const PlaybackMonitorHeight = 150.0;
 static CGFloat const InspectorContentHeight = 1060.0;
 static NSString *const ScoreMakerInternalPatchPresetsKey = @"ScoreMakerInternalPatchPresets";
 
+#if defined(__APPLE__)
+#define ScoreMakerSwitchButton NSButtonTypeSwitch
+#define ScoreMakerStateOn NSControlStateValueOn
+#define ScoreMakerStateOff NSControlStateValueOff
+#define ScoreMakerWindowTitled NSWindowStyleMaskTitled
+#define ScoreMakerWindowClosable NSWindowStyleMaskClosable
+#define ScoreMakerWindowMiniaturizable NSWindowStyleMaskMiniaturizable
+#define ScoreMakerWindowResizable NSWindowStyleMaskResizable
+#else
+#define ScoreMakerSwitchButton NSSwitchButton
+#define ScoreMakerStateOn NSOnState
+#define ScoreMakerStateOff NSOffState
+#define ScoreMakerWindowTitled NSTitledWindowMask
+#define ScoreMakerWindowClosable NSClosableWindowMask
+#define ScoreMakerWindowMiniaturizable NSMiniaturizableWindowMask
+#define ScoreMakerWindowResizable NSResizableWindowMask
+#endif
+
 static NSRange
 ScoreMakerSourceLineRangeForRange (NSString *source, NSRange range)
 {
@@ -68,6 +86,7 @@ ScoreMakerSourceLineRangeForRange (NSString *source, NSRange range)
   return [source lineRangeForRange:range];
 }
 
+#if !defined(__APPLE__)
 static NSRange
 ScoreMakerSourceRangeCoveringRanges (NSArray *ranges)
 {
@@ -101,6 +120,7 @@ ScoreMakerSourceRangeWithLookahead (NSString *source, NSRange range, NSUInteger 
   range.length = end - range.location;
   return range;
 }
+#endif
 
 static void
 ScoreMakerSetAccessibilityLabel (id control, NSString *label)
@@ -195,7 +215,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 
 @class ScoreMakerDocument;
 
-@interface ScorePaletteItemView : NSView
+@interface ScorePaletteItemView : NSView <NSDraggingSource>
 {
   ScoreMakerDocument *_document;
   NSString *_item;
@@ -681,6 +701,16 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     {
       return;
     }
+#if defined(__APPLE__)
+  NSPasteboardItem *pasteboardItem = [[[NSPasteboardItem alloc] init] autorelease];
+  [pasteboardItem setString:payload forType:ScorePalettePasteboardType];
+  NSDraggingItem *draggingItem = [[[NSDraggingItem alloc]
+    initWithPasteboardWriter:pasteboardItem] autorelease];
+  NSImage *image = [self dragImage];
+  [draggingItem setDraggingFrame:NSMakeRect (4.0, 4.0, [image size].width, [image size].height)
+                        contents:image];
+  [self beginDraggingSessionWithItems:@[ draggingItem ] event:event source:self];
+#else
   NSPasteboard *pasteboard = [NSPasteboard pasteboardWithName:NSDragPboard];
   [pasteboard declareTypes:[NSArray arrayWithObject:ScorePalettePasteboardType] owner:nil];
   [pasteboard setString:payload forType:ScorePalettePasteboardType];
@@ -691,6 +721,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
        pasteboard:pasteboard
            source:self
         slideBack:YES];
+#endif
 }
 
 - (NSDragOperation)draggingSourceOperationMaskForLocal:(BOOL)isLocal
@@ -698,6 +729,16 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   (void)isLocal;
   return NSDragOperationCopy;
 }
+
+#if defined(__APPLE__)
+- (NSDragOperation)draggingSession:(NSDraggingSession *)session
+  sourceOperationMaskForDraggingContext:(NSDraggingContext)context
+{
+  (void)session;
+  (void)context;
+  return NSDragOperationCopy;
+}
+#endif
 
 @end
 
@@ -988,8 +1029,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #endif
-  NSUInteger style = NSTitledWindowMask | NSClosableWindowMask | NSMiniaturizableWindowMask
-                     | NSResizableWindowMask;
+  NSUInteger style = ScoreMakerWindowTitled | ScoreMakerWindowClosable | ScoreMakerWindowMiniaturizable
+                     | ScoreMakerWindowResizable;
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
@@ -1357,8 +1398,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _separatePartsButton = [[NSButton alloc]
     initWithFrame:NSMakeRect (InspectorPadding + 132.0, frame.size.height - 364.0, 132.0, 20.0)];
   [_separatePartsButton setTitle:@"Separate Part Staves"];
-  [_separatePartsButton setButtonType:NSSwitchButton];
-  [_separatePartsButton setState:NSOnState];
+  [_separatePartsButton setButtonType:ScoreMakerSwitchButton];
+  [_separatePartsButton setState:ScoreMakerStateOn];
   [_separatePartsButton setTarget:self];
   [_separatePartsButton setAction:@selector (scoreDisplayModeDidChange:)];
   [_separatePartsButton setAutoresizingMask:NSViewMinYMargin];
@@ -1444,7 +1485,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _repeatStartButton = [[NSButton alloc]
     initWithFrame:NSMakeRect (InspectorPadding + 138.0, frame.size.height - 578.0, 72.0, 24.0)];
   [_repeatStartButton setTitle:@"Start |:"];
-  [_repeatStartButton setButtonType:NSSwitchButton];
+  [_repeatStartButton setButtonType:ScoreMakerSwitchButton];
   [_repeatStartButton setTarget:self];
   [_repeatStartButton setAction:@selector (notationDidChange:)];
   [_repeatStartButton setAutoresizingMask:NSViewMinYMargin];
@@ -1452,7 +1493,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _repeatEndButton = [[NSButton alloc]
     initWithFrame:NSMakeRect (InspectorPadding + 210.0, frame.size.height - 578.0, 72.0, 24.0)];
   [_repeatEndButton setTitle:@"End :|"];
-  [_repeatEndButton setButtonType:NSSwitchButton];
+  [_repeatEndButton setButtonType:ScoreMakerSwitchButton];
   [_repeatEndButton setTarget:self];
   [_repeatEndButton setAction:@selector (notationDidChange:)];
   [_repeatEndButton setAutoresizingMask:NSViewMinYMargin];
@@ -1461,7 +1502,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _tieStartButton = [[NSButton alloc]
     initWithFrame:NSMakeRect (InspectorPadding, frame.size.height - 606.0, 72.0, 24.0)];
   [_tieStartButton setTitle:@"Tie start"];
-  [_tieStartButton setButtonType:NSSwitchButton];
+  [_tieStartButton setButtonType:ScoreMakerSwitchButton];
   [_tieStartButton setTarget:self];
   [_tieStartButton setAction:@selector (notationDidChange:)];
   [_tieStartButton setAutoresizingMask:NSViewMinYMargin];
@@ -1469,7 +1510,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _tieEndButton = [[NSButton alloc]
     initWithFrame:NSMakeRect (InspectorPadding + 76.0, frame.size.height - 606.0, 70.0, 24.0)];
   [_tieEndButton setTitle:@"Tie end"];
-  [_tieEndButton setButtonType:NSSwitchButton];
+  [_tieEndButton setButtonType:ScoreMakerSwitchButton];
   [_tieEndButton setTarget:self];
   [_tieEndButton setAction:@selector (notationDidChange:)];
   [_tieEndButton setAutoresizingMask:NSViewMinYMargin];
@@ -1665,11 +1706,11 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
             [_keySignaturePopUp selectItem:item];
             break;
           }
-      [_repeatStartButton setState:[selectedMeasure repeatStart] ? NSOnState : NSOffState];
-      [_repeatEndButton setState:[selectedMeasure repeatEnd] ? NSOnState : NSOffState];
+      [_repeatStartButton setState:[selectedMeasure repeatStart] ? ScoreMakerStateOn : ScoreMakerStateOff];
+      [_repeatEndButton setState:[selectedMeasure repeatEnd] ? ScoreMakerStateOn : ScoreMakerStateOff];
     }
-  [_tieStartButton setState:selectedNote && [selectedNote tieStart] ? NSOnState : NSOffState];
-  [_tieEndButton setState:selectedNote && [selectedNote tieEnd] ? NSOnState : NSOffState];
+  [_tieStartButton setState:selectedNote && [selectedNote tieStart] ? ScoreMakerStateOn : ScoreMakerStateOff];
+  [_tieEndButton setState:selectedNote && [selectedNote tieEnd] ? ScoreMakerStateOn : ScoreMakerStateOff];
   NSString *tuplet
     = selectedNote && [selectedNote tupletActual]
         ? [NSString stringWithFormat:@"%lu:%lu", (unsigned long)[selectedNote tupletActual],
@@ -1867,7 +1908,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (void)scoreDisplayModeDidChange:(id)sender
 {
   (void)sender;
-  [[self scoreView] setSeparateParts:[_separatePartsButton state] == NSOnState];
+  [[self scoreView] setSeparateParts:[_separatePartsButton state] == ScoreMakerStateOn];
 }
 
 - (void)instrumentDidChange:(id)sender
@@ -2120,13 +2161,13 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       NSDictionary *key = [[_keySignaturePopUp selectedItem] representedObject];
       [measure setKeySignatureFifths:[[key objectForKey:@"fifths"] integerValue]];
       [measure setKeyMode:[key objectForKey:@"mode"]];
-      [measure setRepeatStart:[_repeatStartButton state] == NSOnState];
-      [measure setRepeatEnd:[_repeatEndButton state] == NSOnState];
+      [measure setRepeatStart:[_repeatStartButton state] == ScoreMakerStateOn];
+      [measure setRepeatEnd:[_repeatEndButton state] == ScoreMakerStateOn];
     }
   if (note)
     {
-      [note setTieStart:[_tieStartButton state] == NSOnState];
-      [note setTieEnd:[_tieEndButton state] == NSOnState];
+      [note setTieStart:[_tieStartButton state] == ScoreMakerStateOn];
+      [note setTieEnd:[_tieEndButton state] == ScoreMakerStateOn];
       NSString *tuplet = [_tupletPopUp titleOfSelectedItem];
       NSArray *ratio = [tuplet componentsSeparatedByString:@":"];
       [note setTupletActual:[ratio count] == 2 ? [[ratio objectAtIndex:0] integerValue] : 0];
@@ -2551,7 +2592,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
         {
           NSBox *stripe = [[[NSBox alloc] initWithFrame:NSMakeRect (0, y, width, rowHeight)] autorelease];
           [stripe setBoxType:NSBoxCustom];
-          [stripe setBorderType:NSNoBorder];
+          [stripe setBorderWidth:0.0];
           NSArray *alternatingColors = [NSColor alternatingContentBackgroundColors];
           [stripe setFillColor:[alternatingColors count] > 1
                                  ? [alternatingColors objectAtIndex:1]
@@ -2562,7 +2603,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       NSString *partName = [[part name] length] ? [part name]
                                                  : [NSString stringWithFormat:@"Part %lu", (unsigned long)row + 1];
       NSButton *selected = [[[NSButton alloc] initWithFrame:NSMakeRect (8, y + 11, 22, 24)] autorelease];
-      [selected setButtonType:NSSwitchButton];
+      [selected setButtonType:ScoreMakerSwitchButton];
       [selected setTitle:@""];
       [selected setState:[_routingMatrixSelection containsIndex:row] ? NSControlStateValueOn
                                                                      : NSControlStateValueOff];
@@ -2727,7 +2768,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #endif
-      NSUInteger style = NSTitledWindowMask | NSClosableWindowMask | NSResizableWindowMask;
+      NSUInteger style = ScoreMakerWindowTitled | ScoreMakerWindowClosable | ScoreMakerWindowResizable;
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
@@ -3499,7 +3540,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       _loopSelectionEnabled = !_loopSelectionEnabled;
     }
   if ([sender respondsToSelector:@selector (setState:)])
-    [sender setState:_loopSelectionEnabled ? NSOnState : NSOffState];
+    [sender setState:_loopSelectionEnabled ? ScoreMakerStateOn : ScoreMakerStateOff];
 }
 
 - (BOOL)pitchString:(NSString *)string toMidiPitch:(NSInteger *)pitch
@@ -3652,8 +3693,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [note setTrack:trackNumber - 1];
   [note setStartTick:startTick];
   [note setDurationTicks:durationTicks];
-  [note setTieStart:[_tieStartButton state] == NSOnState];
-  [note setTieEnd:[_tieEndButton state] == NSOnState];
+  [note setTieStart:[_tieStartButton state] == ScoreMakerStateOn];
+  [note setTieEnd:[_tieEndButton state] == ScoreMakerStateOn];
   NSArray *tupletRatio = [[_tupletPopUp titleOfSelectedItem] componentsSeparatedByString:@":"];
   if ([tupletRatio count] == 2)
     {
@@ -3678,8 +3719,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   ScoreMeasure *measure = [document ensureMeasureContainingTick:startTick];
   [measure
     setKeySignatureFifths:[[[_keySignaturePopUp selectedItem] representedObject] integerValue]];
-  [measure setRepeatStart:[_repeatStartButton state] == NSOnState];
-  [measure setRepeatEnd:[_repeatEndButton state] == NSOnState];
+  [measure setRepeatStart:[_repeatStartButton state] == ScoreMakerStateOn];
+  [measure setRepeatEnd:[_repeatEndButton state] == ScoreMakerStateOn];
   [note setMeasureIndex:(NSInteger)[[document measures] indexOfObjectIdenticalTo:measure]];
   if (![document nameForTrack:trackNumber - 1])
     {
@@ -3772,17 +3813,17 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       _useRealtimeDSP = NO;
     }
   if ([sender respondsToSelector:@selector (setState:)])
-    [sender setState:_useRealtimeDSP ? NSOnState : NSOffState];
+    [sender setState:_useRealtimeDSP ? ScoreMakerStateOn : ScoreMakerStateOff];
 }
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem
 {
   if ([menuItem action] == @selector (toggleRealtimeDSP:))
-    [menuItem setState:_useRealtimeDSP ? NSOnState : NSOffState];
+    [menuItem setState:_useRealtimeDSP ? ScoreMakerStateOn : ScoreMakerStateOff];
   if ([menuItem action] == @selector (toggleLoopSelection:))
     {
       BOOL hasSelection = [[self scoreView] hasLoopSelection];
-      [menuItem setState:_loopSelectionEnabled && hasSelection ? NSOnState : NSOffState];
+      [menuItem setState:_loopSelectionEnabled && hasSelection ? ScoreMakerStateOn : ScoreMakerStateOff];
       return hasSelection;
     }
   return YES;
@@ -3963,7 +4004,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   (void)sender;
   if (!_patchEditorWindow)
     {
-      NSUInteger style = NSTitledWindowMask | NSClosableWindowMask | NSMiniaturizableWindowMask;
+      NSUInteger style = ScoreMakerWindowTitled | ScoreMakerWindowClosable | ScoreMakerWindowMiniaturizable;
       _patchEditorWindow = [[NSWindow alloc] initWithContentRect:NSMakeRect (0, 0, 650, 530)
                                                        styleMask:style
                                                          backing:NSBackingStoreBuffered
@@ -4507,7 +4548,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       NSDictionary *effect = [existing objectForKey:[specification objectForKey:@"type"]];
       CGFloat y = 190.0 - index * 42.0;
       NSButton *enabled = [[[NSButton alloc] initWithFrame:NSMakeRect (0, y, 135, 24)] autorelease];
-      [enabled setButtonType:NSSwitchButton];
+      [enabled setButtonType:ScoreMakerSwitchButton];
       [enabled setTitle:[specification objectForKey:@"name"]];
       [enabled setState:effect ? NSControlStateValueOn : NSControlStateValueOff];
       [accessory addSubview:enabled];
@@ -5052,7 +5093,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       ScoreSynthesisNode *node = [existing objectForKey:[specification objectForKey:@"type"]];
       CGFloat y = 190.0 - index * 42.0;
       NSButton *enabled = [[[NSButton alloc] initWithFrame:NSMakeRect (0, y, 135, 24)] autorelease];
-      [enabled setButtonType:NSSwitchButton];
+      [enabled setButtonType:ScoreMakerSwitchButton];
       [enabled setTitle:[specification objectForKey:@"name"]];
       [enabled setState:node ? NSControlStateValueOn : NSControlStateValueOff];
       [accessory addSubview:enabled];
@@ -5882,8 +5923,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #endif
-      NSUInteger style = NSTitledWindowMask | NSClosableWindowMask | NSMiniaturizableWindowMask
-                         | NSResizableWindowMask;
+      NSUInteger style = ScoreMakerWindowTitled | ScoreMakerWindowClosable | ScoreMakerWindowMiniaturizable
+                         | ScoreMakerWindowResizable;
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif

@@ -668,7 +668,66 @@ main (void)
   Require (denseWidth > sparseWidth * 2.0,
            @"collision-aware engraving did not reserve space for dense chords and annotations");
 
-  NSLog (@"PASS: .score compatibility and V2 structure round trips");
+  /* Exercise boundary behavior and failure paths that are easy to miss in file round trips. */
+  ScoreDocument *timedScore = [[[ScoreDocument alloc] init] autorelease];
+  [timedScore setTicksPerQuarter:480];
+  [timedScore setTempoMicrosecondsPerQuarter:500000];
+  [timedScore setTotalTicks:1920];
+  ScoreTempoEvent *tempoChange = [[[ScoreTempoEvent alloc] init] autorelease];
+  [tempoChange setTick:480];
+  [tempoChange setMicrosecondsPerQuarter:1000000];
+  [[timedScore tempoEvents] addObject:tempoChange];
+  ScoreScheduler *timedScheduler = [[[ScoreScheduler alloc] initWithDocument:timedScore] autorelease];
+  Require (fabs ([timedScheduler timeForTick:960] - 1.5) < 0.0001 &&
+             [timedScheduler tickForTime:1.5] == 960,
+           @"tempo-map scheduling or inverse time conversion failed");
+
+  ScoreMIDIRoute *route = [[[ScoreMIDIRoute alloc] init] autorelease];
+  [route setSourceIdentifier:@"keyboard"];
+  [route setSourceChannel:2];
+  [route setDestinationPartIdentifier:@"lead"];
+  [route setDestinationChannel:9];
+  [route setTransposition:80];
+  [route setVelocityScale:2.0];
+  [route setEnabled:YES];
+  [[timedScore midiRoutes] addObject:route];
+  ScoreMIDIRouter *router = [[[ScoreMIDIRouter alloc] initWithDocument:timedScore] autorelease];
+  NSArray *routed = [router destinationsForSource:@"keyboard" channel:2 pitch:60 velocity:90];
+  Require ([routed count] == 1 && [[[routed objectAtIndex:0] objectForKey:@"pitch"] integerValue] == 127
+             && [[[routed objectAtIndex:0] objectForKey:@"velocity"] unsignedIntegerValue] == 127
+             && [[router destinationsForSource:@"other" channel:2 pitch:60 velocity:90] count] == 0,
+           @"MIDI routing filters or value clamping failed");
+
+  ScoreSynthesisGraph *invalidGraph = [[[ScoreSynthesisGraph alloc] init] autorelease];
+  ScoreSynthesisNode *duplicateA = [[[ScoreSynthesisNode alloc] init] autorelease];
+  ScoreSynthesisNode *duplicateB = [[[ScoreSynthesisNode alloc] init] autorelease];
+  [duplicateA setIdentifier:@"duplicate"];
+  [duplicateB setIdentifier:@"duplicate"];
+  [[invalidGraph nodes] addObjectsFromArray:@[ duplicateA, duplicateB ]];
+  NSError *validationError = nil;
+  Require (![invalidGraph validateWithError:&validationError] && validationError != nil,
+           @"synthesis graph accepted duplicate node identifiers");
+
+  ScoreCompositionProgram *invalidProgram = [[[ScoreCompositionProgram alloc] init] autorelease];
+  [invalidProgram setSource:@"pattern unfinished\nnote 60 120\n"];
+  Require (![ScoreCompositionEvaluator evaluateProgram:invalidProgram
+                                             inDocument:timedScore
+                                                  error:&validationError]
+             && [[invalidProgram diagnostics] count] > 0,
+           @"composition evaluator accepted an unterminated pattern");
+
+  Require ([MidiParser parseFileAtPath:@"/path/that/does/not/exist.mid" error:&validationError]
+             == nil
+             && [MusicXMLParser parseFileAtPath:@"/path/that/does/not/exist.musicxml"
+                                           error:&validationError] == nil
+             && [ScorefileParser parseFileAtPath:@"/path/that/does/not/exist.score"
+                                            error:&validationError] == nil,
+           @"file parsers did not reject missing input files");
+  Require ([layout systemContainingTick:NSUIntegerMax] == [[layout systems] lastObject]
+             && [layoutSystem fractionForTick:[layoutSystem endTick]] == 1.0,
+           @"engraving layout boundary lookup failed");
+
+  NSLog (@"PASS: complete application compatibility suite");
   [pool drain];
   return 0;
 }

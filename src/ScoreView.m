@@ -1960,7 +1960,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 {
   NSPoint point = [self convertPoint:[event locationInWindow] fromView:nil];
   ScoreNote *clickedNote = [self noteAtPoint:point];
-  if (([event modifierFlags] & NSShiftKeyMask) && _selectedNote && clickedNote)
+  if (([event modifierFlags] & NSEventModifierFlagShift) && _selectedNote && clickedNote)
     _loopEndNote = clickedNote;
   else
     {

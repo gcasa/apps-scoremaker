@@ -20,6 +20,12 @@
 #import "AppDelegate.h"
 #import "ScoreMakerDocument.h"
 
+#if defined(__APPLE__)
+#define ScoreMakerPanelStyle (NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)
+#else
+#define ScoreMakerPanelStyle (NSTitledWindowMask | NSClosableWindowMask)
+#endif
+
 @interface ScoreMakerInfoView : NSView
 @end
 
@@ -166,14 +172,26 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
 {
   if ([path length] == 0)
     return NO;
-  NSError *error = nil;
   NSDocumentController *controller = [NSDocumentController sharedDocumentController];
+#if defined(__APPLE__)
+  [controller openDocumentWithContentsOfURL:[NSURL fileURLWithPath:path]
+                                    display:YES
+                          completionHandler:^(NSDocument *document, BOOL alreadyOpen, NSError *error) {
+    (void)document;
+    (void)alreadyOpen;
+    if (error)
+      [controller presentError:error];
+  }];
+  return YES;
+#else
+  NSError *error = nil;
   NSDocument *document = [controller openDocumentWithContentsOfURL:[NSURL fileURLWithPath:path]
                                                            display:YES
                                                              error:&error];
   if (!document && error)
     [controller presentError:error];
   return document != nil;
+#endif
 }
 
 - (BOOL)application:(NSApplication *)sender openFile:(NSString *)filename
@@ -231,7 +249,7 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
     {
       NSRect frame = NSMakeRect (0.0, 0.0, 620.0, 540.0);
       _infoPanel = [[NSPanel alloc] initWithContentRect:frame
-                                             styleMask:(NSTitledWindowMask | NSClosableWindowMask)
+                                             styleMask:ScoreMakerPanelStyle
                                                backing:NSBackingStoreBuffered
                                                  defer:NO];
       [_infoPanel setTitle:@"About ScoreMaker"];

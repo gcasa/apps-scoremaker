@@ -120,6 +120,7 @@ AppendMetaText (NSMutableData *data, unsigned char type, NSString *text)
 static NSComparisonResult
 CompareMidiEventDictionaries (id a, id b, void *context)
 {
+  (void)context;
   NSUInteger tickA = [[a objectForKey:@"tick"] unsignedIntegerValue];
   NSUInteger tickB = [[b objectForKey:@"tick"] unsignedIntegerValue];
   if (tickA < tickB)

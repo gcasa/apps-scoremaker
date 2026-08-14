@@ -76,6 +76,19 @@ gopen ScoreMaker.app
 
 The GNUstep build expects `gnustep-config`, GNUstep GUI libraries, and an Objective-C compiler to be installed.
 
+## Tests
+
+Run the complete compatibility suite from the command line with:
+
+```sh
+make test
+```
+
+In Xcode, select the **ScoreMakerCompatibilityTests** scheme and choose **Product > Test**
+(Command-U). Both entry points execute the same suite, including parser round trips, project
+persistence, composition and MIDI routing, scheduling, notation and engraving, synthesizer patch
+validation, effects, and sample-accurate offline audio rendering.
+
 ## Use
 
 Open the app, then choose `File > Open...` to load a `.mid`, `.midi`, or `.score` file.
