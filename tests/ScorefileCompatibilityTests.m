@@ -101,6 +101,18 @@ main (void)
   Require ([rangedStatement rangeOfString:@"Editor_Part (1) keyNum:cs4k;"].location
              != NSNotFound,
            @"source parser returned an incorrect note character range");
+  NSString *endSubstringSource = @"part Defender_of_the_Crown;\n"
+                                  @"Defender_of_the_Crown program:68;\n"
+                                  @"BEGIN;\nt 0;\n"
+                                  @"Defender_of_the_Crown (1) keyNum:f4k;\nEND;\n";
+  NSArray *endSubstringRanges = nil;
+  ScoreDocument *endSubstringDocument =
+    [ScorefileParser parseString:endSubstringSource
+                  suggestedTitle:@"END Substring"
+                 noteSourceRanges:&endSubstringRanges
+                           error:&sourceError];
+  Require ([[endSubstringDocument notes] count] == 1 && [endSubstringRanges count] == 1,
+           @"a part name containing END prevented source-note range mapping");
   Require ([ScorefileParser parseString:@"" suggestedTitle:@"Empty" error:&sourceError] == nil,
            @"empty editor source should fail validation");
   NSString *badTimeSource = @"part P;\nBEGIN;\nt one+;\nP (1) keyNum:c4k;\nEND;\n";
@@ -262,6 +274,16 @@ main (void)
                                                                        error:&platformError];
   ScoreInstrumentDefinition *restoredInstrument =
     [[[projectRoundTrip parts] objectAtIndex:0] instrument];
+  ScorePartDefinition *persistentPart = [[platform parts] objectAtIndex:0];
+  [persistentPart setMidiOutputUniqueID:4242];
+  [persistentPart setMidiOutputName:@"Studio MIDI Interface"];
+  projectData = [ScoreProjectSerializer dataForDocument:platform error:&platformError];
+  projectRoundTrip = [ScoreProjectSerializer documentFromData:projectData error:&platformError];
+  restoredInstrument = [[[projectRoundTrip parts] objectAtIndex:0] instrument];
+  ScorePartDefinition *restoredPart = [[projectRoundTrip parts] objectAtIndex:0];
+  Require ([restoredPart midiOutputUniqueID] == 4242
+             && [[restoredPart midiOutputName] isEqualToString:@"Studio MIDI Interface"],
+           @"native project persistence lost the per-part MIDI output assignment");
   Require (
     [[restoredInstrument backendIdentifier]
       isEqualToString:@"audio-unit:1635085685:1935764848:1634758764"]

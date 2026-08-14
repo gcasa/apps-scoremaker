@@ -17,6 +17,8 @@ The renderer is intentionally lightweight. It focuses on extracting timing, pitc
 - Read MIDI tempo and time-signature metadata when available.
 - Add pitched notes and edit score notes, tempo, and time signature from the inspector next to the sheet.
 - Play the current score through AVFoundation on macOS or GNUstep.
+- Route individual parts to different physical CoreMIDI output devices on macOS, with persistent
+  per-part assignments and built-in-synth fallback when a saved device is unavailable.
 - Show active notes on an 88-key piano with middle C marked as C4, display live MIDI-velocity meters for each voice during playback, and audition and enter notes by clicking the piano keys.
 - Accept live CoreMIDI keyboard input on macOS for velocity-sensitive step entry and quantized real-time recording with chord detection, count-in, metronome, and sustain-pedal handling.
 - Support document-level Undo/Redo, single-action undo for complete MIDI takes, CoreMIDI hot-plug updates, and routing either to the selected part or from MIDI channels to parts.
@@ -84,6 +86,7 @@ from G major to E-flat major, demonstrating an opening signature, cancellation n
 mid-score flat signature.
 The bundled `examples/time-rotor-study.score` is an original CC0 electronic science-fiction title study in 6/8. It is intentionally not an arrangement of any television theme.
 The bundled `examples/mozart-requiem/` collection contains fourteen independently openable complete multi-track scores, one for each commonly separated movement of Mozart's Requiem, K. 626.
+The bundled `examples/brandenburg-concertos/` collection contains all six of J. S. Bach's Brandenburg Concertos, BWV 1046–1051, as eighteen independently openable movement scores.
 
 Use the inspector on the right side of the sheet to add pitched notes, add freeform score notes, change the tempo in BPM, or change the time signature.
 The inspector scrolls vertically when the window is not tall enough to show its complete palette and score-notes editor.
@@ -103,6 +106,12 @@ Choose a connected device under **MIDI Input** for live entry. With recording st
 The input menu updates when MIDI devices are connected or removed. **Selected Part** routing sends all channels to the inspector's current part; **MIDI Channel → Part** maps channel 1 to Part 1, channel 2 to Part 2, and so on. Use **Edit → Undo/Redo** or Command-Z/Command-Shift-Z to reverse and restore edits; one recording take is one undo operation.
 
 Choose `Score > Play` or the Play button in the inspector to hear the current score. ScoreMaker sends the generated MIDI data directly to AVFoundation, using the platform AVFoundation implementation on macOS or GNUstep.
+
+On macOS, select a part in the inspector and choose **Score > Part MIDI Output...** to send that
+part to the built-in synthesizer or a connected CoreMIDI destination. Assignments are saved in
+ScoreMaker project files. Multiple physical destinations can play together; if an assigned device
+is disconnected, that part falls back to the built-in synthesizer. GNUstep builds preserve these
+project assignments but continue to use their configured system MIDI player.
 
 Choose **Score > Internal Synth Patch Editor...** to design the internal sound for the selected part and notation voice. Each voice explicitly selects a named patch, and each patch carries its own oscillator, amplitude envelope, pitch LFO, resonant filter, independent filter envelope, velocity modulation, and effects. Use **Filter...** for cutoff, resonance, filter ADSR, envelope amount, and velocity routing. Editing a named patch creates a custom voice patch until it is saved under a name. Voice-to-patch assignments are preserved in ScoreMaker project files; named patches saved with **Save Patch...** are stored in user preferences and can be selected in any score. The separate **Score > Effects...** chain remains the shared master bus.
 

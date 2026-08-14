@@ -173,6 +173,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (ScoreNote *)scoreNoteForSourceLocation:(NSUInteger)location;
 - (NSValue *)sourceRangeForScoreNote:(ScoreNote *)note;
 - (void)updateScoreSourcePlaybackHighlightAtTick:(NSUInteger)tick;
+- (void)updateScoreSourceMIDIInputHighlight;
 - (void)clearScoreSourcePlaybackHighlight;
 - (void)resetScoreSourceRangeCache;
 - (void)closeAuxiliaryWindows;
@@ -640,7 +641,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [document setTitle:@"Untitled"];
       [self setScoreDocument:document];
 #if defined(__APPLE__)
-      _useBuiltInMIDIOutput = NO;
+      _externalMIDIPlaybacks = [[NSMutableArray alloc] init];
 #endif
     }
   return self;
@@ -831,6 +832,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_midiInputManager release];
   [_midiActiveNotes release];
   [_midiHeldStepNotes release];
+  [_midiHeldStepScoreNotes release];
   [_midiSustainedNotes release];
   [_midiMetronomeSound release];
   [_undoBaseline release];
@@ -846,6 +848,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_scoreSourcePlaybackSignature release];
   [_scoreSourceErrorRange release];
   [_scoreSourceActivePlaybackNotes release];
+#if defined(__APPLE__)
+  [_externalMIDIPlaybacks release];
+#endif
 
   [super dealloc];
 }
@@ -939,6 +944,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_midiInputManager setChangeAction:@selector (midiDevicesChanged:)];
   _midiActiveNotes = [[NSMutableDictionary alloc] init];
   _midiHeldStepNotes = [[NSMutableSet alloc] init];
+  _midiHeldStepScoreNotes = [[NSMutableDictionary alloc] init];
   _midiSustainedNotes = [[NSMutableSet alloc] init];
 
   CGFloat inspectorContentHeight = MAX (InspectorContentHeight, inspectorFrame.size.height);
@@ -2112,63 +2118,72 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       MIDIEndpointRef endpoint = MIDIGetDestination (index);
       if (!endpoint)
         continue;
+      SInt32 uniqueID = 0;
+      MIDIObjectGetIntegerProperty (endpoint, kMIDIPropertyUniqueID, &uniqueID);
       [outputs
         addObject:[NSDictionary
                     dictionaryWithObjectsAndKeys:ScoreMakerMIDIEndpointName (endpoint), @"name",
                                                  [NSNumber numberWithUnsignedInt:endpoint],
-                                                 @"endpoint", nil]];
+                                                 @"endpoint",
+                                                 [NSNumber numberWithInt:uniqueID], @"uniqueID", nil]];
     }
   return outputs;
 }
 
-- (MIDIEndpointRef)resolvedMIDIOutputEndpoint
+- (MIDIEndpointRef)resolvedMIDIOutputForPart:(ScorePartDefinition *)part
 {
-  if (_useBuiltInMIDIOutput)
+  if (!part || [part midiOutputUniqueID] == 0)
     return 0;
 
   NSArray *outputs = [self availableMIDIOutputs];
   for (NSDictionary *output in outputs)
     {
-      MIDIEndpointRef endpoint = [[output objectForKey:@"endpoint"] unsignedIntValue];
-      if (_midiOutputEndpoint == endpoint
-          || (_midiOutputName && [[output objectForKey:@"name"] isEqualToString:_midiOutputName]))
-        {
-          _midiOutputEndpoint = endpoint;
-          return endpoint;
-        }
+      if ([[output objectForKey:@"uniqueID"] integerValue] == [part midiOutputUniqueID])
+        return [[output objectForKey:@"endpoint"] unsignedIntValue];
     }
-
-  NSDictionary *firstOutput = [outputs count] ? [outputs objectAtIndex:0] : nil;
-  _midiOutputEndpoint = [[firstOutput objectForKey:@"endpoint"] unsignedIntValue];
-  [_midiOutputName release];
-  _midiOutputName = [[firstOutput objectForKey:@"name"] copy];
-  return _midiOutputEndpoint;
+  for (NSDictionary *output in outputs)
+    if ([[part midiOutputName] length]
+        && [[output objectForKey:@"name"] isEqualToString:[part midiOutputName]])
+      return [[output objectForKey:@"endpoint"] unsignedIntValue];
+  return 0;
 }
 
 - (void)chooseMIDIOutput:(id)sender
 {
   (void)sender;
   NSArray *outputs = [self availableMIDIOutputs];
+  ScorePartDefinition *part = [self selectedStructuredPartCreatingIfNeeded:YES];
   NSPopUpButton *outputPopUp =
     [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (0.0, 0.0, 360.0, 26.0)
                                 pullsDown:NO] autorelease];
-  [outputPopUp addItemWithTitle:@"Built-in Synthesizer"];
-  [[outputPopUp lastItem] setRepresentedObject:[NSNumber numberWithUnsignedInt:0]];
+  [outputPopUp addItemWithTitle:@"Built-in Synthesizer (fallback)"];
+  [[outputPopUp lastItem] setRepresentedObject:@{ @"uniqueID" : @0, @"name" : @"" }];
+  BOOL foundSavedOutput = ([part midiOutputUniqueID] == 0);
   for (NSDictionary *output in outputs)
     {
       [outputPopUp addItemWithTitle:[output objectForKey:@"name"]];
-      [[outputPopUp lastItem] setRepresentedObject:[output objectForKey:@"endpoint"]];
-      if (!_useBuiltInMIDIOutput &&
-          [[output objectForKey:@"endpoint"] unsignedIntValue] == [self resolvedMIDIOutputEndpoint])
+      [[outputPopUp lastItem] setRepresentedObject:output];
+      if ([[output objectForKey:@"uniqueID"] integerValue] == [part midiOutputUniqueID])
         {
+          foundSavedOutput = YES;
           [outputPopUp selectItem:[outputPopUp lastItem]];
         }
     }
-  if (_useBuiltInMIDIOutput)
+  if (!foundSavedOutput)
+    {
+      NSString *name = [[part midiOutputName] length] ? [part midiOutputName]
+                                                       : @"Unknown MIDI device";
+      [outputPopUp addItemWithTitle:[NSString stringWithFormat:@"Missing: %@ (uses fallback)", name]];
+      [[outputPopUp lastItem]
+        setRepresentedObject:@{ @"uniqueID" : [NSNumber numberWithInteger:[part midiOutputUniqueID]],
+                                @"name" : name }];
+      [outputPopUp selectItem:[outputPopUp lastItem]];
+    }
+  if ([part midiOutputUniqueID] == 0)
     [outputPopUp selectItemAtIndex:0];
 
   NSAlert *alert = [[[NSAlert alloc] init] autorelease];
-  [alert setMessageText:@"MIDI Output"];
+  [alert setMessageText:[NSString stringWithFormat:@"MIDI Output for %@", [part name]]];
   [alert setInformativeText:
            [outputs count]
              ? @"Choose a connected MIDI instrument or the built-in synthesizer."
@@ -2179,11 +2194,13 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   if ([alert runModal] != NSAlertFirstButtonReturn)
     return;
 
-  MIDIEndpointRef endpoint = [[[outputPopUp selectedItem] representedObject] unsignedIntValue];
-  _useBuiltInMIDIOutput = (endpoint == 0);
-  _midiOutputEndpoint = endpoint;
-  [_midiOutputName release];
-  _midiOutputName = _useBuiltInMIDIOutput ? nil : [[[outputPopUp selectedItem] title] copy];
+  NSDictionary *selection = [[outputPopUp selectedItem] representedObject];
+  [self registerUndoSnapshotWithName:@"Change Part MIDI Output"];
+  [part setMidiOutputUniqueID:[[selection objectForKey:@"uniqueID"] integerValue]];
+  [part setMidiOutputName:[[selection objectForKey:@"name"] length]
+                            ? [selection objectForKey:@"name"] : nil];
+  [self updateChangeCount:NSChangeDone];
+  [self commitUndoBaseline];
   if (_playbackTimer || _playbackPaused)
     {
       NSTimeInterval elapsed = _playbackPaused
@@ -2198,39 +2215,40 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 
 - (BOOL)playMIDIData:(NSData *)midiData toOutput:(MIDIEndpointRef)endpoint error:(NSError **)error
 {
-  OSStatus status = NewMusicSequence (&_externalMusicSequence);
+  MusicSequence sequence = NULL;
+  MusicPlayer player = NULL;
+  OSStatus status = NewMusicSequence (&sequence);
   if (status == noErr)
     {
-      status = MusicSequenceFileLoadData (_externalMusicSequence, (CFDataRef)midiData,
+      status = MusicSequenceFileLoadData (sequence, (CFDataRef)midiData,
                                           kMusicSequenceFile_MIDIType,
                                           kMusicSequenceLoadSMF_ChannelsToTracks);
     }
   if (status == noErr)
-    status = MusicSequenceSetMIDIEndpoint (_externalMusicSequence, endpoint);
+    status = MusicSequenceSetMIDIEndpoint (sequence, endpoint);
   if (status == noErr)
-    status = NewMusicPlayer (&_externalMusicPlayer);
+    status = NewMusicPlayer (&player);
   if (status == noErr)
-    status = MusicPlayerSetSequence (_externalMusicPlayer, _externalMusicSequence);
+    status = MusicPlayerSetSequence (player, sequence);
   if (status == noErr)
-    status = MusicPlayerPreroll (_externalMusicPlayer);
+    status = MusicPlayerPreroll (player);
   if (status == noErr)
-    status = MusicPlayerStart (_externalMusicPlayer);
+    status = MusicPlayerStart (player);
   if (status == noErr)
     {
+      [_externalMIDIPlaybacks addObject:@{
+        @"player" : [NSValue valueWithPointer:player],
+        @"sequence" : [NSValue valueWithPointer:sequence],
+        @"endpoint" : [NSNumber numberWithUnsignedInt:endpoint]
+      }];
       _externalPlaybackTime = 0;
       return YES;
     }
 
-  if (_externalMusicPlayer)
-    {
-      DisposeMusicPlayer (_externalMusicPlayer);
-      _externalMusicPlayer = NULL;
-    }
-  if (_externalMusicSequence)
-    {
-      DisposeMusicSequence (_externalMusicSequence);
-      _externalMusicSequence = NULL;
-    }
+  if (player)
+    DisposeMusicPlayer (player);
+  if (sequence)
+    DisposeMusicSequence (sequence);
   if (error)
     {
       NSString *message = [NSString
@@ -2244,23 +2262,36 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     }
   return NO;
 }
+#else
+- (void)chooseMIDIOutput:(id)sender
+{
+  (void)sender;
+  NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+  [alert setMessageText:@"Physical MIDI output is unavailable"];
+  [alert setInformativeText:@"This GNUstep build continues to use its configured system MIDI player."];
+  [alert runModal];
+}
 #endif
 
 - (void)stopPlaybackAudioOnly
 {
 #if defined(__APPLE__)
-  if (_externalMusicPlayer)
+  for (NSDictionary *playback in [[_externalMIDIPlaybacks copy] autorelease])
     {
-      MusicPlayerStop (_externalMusicPlayer);
-      ScoreMakerSendAllNotesOff (_midiOutputEndpoint);
-      DisposeMusicPlayer (_externalMusicPlayer);
-      _externalMusicPlayer = NULL;
+      MusicPlayer player = (MusicPlayer)[[playback objectForKey:@"player"] pointerValue];
+      MusicSequence sequence =
+        (MusicSequence)[[playback objectForKey:@"sequence"] pointerValue];
+      MIDIEndpointRef endpoint = [[playback objectForKey:@"endpoint"] unsignedIntValue];
+      if (player)
+        {
+          MusicPlayerStop (player);
+          DisposeMusicPlayer (player);
+        }
+      ScoreMakerSendAllNotesOff (endpoint);
+      if (sequence)
+        DisposeMusicSequence (sequence);
     }
-  if (_externalMusicSequence)
-    {
-      DisposeMusicSequence (_externalMusicSequence);
-      _externalMusicSequence = NULL;
-    }
+  [_externalMIDIPlaybacks removeAllObjects];
   _externalPlaybackTime = 0;
 #endif
   [_playbackSound stop];
@@ -2270,8 +2301,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_midiPlayer release];
   _midiPlayer = nil;
   [_realtimeDSP allNotesOff];
-  if (_useRealtimeDSP)
+  if (_playbackUsesRealtimeDSP)
     [_realtimeDSP stop];
+  _playbackUsesRealtimeDSP = NO;
 }
 
 - (BOOL)prepareDSPPlaybackAtTick:(NSUInteger)tick error:(NSError **)error
@@ -2304,6 +2336,101 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   return [_realtimeDSP scheduleEvents:timeline error:error];
 }
 
+#if defined(__APPLE__)
+- (BOOL)documentHasPhysicalMIDIRouting:(ScoreDocument *)document
+{
+  for (ScorePartDefinition *part in [document parts])
+    if ([part midiOutputUniqueID] != 0)
+      return YES;
+  return NO;
+}
+
+- (ScoreDocument *)documentFromDocument:(ScoreDocument *)source keepingTracks:(NSSet *)tracks
+{
+  ScoreDocument *filtered = [[source copy] autorelease];
+  NSMutableArray *notes = [NSMutableArray array];
+  for (ScoreNote *note in [filtered notes])
+    if ([tracks containsObject:[NSNumber numberWithInteger:[note track]]])
+      [notes addObject:note];
+  [filtered setNotes:notes];
+
+  NSMutableDictionary *names = [NSMutableDictionary dictionary];
+  NSMutableDictionary *programs = [NSMutableDictionary dictionary];
+  for (NSNumber *track in tracks)
+    {
+      NSString *name = [source nameForTrack:[track integerValue]];
+      NSNumber *program = [source programForTrack:[track integerValue]];
+      if (name)
+        [names setObject:name forKey:track];
+      if (program)
+        [programs setObject:program forKey:track];
+    }
+  [filtered setPartNames:names];
+  [filtered setTrackPrograms:programs];
+  NSMutableArray *parts = [NSMutableArray array];
+  for (ScorePartDefinition *part in [source parts])
+    if ([tracks containsObject:[NSNumber numberWithInteger:[part legacyTrack]]])
+      [parts addObject:[[part copy] autorelease]];
+  [filtered setParts:parts];
+  return filtered;
+}
+
+- (BOOL)playDocumentWithMIDIRouting:(ScoreDocument *)document error:(NSError **)error
+{
+  NSMutableDictionary *partByTrack = [NSMutableDictionary dictionary];
+  for (ScorePartDefinition *part in [document parts])
+    [partByTrack setObject:part
+                    forKey:[NSNumber numberWithInteger:[part legacyTrack]]];
+
+  NSMutableDictionary *tracksByEndpoint = [NSMutableDictionary dictionary];
+  for (ScoreNote *note in [document notes])
+    {
+      if ([note isRest])
+        continue;
+      NSNumber *track = [NSNumber numberWithInteger:[note track]];
+      ScorePartDefinition *part = [partByTrack objectForKey:track];
+      MIDIEndpointRef endpoint = [self resolvedMIDIOutputForPart:part];
+      NSNumber *endpointKey = [NSNumber numberWithUnsignedInt:endpoint];
+      NSMutableSet *tracks = [tracksByEndpoint objectForKey:endpointKey];
+      if (!tracks)
+        {
+          tracks = [NSMutableSet set];
+          [tracksByEndpoint setObject:tracks forKey:endpointKey];
+        }
+      [tracks addObject:track];
+    }
+
+  NSMutableArray *payloads = [NSMutableArray array];
+  for (NSNumber *endpointKey in tracksByEndpoint)
+    {
+      ScoreDocument *filtered =
+        [self documentFromDocument:document
+                    keepingTracks:[tracksByEndpoint objectForKey:endpointKey]];
+      NSData *midiData = [MidiParser dataForDocument:filtered error:error];
+      if (!midiData)
+        return NO;
+      [payloads addObject:@{ @"endpoint" : endpointKey, @"data" : midiData }];
+    }
+
+  /* Build every endpoint's MIDI data before starting any player. This keeps large scores from
+     making the first device audibly lead later devices while their filtered files are encoded. */
+  [payloads sortUsingComparator:^NSComparisonResult (NSDictionary *left, NSDictionary *right) {
+    return [[left objectForKey:@"endpoint"] compare:[right objectForKey:@"endpoint"]];
+  }];
+  for (NSDictionary *payload in payloads)
+    {
+      NSData *midiData = [payload objectForKey:@"data"];
+      NSNumber *endpointKey = [payload objectForKey:@"endpoint"];
+      MIDIEndpointRef endpoint = [endpointKey unsignedIntValue];
+      BOOL started = endpoint ? [self playMIDIData:midiData toOutput:endpoint error:error]
+                              : [self playMIDIDataDirectly:midiData error:error];
+      if (!started)
+        return NO;
+    }
+  return [payloads count] > 0;
+}
+#endif
+
 - (BOOL)restartPlaybackAtTick:(NSUInteger)tick
 {
   ScoreDocument *source = [self scoreDocument];
@@ -2323,6 +2450,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [remainder setPartNames:[[[source partNames] mutableCopy] autorelease]];
   [remainder setTrackPrograms:[[[source trackPrograms] mutableCopy] autorelease]];
   [remainder setMeasures:[[[source measures] mutableCopy] autorelease]];
+  [remainder setParts:[[[NSMutableArray alloc] initWithArray:[source parts] copyItems:YES]
+                         autorelease]];
 
   for (ScoreNote *note in [source notes])
     {
@@ -2349,9 +2478,15 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     }
 
   NSError *error = nil;
-  if (_useRealtimeDSP)
+  BOOL useRealtimeDSPForPlayback = _useRealtimeDSP;
+#if defined(__APPLE__)
+  if ([self documentHasPhysicalMIDIRouting:source])
+    useRealtimeDSPForPlayback = NO;
+#endif
+  if (useRealtimeDSPForPlayback)
     {
       [self stopPlaybackAudioOnly];
+      _playbackUsesRealtimeDSP = YES;
       if (![self prepareDSPPlaybackAtTick:tick error:&error])
         {
           [[NSDocumentController sharedDocumentController] presentError:error];
@@ -2364,6 +2499,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       _playbackPausedElapsed = adjustedElapsed;
       return YES;
     }
+#if !defined(__APPLE__)
   NSData *midiData = [MidiParser dataForDocument:remainder error:&error];
   if (!midiData)
     {
@@ -2371,9 +2507,14 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [self stopCurrentPlayback];
       return NO;
     }
+#endif
 
   [self stopPlaybackAudioOnly];
+#if defined(__APPLE__)
+  if (![self playDocumentWithMIDIRouting:remainder error:&error])
+#else
   if (![self playMIDIDataDirectly:midiData error:&error])
+#endif
     {
       [[NSDocumentController sharedDocumentController] presentError:error];
       [self stopCurrentPlayback];
@@ -2393,6 +2534,18 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
           [(AVMIDIPlayer *)_midiPlayer stop];
           [(AVMIDIPlayer *)_midiPlayer setCurrentPosition:0.0];
         }
+#if defined(__APPLE__)
+      for (NSDictionary *playback in _externalMIDIPlaybacks)
+        {
+          MusicPlayer player = (MusicPlayer)[[playback objectForKey:@"player"] pointerValue];
+          if (player)
+            {
+              MusicPlayerStop (player);
+              MusicPlayerSetTime (player, 0);
+            }
+          ScoreMakerSendAllNotesOff ([[playback objectForKey:@"endpoint"] unsignedIntValue]);
+        }
+#endif
       [_playbackSound pause];
       _playbackPaused = YES;
       [self updatePauseButtonForPaused:YES];
@@ -2537,7 +2690,16 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
           [(AVMIDIPlayer *)_midiPlayer setCurrentPosition:position];
         }
       [_playbackSound pause];
-      if (_useRealtimeDSP)
+#if defined(__APPLE__)
+      for (NSDictionary *playback in _externalMIDIPlaybacks)
+        {
+          MusicPlayer player = (MusicPlayer)[[playback objectForKey:@"player"] pointerValue];
+          if (player)
+            MusicPlayerStop (player);
+          ScoreMakerSendAllNotesOff ([[playback objectForKey:@"endpoint"] unsignedIntValue]);
+        }
+#endif
+      if (_playbackUsesRealtimeDSP)
         {
           [_realtimeDSP allNotesOff];
           [_realtimeDSP stop];
@@ -2550,7 +2712,15 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       if (_midiPlayer)
         [(AVMIDIPlayer *)_midiPlayer play:nil];
       [_playbackSound resume];
-      if (_useRealtimeDSP)
+#if defined(__APPLE__)
+      for (NSDictionary *playback in _externalMIDIPlaybacks)
+        {
+          MusicPlayer player = (MusicPlayer)[[playback objectForKey:@"player"] pointerValue];
+          if (player)
+            MusicPlayerStart (player);
+        }
+#endif
+      if (_playbackUsesRealtimeDSP)
         {
           ScoreScheduler *scheduler =
             [[[ScoreScheduler alloc] initWithDocument:[self scoreDocument]] autorelease];
@@ -2669,7 +2839,13 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     }
 
   NSError *error = nil;
-  if (_useRealtimeDSP)
+  BOOL useRealtimeDSPForPlayback = _useRealtimeDSP;
+#if defined(__APPLE__)
+  if ([self documentHasPhysicalMIDIRouting:document])
+    useRealtimeDSPForPlayback = NO;
+#endif
+  _playbackUsesRealtimeDSP = useRealtimeDSPForPlayback;
+  if (useRealtimeDSPForPlayback)
     {
       if (![self prepareDSPPlaybackAtTick:0 error:&error])
         {
@@ -2679,14 +2855,20 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [self startPlaybackHighlight];
       return;
     }
+#if !defined(__APPLE__)
   NSData *midiData = [MidiParser dataForDocument:document error:&error];
   if (!midiData)
     {
       [[NSDocumentController sharedDocumentController] presentError:error];
       return;
     }
+#endif
 
+#if defined(__APPLE__)
+  if (![self playDocumentWithMIDIRouting:document error:&error])
+#else
   if (![self playMIDIDataDirectly:midiData error:&error])
+#endif
     {
       [[NSDocumentController sharedDocumentController] presentError:error];
       return;
@@ -4780,15 +4962,19 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
               _midiStepStartTick = (NSUInteger)llround (MAX (0.0, [_noteStartField doubleValue]) *
                                                         [[self scoreDocument] ticksPerQuarter]);
             }
-          [self appendMIDINotePitch:data1
-                           velocity:data2
-                              track:destinationTrack
-                          startTick:_midiStepStartTick
-                      durationTicks:[self durationTicksForNoteValueDenominator:
-                                            [self denominatorForSelectedNoteValue]]];
+          ScoreNote *enteredNote =
+            [self appendMIDINotePitch:data1
+                             velocity:data2
+                                track:destinationTrack
+                            startTick:_midiStepStartTick
+                        durationTicks:[self durationTicksForNoteValueDenominator:
+                                              [self denominatorForSelectedNoteValue]]];
           [_midiHeldStepNotes addObject:key];
+          if (enteredNote)
+            [_midiHeldStepScoreNotes setObject:enteredNote forKey:key];
           [[[self scoreDocument] notes] sortUsingSelector:@selector (compareScoreNote:)];
           [self updateChangeCount:NSChangeDone];
+          [self updateScoreSourceMIDIInputHighlight];
         }
       return;
     }
@@ -4809,6 +4995,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       if ([_realtimeDSP isRunning])
         [_realtimeDSP noteOff:data1];
       [_midiHeldStepNotes removeObject:key];
+      [_midiHeldStepScoreNotes removeObjectForKey:key];
+      [self updateScoreSourceMIDIInputHighlight];
       if ([_midiHeldStepNotes count] == 0)
         {
           double durationBeats =
@@ -4891,6 +5079,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   if (!_midiRecording && !_midiMetronomeTimer)
     {
       [_midiHeldStepNotes removeAllObjects];
+      [_midiHeldStepScoreNotes removeAllObjects];
+      [self updateScoreSourceMIDIInputHighlight];
       [_playbackMonitorView clearLiveNotes];
       return;
     }
@@ -4914,6 +5104,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_midiActiveNotes removeAllObjects];
   [_midiSustainedNotes removeAllObjects];
   [_midiHeldStepNotes removeAllObjects];
+  [_midiHeldStepScoreNotes removeAllObjects];
+  [self updateScoreSourceMIDIInputHighlight];
   [_playbackMonitorView clearLiveNotes];
   [_recordButton setTitle:@"Record"];
   if (_midiRecordedNotes && [self scoreDocument])
@@ -5383,6 +5575,35 @@ ScoreSourceNoteIdentity (ScoreNote *note, ScoreDocument *document)
   if (![ranges count])
     return;
   _scoreSourcePlaybackRanges = [ranges copy];
+  [_scoreSourceTextView scrollRangeToVisible:[[ranges objectAtIndex:0] rangeValue]];
+}
+
+- (void)updateScoreSourceMIDIInputHighlight
+{
+  [self clearScoreSourcePlaybackHighlight];
+  if (!_scoreSourceEditorWindow || ![_scoreSourceEditorWindow isVisible]
+      || _scoreSourceEditorDirty || ![_midiHeldStepScoreNotes count])
+    return;
+
+  NSArray *active = [_midiHeldStepScoreNotes allValues];
+  NSMutableArray *ranges = [NSMutableArray array];
+  NSLayoutManager *layout = [_scoreSourceTextView layoutManager];
+  for (ScoreNote *note in active)
+    {
+      NSValue *value = [self sourceRangeForScoreNote:note];
+      if (value && ![ranges containsObject:value])
+        {
+          [ranges addObject:value];
+          NSColor *color = [ScoreVoiceColor ([note voice], NO) colorWithAlphaComponent:0.42];
+          [layout addTemporaryAttribute:NSBackgroundColorAttributeName
+                                 value:color
+                     forCharacterRange:[value rangeValue]];
+        }
+    }
+  if (![ranges count])
+    return;
+  _scoreSourcePlaybackRanges = [ranges copy];
+  _scoreSourcePlaybackSignature = [@"midi-input" copy];
   [_scoreSourceTextView scrollRangeToVisible:[[ranges objectAtIndex:0] rangeValue]];
 }
 

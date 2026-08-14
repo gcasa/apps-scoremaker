@@ -122,6 +122,7 @@ ScoreNewIdentifier (void)
 @synthesize identifier = _identifier, name = _name, abbreviatedName = _abbreviatedName;
 @synthesize legacyTrack = _legacyTrack, visible = _visible, instrument = _instrument,
             staves = _staves;
+@synthesize midiOutputUniqueID = _midiOutputUniqueID, midiOutputName = _midiOutputName;
 @synthesize synthesisGraph = _synthesisGraph;
 - (id)init
 {
@@ -142,6 +143,8 @@ ScoreNewIdentifier (void)
   copy.abbreviatedName = _abbreviatedName;
   copy.legacyTrack = _legacyTrack;
   copy.visible = _visible;
+  copy.midiOutputUniqueID = _midiOutputUniqueID;
+  copy.midiOutputName = _midiOutputName;
   copy.instrument = [[_instrument copy] autorelease];
   copy.staves = [[[NSMutableArray alloc] initWithArray:_staves copyItems:YES] autorelease];
   copy.synthesisGraph = [[_synthesisGraph copy] autorelease];
@@ -152,6 +155,7 @@ ScoreNewIdentifier (void)
   [_identifier release];
   [_name release];
   [_abbreviatedName release];
+  [_midiOutputName release];
   [_instrument release];
   [_staves release];
   [_synthesisGraph release];

@@ -27,7 +27,8 @@ ScoreProjectSchemas (void)
                              @"ScoreStaffDefinition",
                              @[
                                @"identifier", @"name", @"abbreviatedName", @"legacyTrack",
-                               @"visible", @"instrument", @"staves", @"synthesisGraph"
+                               @"visible", @"midiOutputUniqueID", @"midiOutputName",
+                               @"instrument", @"staves", @"synthesisGraph"
                              ],
                              @"ScorePartDefinition", @[ @"tick", @"microsecondsPerQuarter" ],
                              @"ScoreTempoEvent",

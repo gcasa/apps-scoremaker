@@ -79,6 +79,8 @@ typedef NS_ENUM (NSInteger, ScoreStaffClef) {
   NSString *_abbreviatedName;
   NSInteger _legacyTrack;
   BOOL _visible;
+  NSInteger _midiOutputUniqueID;
+  NSString *_midiOutputName;
   ScoreInstrumentDefinition *_instrument;
   NSMutableArray *_staves;
   ScoreSynthesisGraph *_synthesisGraph;
@@ -88,6 +90,10 @@ typedef NS_ENUM (NSInteger, ScoreStaffClef) {
 @property (nonatomic, copy) NSString *abbreviatedName;
 @property (nonatomic) NSInteger legacyTrack;
 @property (nonatomic) BOOL visible;
+/* 0 selects the built-in synthesizer. Positive or negative CoreMIDI unique IDs select a
+   physical destination on macOS; other platforms preserve the assignment without using it. */
+@property (nonatomic) NSInteger midiOutputUniqueID;
+@property (nonatomic, copy) NSString *midiOutputName;
 @property (nonatomic, retain) ScoreInstrumentDefinition *instrument;
 @property (nonatomic, retain) NSMutableArray *staves;
 @property (nonatomic, retain) ScoreSynthesisGraph *synthesisGraph;

@@ -1292,12 +1292,12 @@ ScorefileIdentifierForPartName (NSString *name)
           [document setTitle:title];
           continue;
         }
-      if ([statement rangeOfString:@"BEGIN" options:NSCaseInsensitiveSearch].location != NSNotFound)
+      if ([statement caseInsensitiveCompare:@"BEGIN"] == NSOrderedSame)
         {
           inBody = YES;
           continue;
         }
-      if ([statement rangeOfString:@"END" options:NSCaseInsensitiveSearch].location != NSNotFound)
+      if ([statement caseInsensitiveCompare:@"END"] == NSOrderedSame)
         {
           break;
         }

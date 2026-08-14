@@ -92,6 +92,7 @@
   MIDIInputManager *_midiInputManager;
   NSMutableDictionary *_midiActiveNotes;
   NSMutableSet *_midiHeldStepNotes;
+  NSMutableDictionary *_midiHeldStepScoreNotes;
   NSMutableSet *_midiSustainedNotes;
   NSTimer *_midiMetronomeTimer;
   NSSound *_midiMetronomeSound;
@@ -115,6 +116,7 @@
   BOOL _updatingInspector;
   ScoreRealtimeDSP *_realtimeDSP;
   BOOL _useRealtimeDSP;
+  BOOL _playbackUsesRealtimeDSP;
   NSInteger _realtimeDSPPitch;
   NSInteger _realtimeDSPVoice;
   NSInteger _audioUnitPartTrack;
@@ -134,11 +136,7 @@
   NSPopUpButton *_patchBrowserCategoryPopUp;
   NSArray *_patchBrowserRows;
 #if defined(__APPLE__)
-  MIDIEndpointRef _midiOutputEndpoint;
-  NSString *_midiOutputName;
-  BOOL _useBuiltInMIDIOutput;
-  MusicSequence _externalMusicSequence;
-  MusicPlayer _externalMusicPlayer;
+  NSMutableArray *_externalMIDIPlaybacks;
   MusicTimeStamp _externalPlaybackTime;
 #endif
 }
