@@ -315,4 +315,16 @@ FOUNDATION_EXPORT NSDictionary *ScoreDisplayedAccidentalMapForDocument (ScoreDoc
  * legacy tracks in <var>document</var>.
  */
 - (void)copyMIDIRoutingAssignmentsFromDocument:(ScoreDocument *)document;
+/**
+ * Splits every notation voice in <var>track</var> into its own part.  Notes in
+ * each resulting part are normalized to voice 1.  Returns the number of
+ * resulting parts, or zero when the track has fewer than two voices.
+ */
+- (NSUInteger)convertVoicesToPartsForTrack:(NSInteger)track;
+/**
+ * Combines all populated parts into the lowest-numbered part, assigning one
+ * notation voice to each former part.  Returns the number of source parts, or
+ * zero when fewer than two parts are present.
+ */
+- (NSUInteger)convertPartsToVoices;
 @end

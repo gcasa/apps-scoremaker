@@ -40,6 +40,8 @@ extern NSString *const ScorePalettePasteboardType;
   NSDictionary *_displayedAccidentals;
   BOOL _separateParts;
   NSNumber *_publicationTrack;
+  ScoreNote *_draggedNote;
+  BOOL _dragChanged;
 }
 /** Returns the displayed score document. */
 - (ScoreDocument *)document;
@@ -49,6 +51,8 @@ extern NSString *const ScorePalettePasteboardType;
 - (void)reloadDocument;
 /** Returns the currently selected note, or <code>nil</code>. */
 - (ScoreNote *)selectedNote;
+/** Returns the selected note, or every note intersecting the Shift-click range. */
+- (NSArray *)selectedNotes;
 /** Selects <var>note</var> and optionally reveals it in the enclosing scroll view. */
 - (void)selectNote:(ScoreNote *)note scrollToVisible:(BOOL)scroll;
 /** Returns whether two notes currently define an inclusive playback loop. */

@@ -1879,6 +1879,90 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [self commitUndoBaseline];
 }
 
+- (void)convertVoicesToParts:(id)sender
+{
+  (void)sender;
+  ScoreDocument *document = [self scoreDocument];
+  if (!document)
+    return;
+  NSMutableSet *voices = [NSMutableSet set];
+  NSInteger selectedTrack = [self selectedPartNumber];
+  for (ScoreNote *note in [document notes])
+    if ([note track] == selectedTrack)
+      [voices addObject:[NSNumber numberWithInteger:[note voice]]];
+  if ([voices count] < 2)
+    {
+      NSBeep ();
+      return;
+    }
+  [self registerUndoSnapshotWithName:@"Voices to Parts"];
+  [document convertVoicesToPartsForTrack:selectedTrack];
+  [self updateChangeCount:NSChangeDone];
+  [[self scoreView] reloadDocument];
+  [self refreshInspector];
+  [self commitUndoBaseline];
+}
+
+- (void)convertPartsToVoices:(id)sender
+{
+  (void)sender;
+  ScoreDocument *document = [self scoreDocument];
+  if (!document)
+    return;
+  NSMutableSet *tracks = [NSMutableSet setWithArray:[[document partNames] allKeys]];
+  [tracks addObjectsFromArray:[[document trackPrograms] allKeys]];
+  for (ScoreNote *note in [document notes])
+    [tracks addObject:[NSNumber numberWithInteger:[note track]]];
+  if ([tracks count] < 2)
+    {
+      NSBeep ();
+      return;
+    }
+  [self registerUndoSnapshotWithName:@"Parts to Voices"];
+  [document convertPartsToVoices];
+  [self updateChangeCount:NSChangeDone];
+  [[self scoreView] reloadDocument];
+  [self refreshInspector];
+  [self commitUndoBaseline];
+}
+
+- (void)transposeSelection:(id)sender
+{
+  NSArray *notes = [[self scoreView] selectedNotes];
+  NSInteger semitones = [sender respondsToSelector:@selector (tag)] ? [sender tag] : 0;
+  if (![notes count] || semitones == 0) { NSBeep (); return; }
+  [self registerUndoSnapshotWithName:@"Transpose"];
+  for (ScoreNote *note in notes)
+    if (![note isRest])
+      [note setPitch:MIN ((NSInteger)127, MAX ((NSInteger)0, [note pitch] + semitones))];
+  [[self scoreView] reloadDocument];
+  [self updateChangeCount:NSChangeDone];
+  [self refreshInspector];
+  [self commitUndoBaseline];
+}
+
+- (void)quantizeSelection:(id)sender
+{
+  (void)sender;
+  NSArray *notes = [[self scoreView] selectedNotes];
+  if (![notes count]) { NSBeep (); return; }
+  NSUInteger quantum = [self durationTicksForNoteValueDenominator:
+                                [self denominatorForSelectedNoteValue]];
+  quantum = MAX ((NSUInteger)1, quantum);
+  [self registerUndoSnapshotWithName:@"Quantize"];
+  for (ScoreNote *note in notes)
+    {
+      [note setStartTick:(([note startTick] + quantum / 2) / quantum) * quantum];
+      [note setDurationTicks:MAX (quantum,
+        (([note durationTicks] + quantum / 2) / quantum) * quantum)];
+    }
+  [[[self scoreDocument] notes] sortUsingSelector:@selector (compareScoreNote:)];
+  [[self scoreView] reloadDocument];
+  [self updateChangeCount:NSChangeDone];
+  [self refreshInspector];
+  [self commitUndoBaseline];
+}
+
 - (void)partDidChange:(id)sender
 {
   (void)sender;
@@ -2150,6 +2234,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     return;
   ScoreDocument *document = [self scoreDocument];
   ScoreNote *note = [[self scoreView] selectedNote];
+  NSArray *selectedNotes = [[self scoreView] selectedNotes];
   ScoreMeasure *measure
     = note ? [document measureContainingTick:[note startTick]]
            : ([[document measures] count] ? [[document measures] objectAtIndex:0] : nil);
@@ -2164,20 +2249,29 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [measure setRepeatStart:[_repeatStartButton state] == ScoreMakerStateOn];
       [measure setRepeatEnd:[_repeatEndButton state] == ScoreMakerStateOn];
     }
-  if (note)
+  if ([selectedNotes count])
     {
-      [note setTieStart:[_tieStartButton state] == ScoreMakerStateOn];
-      [note setTieEnd:[_tieEndButton state] == ScoreMakerStateOn];
       NSString *tuplet = [_tupletPopUp titleOfSelectedItem];
       NSArray *ratio = [tuplet componentsSeparatedByString:@":"];
-      [note setTupletActual:[ratio count] == 2 ? [[ratio objectAtIndex:0] integerValue] : 0];
-      [note setTupletNormal:[ratio count] == 2 ? [[ratio objectAtIndex:1] integerValue] : 0];
       NSString *dynamic = [_dynamicPopUp titleOfSelectedItem];
-      [note setDynamic:[dynamic isEqualToString:@"No dynamic"] ? nil : dynamic];
       NSDictionary *articulations = [NSDictionary
         dictionaryWithObjectsAndKeys:@"staccato", @"Staccato", @"accent", @"Accent", @"tenuto",
                                      @"Tenuto", @"strong-accent", @"Strong accent", nil];
-      [note setArticulation:[articulations objectForKey:[_articulationPopUp titleOfSelectedItem]]];
+      for (ScoreNote *selected in selectedNotes)
+        {
+          if (![selected isRest])
+            {
+              [selected setTieStart:[_tieStartButton state] == ScoreMakerStateOn];
+              [selected setTieEnd:[_tieEndButton state] == ScoreMakerStateOn];
+              [selected setArticulation:
+                [articulations objectForKey:[_articulationPopUp titleOfSelectedItem]]];
+            }
+          [selected setTupletActual:[ratio count] == 2
+                                      ? [[ratio objectAtIndex:0] integerValue] : 0];
+          [selected setTupletNormal:[ratio count] == 2
+                                      ? [[ratio objectAtIndex:1] integerValue] : 0];
+          [selected setDynamic:[dynamic isEqualToString:@"No dynamic"] ? nil : dynamic];
+        }
     }
   [[self scoreView] reloadDocument];
   [self updateChangeCount:NSChangeDone];

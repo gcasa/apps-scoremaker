@@ -544,6 +544,27 @@ main (void)
            @"voices did not round trip");
   Require ([firstVoiceNote velocity] == 96 && [secondVoiceNote velocity] == 48,
            @"velocities did not round trip");
+  ScoreDocument *converted = [[voices copy] autorelease];
+  Require ([converted convertVoicesToPartsForTrack:0] == 2,
+           @"multiple voices could not be converted to parts");
+  NSMutableSet *convertedTracks = [NSMutableSet set];
+  for (ScoreNote *note in [converted notes])
+    {
+      [convertedTracks addObject:[NSNumber numberWithInteger:[note track]]];
+      Require ([note voice] == 1, @"voice-to-part conversion did not normalize voices");
+    }
+  Require ([convertedTracks count] == 2 && [[converted parts] count] == 2,
+           @"voice-to-part conversion did not create independent structured parts");
+  Require ([converted convertPartsToVoices] == 2,
+           @"multiple parts could not be converted back to voices");
+  NSMutableSet *restoredVoices = [NSMutableSet set];
+  for (ScoreNote *note in [converted notes])
+    {
+      Require ([note track] == 0, @"part-to-voice conversion did not merge tracks");
+      [restoredVoices addObject:[NSNumber numberWithInteger:[note voice]]];
+    }
+  Require ([restoredVoices count] == 2 && [[converted parts] count] == 1,
+           @"part-to-voice conversion did not preserve independent voices");
   Require ([[voiceRoundTrip measures][0] keySignatureFifths] == 2 &&
              [[[voiceRoundTrip measures][0] keyMode] isEqualToString:@"minor"] &&
              [[voiceRoundTrip measures][0] repeatStart] && [[voiceRoundTrip measures][1] repeatEnd],

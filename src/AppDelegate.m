@@ -436,6 +436,27 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
                                                  action:@selector (toggleLoopSelection:)
                                           keyEquivalent:@""] autorelease]];
   [scoreMenu addItem:[NSMenuItem separatorItem]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Voices to Parts"
+                                                 action:@selector (convertVoicesToParts:)
+                                          keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Parts to Voices"
+                                                 action:@selector (convertPartsToVoices:)
+                                          keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[NSMenuItem separatorItem]];
+  NSMenuItem *transposeUp = [[[NSMenuItem alloc] initWithTitle:@"Transpose Up Semitone"
+                                                        action:@selector (transposeSelection:)
+                                                 keyEquivalent:@""] autorelease];
+  [transposeUp setTag:1];
+  [scoreMenu addItem:transposeUp];
+  NSMenuItem *transposeDown = [[[NSMenuItem alloc] initWithTitle:@"Transpose Down Semitone"
+                                                          action:@selector (transposeSelection:)
+                                                   keyEquivalent:@""] autorelease];
+  [transposeDown setTag:-1];
+  [scoreMenu addItem:transposeDown];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Quantize Selection"
+                                                 action:@selector (quantizeSelection:)
+                                          keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[NSMenuItem separatorItem]];
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Routing Matrix..."
                                                  action:@selector (chooseMIDIOutput:)
                                           keyEquivalent:@""] autorelease]];

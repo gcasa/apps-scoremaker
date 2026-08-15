@@ -43,6 +43,8 @@ The native macOS plug-in format is currently sufficient for the supported macOS 
 therefore not enabled by default; it requires the Steinberg VST3 SDK and a separate host adapter
 before ScoreMaker targets systems or vendors that do not supply Audio Units.
 - Preserve independent note voices and explicit measure boundaries, including pickup measures and per-measure time signatures.
+- Convert the selected part's notation voices into independent parts, or combine all parts into independent voices, from the Score menu with full Undo support.
+- Shift-click a note range for bulk deletion, clipboard editing, transposition, quantization, tuplets, dynamics, and articulations; drag notes directly or use the arrow keys for semitone and sixteenth-note adjustments.
 - Reflow measures across systems and printed pages according to notation density, with collision-aware onset spacing, displaced seconds in chords, and staggered accidental columns.
 - Import, export, preserve, and render major/minor key signatures, including mid-system changes,
   cancellation naturals, contextual measure accidentals, ties, tuplets, dynamics, common

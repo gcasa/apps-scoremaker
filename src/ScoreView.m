@@ -48,6 +48,7 @@ NSString *const ScoreViewDidEditScoreNotification = @"ScoreViewDidEditScoreNotif
 NSString *const ScoreViewSelectionDidChangeNotification
   = @"ScoreViewSelectionDidChangeNotification";
 NSString *const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
+static NSArray *ScoreCopiedNotes = nil;
 
 static BOOL
 ScoreRectCollides (NSRect rect, NSArray *occupied)
@@ -135,6 +136,20 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 - (ScoreNote *)selectedNote
 {
   return _selectedNote;
+}
+
+- (NSArray *)selectedNotes
+{
+  if (!_selectedNote || ![[_document notes] containsObject:_selectedNote])
+    return [NSArray array];
+  if (![self hasLoopSelection])
+    return [NSArray arrayWithObject:_selectedNote];
+  NSUInteger start = [self loopStartTick], end = [self loopEndTick];
+  NSMutableArray *selection = [NSMutableArray array];
+  for (ScoreNote *note in [_document notes])
+    if ([note startTick] < end && [note startTick] + [note durationTicks] > start)
+      [selection addObject:note];
+  return selection;
 }
 
 - (void)selectNote:(ScoreNote *)note scrollToVisible:(BOOL)scroll
@@ -1056,7 +1071,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
         {
           [self drawPlaybackHighlightAtX:x y:y voice:[note voice]];
         }
-      if ((note == _selectedNote || note == _loopEndNote)
+      if ([[self selectedNotes] containsObject:note]
           && [[NSGraphicsContext currentContext] isDrawingToScreen])
         {
           [self drawSelectionAtX:x y:y];
@@ -1967,10 +1982,101 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
       _selectedNote = clickedNote;
       _loopEndNote = nil;
     }
+  _draggedNote = clickedNote;
+  _dragChanged = NO;
   [[self window] makeFirstResponder:self];
   [self setNeedsDisplay:YES];
   [[NSNotificationCenter defaultCenter] postNotificationName:ScoreViewSelectionDidChangeNotification
                                                       object:self];
+}
+
+- (void)mouseDragged:(NSEvent *)event
+{
+  if (!_draggedNote || ![[_document notes] containsObject:_draggedNote])
+    return;
+  NSPoint point = [self convertPoint:[event locationInWindow] fromView:nil];
+  NSUInteger systemStart = 0, systemEnd = 0;
+  CGFloat left = 0, right = 0, staffTop = 0;
+  BOOL treble = YES;
+  NSInteger track = [_draggedNote track];
+  if (![self scoreLayoutForPoint:point systemStart:&systemStart systemEnd:&systemEnd left:&left
+                           right:&right staffTop:&staffTop treble:&treble track:&track])
+    return;
+  NSUInteger tick = [self tickForPoint:point systemStart:systemStart systemEnd:systemEnd
+                                  left:left right:right];
+  NSUInteger quantum = MAX ((NSUInteger)1, [_document ticksPerQuarter] / 4);
+  tick = ((tick + quantum / 2) / quantum) * quantum;
+  NSInteger pitch = [_draggedNote isRest] ? [_draggedNote pitch]
+                                           : [self pitchForY:point.y treble:treble staffTop:staffTop];
+  if (tick != [_draggedNote startTick] || pitch != [_draggedNote pitch]
+      || track != [_draggedNote track])
+    {
+      [_draggedNote setStartTick:tick];
+      [_draggedNote setPitch:pitch];
+      [_draggedNote setTrack:MAX ((NSInteger)0, track)];
+      _dragChanged = YES;
+      [self reloadDocument];
+    }
+}
+
+- (void)mouseUp:(NSEvent *)event
+{
+  (void)event;
+  _draggedNote = nil;
+  if (_dragChanged)
+    {
+      [[_document notes] sortUsingSelector:@selector (compareScoreNote:)];
+      [self updateTotalTicksFromNotes];
+      [[NSNotificationCenter defaultCenter] postNotificationName:ScoreViewDidEditScoreNotification
+                                                          object:self];
+    }
+  _dragChanged = NO;
+}
+
+- (void)copy:(id)sender
+{
+  (void)sender;
+  [ScoreCopiedNotes release];
+  NSMutableArray *copies = [NSMutableArray array];
+  for (ScoreNote *note in [self selectedNotes])
+    [copies addObject:[[note copy] autorelease]];
+  ScoreCopiedNotes = [copies copy];
+}
+
+- (void)cut:(id)sender
+{
+  [self copy:sender];
+  NSArray *selection = [self selectedNotes];
+  if (![selection count]) return;
+  [[_document notes] removeObjectsInArray:selection];
+  _selectedNote = nil;
+  _loopEndNote = nil;
+  [self updateTotalTicksFromNotes];
+  [[NSNotificationCenter defaultCenter] postNotificationName:ScoreViewDidEditScoreNotification object:self];
+}
+
+- (void)paste:(id)sender
+{
+  (void)sender;
+  if (![ScoreCopiedNotes count]) return;
+  NSUInteger sourceStart = NSUIntegerMax;
+  for (ScoreNote *note in ScoreCopiedNotes)
+    sourceStart = MIN (sourceStart, [note startTick]);
+  NSUInteger destination = _selectedNote ? [_selectedNote startTick] + [_selectedNote durationTicks]
+                                         : [_document totalTicks];
+  ScoreNote *first = nil;
+  for (ScoreNote *source in ScoreCopiedNotes)
+    {
+      ScoreNote *note = [[source copy] autorelease];
+      [note setStartTick:destination + [source startTick] - sourceStart];
+      [[_document notes] addObject:note];
+      if (!first) first = note;
+    }
+  [[_document notes] sortUsingSelector:@selector (compareScoreNote:)];
+  _selectedNote = first;
+  _loopEndNote = nil;
+  [self updateTotalTicksFromNotes];
+  [[NSNotificationCenter defaultCenter] postNotificationName:ScoreViewDidEditScoreNotification object:self];
 }
 
 - (void)keyDown:(NSEvent *)event
@@ -1982,9 +2088,10 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
        || character == NSBackspaceCharacter || character == NSDeleteFunctionKey);
   if (deleteKey)
     {
-      if (_selectedNote && [[_document notes] containsObject:_selectedNote])
+      NSArray *selection = [self selectedNotes];
+      if ([selection count])
         {
-          [[_document notes] removeObject:_selectedNote];
+          [[_document notes] removeObjectsInArray:selection];
           _selectedNote = nil;
           _loopEndNote = nil;
           [self updateTotalTicksFromNotes];
@@ -1993,6 +2100,61 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                           object:self];
           [self reloadDocument];
         }
+      return;
+    }
+  if (_selectedNote && ([event keyCode] == 126 || [event keyCode] == 125
+                        || [event keyCode] == 123 || [event keyCode] == 124))
+    {
+      NSInteger pitchDelta = [event keyCode] == 126 ? 1 : ([event keyCode] == 125 ? -1 : 0);
+      NSInteger tickDelta = [event keyCode] == 124 ? 1 : ([event keyCode] == 123 ? -1 : 0);
+      NSUInteger quantum = MAX ((NSUInteger)1, [_document ticksPerQuarter] / 4);
+      for (ScoreNote *note in [self selectedNotes])
+        {
+          if (pitchDelta && ![note isRest])
+            [note setPitch:MIN ((NSInteger)127, MAX ((NSInteger)0, [note pitch] + pitchDelta))];
+          if (tickDelta)
+            [note setStartTick:tickDelta > 0 ? [note startTick] + quantum
+                                                : ([note startTick] >= quantum
+                                                     ? [note startTick] - quantum : 0)];
+        }
+      [[_document notes] sortUsingSelector:@selector (compareScoreNote:)];
+      [[NSNotificationCenter defaultCenter] postNotificationName:ScoreViewDidEditScoreNotification
+                                                          object:self];
+      return;
+    }
+  unichar lower = [[characters lowercaseString] length]
+                    ? [[characters lowercaseString] characterAtIndex:0] : 0;
+  if (lower >= 'a' && lower <= 'g'
+      && !([event modifierFlags] & (NSEventModifierFlagCommand | NSEventModifierFlagControl)))
+    {
+      NSInteger pitchClasses[] = { 9, 11, 0, 2, 4, 5, 7 };
+      NSInteger pitchClass = pitchClasses[lower - 'a'];
+      NSInteger referencePitch = _selectedNote && ![_selectedNote isRest]
+                                   ? [_selectedNote pitch] : 60;
+      NSInteger octaveBase = (referencePitch / 12) * 12;
+      NSInteger pitch = octaveBase + pitchClass;
+      if (pitch - referencePitch > 6) pitch -= 12;
+      if (referencePitch - pitch > 6) pitch += 12;
+      ScoreNote *note = _selectedNote ? [[_selectedNote copy] autorelease]
+                                      : [[[ScoreNote alloc] init] autorelease];
+      [note setRest:NO];
+      [note setPitch:MIN ((NSInteger)127, MAX ((NSInteger)0, pitch))];
+      [note setStartTick:_selectedNote
+                           ? [_selectedNote startTick] + [_selectedNote durationTicks]
+                           : [_document totalTicks]];
+      if (!_selectedNote)
+        {
+          [note setDurationTicks:MAX ((NSUInteger)1, [_document ticksPerQuarter])];
+          [note setTrack:0];
+          [note setVoice:1];
+        }
+      [[_document notes] addObject:note];
+      [[_document notes] sortUsingSelector:@selector (compareScoreNote:)];
+      _selectedNote = note;
+      _loopEndNote = nil;
+      [self updateTotalTicksFromNotes];
+      [[NSNotificationCenter defaultCenter] postNotificationName:ScoreViewDidEditScoreNotification
+                                                          object:self];
       return;
     }
   [super keyDown:event];

@@ -961,6 +961,82 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
     }
 }
 
+- (NSUInteger)convertVoicesToPartsForTrack:(NSInteger)track
+{
+  NSMutableSet *voiceSet = [NSMutableSet set];
+  for (ScoreNote *note in _notes)
+    if ([note track] == track)
+      [voiceSet addObject:[NSNumber numberWithInteger:[note voice]]];
+  NSArray *voices = [[voiceSet allObjects] sortedArrayUsingSelector:@selector (compare:)];
+  if ([voices count] < 2)
+    return 0;
+
+  NSInteger highestTrack = track;
+  for (NSNumber *number in [_partNames allKeys])
+    highestTrack = MAX (highestTrack, [number integerValue]);
+  for (NSNumber *number in [_trackPrograms allKeys])
+    highestTrack = MAX (highestTrack, [number integerValue]);
+  for (ScoreNote *note in _notes)
+    highestTrack = MAX (highestTrack, [note track]);
+
+  NSString *baseName = [self nameForTrack:track];
+  if (![baseName length])
+    baseName = [NSString stringWithFormat:@"Part %ld", (long)(track + 1)];
+  NSNumber *program = [self programForTrack:track];
+  NSMutableDictionary *tracksByVoice = [NSMutableDictionary dictionary];
+  for (NSUInteger index = 0; index < [voices count]; index++)
+    {
+      NSNumber *voice = [voices objectAtIndex:index];
+      NSInteger destinationTrack = index == 0 ? track : ++highestTrack;
+      [tracksByVoice setObject:[NSNumber numberWithInteger:destinationTrack] forKey:voice];
+      [self setName:[NSString stringWithFormat:@"%@ — Voice %@", baseName, voice]
+             forTrack:destinationTrack];
+      [self setProgram:program ?: [NSNumber numberWithInteger:0] forTrack:destinationTrack];
+    }
+  for (ScoreNote *note in _notes)
+    if ([note track] == track)
+      {
+        [note setTrack:[[tracksByVoice objectForKey:
+                         [NSNumber numberWithInteger:[note voice]]] integerValue]];
+        [note setVoice:1];
+      }
+  [self rebuildStructuredPartsFromLegacyTracks];
+  return [voices count];
+}
+
+- (NSUInteger)convertPartsToVoices
+{
+  NSMutableSet *trackSet = [NSMutableSet setWithArray:[_partNames allKeys]];
+  [trackSet addObjectsFromArray:[_trackPrograms allKeys]];
+  for (ScoreNote *note in _notes)
+    [trackSet addObject:[NSNumber numberWithInteger:[note track]]];
+  NSArray *tracks = [[trackSet allObjects] sortedArrayUsingSelector:@selector (compare:)];
+  if ([tracks count] < 2)
+    return 0;
+
+  NSInteger destinationTrack = [[tracks objectAtIndex:0] integerValue];
+  NSString *destinationName = [self nameForTrack:destinationTrack];
+  NSNumber *destinationProgram = [self programForTrack:destinationTrack];
+  NSMutableDictionary *voicesByTrack = [NSMutableDictionary dictionary];
+  for (NSUInteger index = 0; index < [tracks count]; index++)
+    [voicesByTrack setObject:[NSNumber numberWithUnsignedInteger:index + 1]
+                      forKey:[tracks objectAtIndex:index]];
+  for (ScoreNote *note in _notes)
+    {
+      [note setVoice:[[voicesByTrack objectForKey:
+                       [NSNumber numberWithInteger:[note track]]] integerValue]];
+      [note setTrack:destinationTrack];
+    }
+  [_partNames removeAllObjects];
+  [_trackPrograms removeAllObjects];
+  [self setName:[destinationName length] ? destinationName : @"Combined Parts"
+         forTrack:destinationTrack];
+  [self setProgram:destinationProgram ?: [NSNumber numberWithInteger:0]
+          forTrack:destinationTrack];
+  [self rebuildStructuredPartsFromLegacyTracks];
+  return [tracks count];
+}
+
 - (id)copyWithZone:(NSZone *)zone
 {
   ScoreDocument *copy = [[ScoreDocument allocWithZone:zone] init];

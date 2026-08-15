@@ -181,6 +181,14 @@
 - (void)tempoSliderDidChange:(id)sender;
 /** Inserts a note using the current inspector values. */
 - (void)addNote:(id)sender;
+/** Splits the selected part's notation voices into independent parts. */
+- (void)convertVoicesToParts:(id)sender;
+/** Combines all score parts as independent voices in one part. */
+- (void)convertPartsToVoices:(id)sender;
+/** Transposes the current note or Shift-click range by the sender's tag. */
+- (void)transposeSelection:(id)sender;
+/** Snaps selected note starts and durations to the inspector's note value. */
+- (void)quantizeSelection:(id)sender;
 /** Stops every active playback engine without interpreting a sender. */
 - (void)stopCurrentPlayback;
 /** Closes auxiliary windows and playback resources before application shutdown. */
