@@ -107,3 +107,7 @@ include $(GNUSTEP_MAKEFILES)/aggregate.make
 include $(GNUSTEP_MAKEFILES)/application.make
 -include GNUmakefile.postamble
 endif
+
+.PHONY: documentation
+documentation:
+	$(MAKE) -C Documentation -f GNUmakefile
