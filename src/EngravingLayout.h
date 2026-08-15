@@ -20,37 +20,52 @@
 #import <AppKit/AppKit.h>
 #import "NotationModel.h"
 
+/** Describes the tick, measure, and horizontal-position span of one system. */
 @interface ScoreEngravingSystem : NSObject
 {
   NSUInteger _startTick, _endTick, _firstMeasureIndex, _lastMeasureIndex;
   NSArray *_ticks, *_fractions;
 }
+/** First tick included in the system. */
 @property (nonatomic) NSUInteger startTick;
+/** Exclusive ending tick of the system. */
 @property (nonatomic) NSUInteger endTick;
+/** Zero-based index of the first included measure. */
 @property (nonatomic) NSUInteger firstMeasureIndex;
+/** Zero-based index of the last included measure. */
 @property (nonatomic) NSUInteger lastMeasureIndex;
+/** Ordered NSNumber tick anchors used for horizontal interpolation. */
 @property (nonatomic, copy) NSArray *ticks;
+/** Ordered NSNumber horizontal fractions corresponding to the tick anchors. */
 @property (nonatomic, copy) NSArray *fractions;
+/** Returns the normalized horizontal position for <var>tick</var>. */
 - (CGFloat)fractionForTick:(NSUInteger)tick;
 @end
 
+/** Contains every engraved system and the normalized notation elements. */
 @interface ScoreEngravingLayout : NSObject
 {
   NSArray *_systems, *_notationElements;
 }
+/** Ordered array of ScoreEngravingSystem instances. */
 @property (nonatomic, copy) NSArray *systems;
+/** Array of ScoreNotationElement instances used by the layout. */
 @property (nonatomic, copy) NSArray *notationElements;
+/** Returns the system spanning <var>tick</var>, or <code>nil</code>. */
 - (ScoreEngravingSystem *)systemContainingTick:(NSUInteger)tick;
 @end
 
+/** Computes deterministic measure widths, system breaks, and onset spacing. */
 @interface ScoreEngraver : NSObject
 {
   NSDictionary *_displayedAccidentals;
   ScoreDocument *_accidentalDocument;
 }
+/** Returns the preferred width for <var>measure</var>, never below <var>minimum</var>. */
 - (CGFloat)widthForMeasure:(ScoreMeasure *)measure
                   document:(ScoreDocument *)document
                    minimum:(CGFloat)minimum;
+/** Lays out <var>document</var> within the supplied music width. */
 - (ScoreEngravingLayout *)layoutDocument:(ScoreDocument *)document
                               musicWidth:(CGFloat)musicWidth
                      minimumMeasureWidth:(CGFloat)minimumMeasureWidth;

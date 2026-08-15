@@ -78,8 +78,8 @@ release:
 
 test: $(APP_BIN)
 	mkdir -p "$(BUILD_DIR)/tests"
-	$(CC) $(GNUSTEP_CFLAGS) -Wall -Wextra -fobjc-exceptions -Isrc tests/DocumentOpenCompatibilityTests.m src/RealtimeDSP.m src/ScoreMakerDocumentController.m src/ScoreMakerDocument.m src/MidiParser.m src/MusicXMLParser.m src/ScorefileParser.m src/ScoreProjectSerializer.m src/ScoreModel.m src/MusicPlatformModel.m src/MusicEngine.m src/NotationModel.m src/EngravingLayout.m src/ScoreView.m src/PlaybackMonitorView.m src/MIDIInputManager.m $(GNUSTEP_LIBS) $(GNUSTEP_AVFOUNDATION_LIBS) -o "$(BUILD_DIR)/tests/document-open-tests"
-	"$(BUILD_DIR)/tests/document-open-tests"
+	$(CC) $(GNUSTEP_CFLAGS) -Wall -Wextra -fobjc-exceptions -Isrc tests/ScorefileCompatibilityTests.m src/RealtimeDSP.m src/ScorefileParser.m src/ScoreProjectSerializer.m src/MusicXMLParser.m src/MidiParser.m src/ScoreModel.m src/MusicPlatformModel.m src/MusicEngine.m src/NotationModel.m src/EngravingLayout.m $(GNUSTEP_LIBS) $(GNUSTEP_AVFOUNDATION_LIBS) -o "$(BUILD_DIR)/tests/scorefile-tests"
+	"$(BUILD_DIR)/tests/scorefile-tests"
 endif
 
 clean:

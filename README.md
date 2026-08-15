@@ -1,6 +1,6 @@
 # ScoreMaker
 
-ScoreMaker is a small Objective-C AppKit score viewer for macOS and GNUstep. It opens Standard MIDI files and MusicKit-style `.score` scorefiles, renders their pitched notes on simple treble and bass staves, and can save the current score back out as a `.score` file.
+ScoreMaker is a small Objective-C AppKit score viewer for macOS, with an experimental GNUstep port. It opens Standard MIDI files and MusicKit-style `.score` scorefiles, renders their pitched notes on simple treble and bass staves, and can save the current score back out as a `.score` file.
 
 The renderer is intentionally lightweight. It focuses on extracting timing, pitch, tempo, and time-signature data well enough to inspect a score visually; it is not a full notation editor or MusicKit synthesis environment.
 
@@ -16,7 +16,8 @@ The renderer is intentionally lightweight. It focuses on extracting timing, pitc
 - Render notes across treble and bass staves with measure lines.
 - Read MIDI tempo and time-signature metadata when available.
 - Add pitched notes and edit score notes, tempo, and time signature from the inspector next to the sheet.
-- Play the current score through AVFoundation on macOS or GNUstep.
+- Play the current score through AVFoundation on macOS. The experimental GNUstep port requires a
+  separately supplied AVFoundation-compatible framework.
 - Route individual parts to different physical CoreMIDI output devices on macOS, with persistent
   per-part assignments and built-in-synth fallback when a saved device is unavailable.
 - Show active notes on an 88-key piano with middle C marked as C4, display live MIDI-velocity meters for each voice during playback, and audition and enter notes by clicking the piano keys.
@@ -52,7 +53,7 @@ before ScoreMaker targets systems or vendors that do not supply Audio Units.
 ### macOS
 <img width="2303" height="1397" alt="msuic2" src="https://github.com/user-attachments/assets/57c758d3-eb8c-46e6-9bb5-527605c512ad" />
 
-### GNUstep
+### GNUstep (experimental)
 <img width="2178" height="1029" alt="Untitled" src="https://github.com/user-attachments/assets/27c01b26-ff4f-47bb-987e-f0cce37d01bf" />
 
 ## Build
@@ -67,14 +68,19 @@ make
 open build/macos/ScoreMaker.app
 ```
 
-On GNUstep:
+On GNUstep (experimental):
 
 ```sh
 make
 gopen ScoreMaker.app
 ```
 
-The GNUstep build expects `gnustep-config`, GNUstep GUI libraries, and an Objective-C compiler to be installed.
+The GNUstep build expects `gnustep-config`, GNUstep Base and GUI development libraries, an
+Objective-C compiler, and a separately supplied AVFoundation-compatible framework that provides
+both the `AVFoundation/AVFoundation.h` headers and a linkable `libAVFoundation`. That framework is
+not part of the standard GNUstep Base or GUI distribution and is not currently provisioned by this
+repository. Consequently, macOS is the only release-supported platform; GNUstep builds are
+experimental until a reproducible dependency source and CI environment are established.
 
 ## Tests
 
@@ -88,6 +94,10 @@ In Xcode, select the **ScoreMakerCompatibilityTests** scheme and choose **Produc
 (Command-U). Both entry points execute the same suite, including parser round trips, project
 persistence, composition and MIDI routing, scheduling, notation and engraving, synthesizer patch
 validation, effects, and sample-accurate offline audio rendering.
+
+On a GNUstep system with the additional AVFoundation-compatible framework described above,
+`make test` builds the application and runs the same compatibility-suite source. This path is not
+part of the supported release matrix until it runs in CI.
 
 ## Use
 

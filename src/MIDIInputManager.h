@@ -19,6 +19,10 @@
 
 #import <Foundation/Foundation.h>
 
+/**
+ * Enumerates MIDI input endpoints, maintains one active connection, and sends
+ * decoded channel messages to an Objective-C target/action pair.
+ */
 @interface MIDIInputManager : NSObject
 {
 @public
@@ -32,10 +36,16 @@
   unsigned char _runningStatus;
 #endif
 }
+/** Sets the nonretained receiver of decoded MIDI messages. */
 - (void)setTarget:(id)target;
+/** Sets the selector invoked for decoded MIDI messages. */
 - (void)setAction:(SEL)action;
+/** Sets the selector invoked when the endpoint list changes. */
 - (void)setChangeAction:(SEL)action;
+/** Returns dictionaries describing currently available input endpoints. */
 - (NSArray *)availableSources;
+/** Connects to the platform endpoint represented by <var>source</var>. */
 - (BOOL)connectToSource:(unsigned int)source;
+/** Disconnects the active endpoint and clears parser state. */
 - (void)disconnect;
 @end

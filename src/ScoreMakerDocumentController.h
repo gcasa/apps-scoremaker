@@ -19,5 +19,9 @@
 
 #import <AppKit/AppKit.h>
 
+/**
+ * Creates ScoreMaker documents and selects the appropriate importer for each
+ * supported file type.
+ */
 @interface ScoreMakerDocumentController : NSDocumentController
 @end

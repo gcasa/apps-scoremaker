@@ -21,10 +21,14 @@
 #import "ScoreModel.h"
 #import "EngravingLayout.h"
 
+/** Posted after an interactive edit changes the score model. */
 extern NSString *const ScoreViewDidEditScoreNotification;
+/** Posted after the selected note or loop endpoint changes. */
 extern NSString *const ScoreViewSelectionDidChangeNotification;
+/** Pasteboard type used when dragging a ScoreMaker palette item. */
 extern NSString *const ScorePalettePasteboardType;
 
+/** Renders, prints, selects, and directly edits a ScoreDocument. */
 @interface ScoreView : NSView
 {
   ScoreDocument *_document;
@@ -37,23 +41,41 @@ extern NSString *const ScorePalettePasteboardType;
   BOOL _separateParts;
   NSNumber *_publicationTrack;
 }
+/** Returns the displayed score document. */
 - (ScoreDocument *)document;
+/** Replaces the displayed score document and invalidates layout. */
 - (void)setDocument:(ScoreDocument *)document;
+/** Rebuilds engraving state after in-place model changes. */
 - (void)reloadDocument;
+/** Returns the currently selected note, or <code>nil</code>. */
 - (ScoreNote *)selectedNote;
+/** Selects <var>note</var> and optionally reveals it in the enclosing scroll view. */
 - (void)selectNote:(ScoreNote *)note scrollToVisible:(BOOL)scroll;
+/** Returns whether two notes currently define an inclusive playback loop. */
 - (BOOL)hasLoopSelection;
+/** Returns the first tick of the selected loop. */
 - (NSUInteger)loopStartTick;
+/** Returns the exclusive ending tick of the selected loop. */
 - (NSUInteger)loopEndTick;
+/** Displays the playback cursor at <var>tick</var>. */
 - (void)setPlaybackTick:(NSUInteger)tick;
+/** Hides the playback cursor. */
 - (void)clearPlayback;
+/** Scrolls the system containing <var>tick</var> into view. */
 - (void)scrollPlaybackTickToVisible:(NSUInteger)tick;
+/** Returns the number of pages required by the current print layout. */
 - (NSUInteger)pageCount;
+/** Returns the printable content size of one score page. */
 - (NSSize)printedPageContentSize;
+/** Returns whether parts are displayed in separate publication layouts. */
 - (BOOL)separateParts;
+/** Selects combined-score or separated-part display. */
 - (void)setSeparateParts:(BOOL)separate;
+/** Returns the sole legacy track selected for publication, or <code>nil</code>. */
 - (NSNumber *)publicationTrack;
+/** Sets the sole publication track, or <code>nil</code> to show all tracks. */
 - (void)setPublicationTrack:(NSNumber *)track;
+/** Inserts a palette object at the requested score position and returns success. */
 - (BOOL)insertPaletteItem:(NSString *)item
                   atPoint:(NSPoint)point
                     pitch:(NSInteger)pitch

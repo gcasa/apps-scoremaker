@@ -27,6 +27,10 @@
 #import <CoreMIDI/CoreMIDI.h>
 #endif
 
+/**
+ * Owns a ScoreDocument and coordinates its windows, inspector, playback,
+ * recording, routing, synthesis, source editing, printing, and persistence.
+ */
 @interface ScoreMakerDocument : NSDocument <NSTextFieldDelegate, NSTableViewDataSource, NSTableViewDelegate>
 {
   NSWindow *_documentWindow;
@@ -145,43 +149,82 @@
   MusicTimeStamp _externalPlaybackTime;
 #endif
 }
+/** Returns the primary document window. */
 - (NSWindow *)window;
+/** Sets the primary document window. */
 - (void)setWindow:(NSWindow *)window;
+/** Returns the controller that owns the primary document window. */
 - (NSWindowController *)windowController;
+/** Sets the controller that owns the primary document window. */
 - (void)setWindowController:(NSWindowController *)windowController;
+/** Returns the scroll view containing the score. */
 - (NSScrollView *)scrollView;
+/** Sets the scroll view containing the score. */
 - (void)setScrollView:(NSScrollView *)scrollView;
+/** Returns the document's rendered score view. */
 - (ScoreView *)scoreView;
+/** Sets the document's rendered score view. */
 - (void)setScoreView:(ScoreView *)scoreView;
+/** Returns the editable score model. */
 - (ScoreDocument *)scoreDocument;
+/** Replaces the editable score model and updates dependent controllers. */
 - (void)setScoreDocument:(ScoreDocument *)document;
+/** Returns the inspector content view. */
 - (NSView *)inspectorView;
+/** Sets the inspector content view. */
 - (void)setInspectorView:(NSView *)inspectorView;
+/** Copies inspector metadata into the model and optionally marks a document edit. */
 - (void)syncInspectorMetadataMarkingChange:(BOOL)markChange;
+/** Handles an inspector edit to title, composer, meter, or score notes. */
 - (void)scoreMetadataDidChange:(id)sender;
+/** Applies the tempo slider's value to the document. */
 - (void)tempoSliderDidChange:(id)sender;
+/** Inserts a note using the current inspector values. */
 - (void)addNote:(id)sender;
+/** Stops every active playback engine without interpreting a sender. */
 - (void)stopCurrentPlayback;
+/** Closes auxiliary windows and playback resources before application shutdown. */
 - (void)prepareForApplicationTermination;
+/** Stops playback and restores the transport to the beginning. */
 - (void)stopPlayback:(id)sender;
+/** Pauses playback while retaining the resume position. */
 - (void)pausePlayback:(id)sender;
+/** Starts or resumes score playback using current routing. */
 - (void)playScore:(id)sender;
+/** Enables or disables looping over the ScoreView selection. */
 - (void)toggleLoopSelection:(id)sender;
+/** Presents the standard print workflow for the current score. */
 - (void)printDocument:(id)sender;
+/** Presents an editor for the score title. */
 - (void)editScoreTitle:(id)sender;
+/** Presents the font panel for the score title. */
 - (void)chooseTitleFont:(id)sender;
+/** Applies the font manager's current title-font conversion. */
 - (void)changeFont:(id)sender;
+/** Opens the persistent per-part MIDI routing matrix. */
 - (void)chooseMIDIOutput:(id)sender;
+/** Enables or disables the real-time DSP playback engine. */
 - (void)toggleRealtimeDSP:(id)sender;
+/** Presents and assigns an installed Audio Unit instrument. */
 - (void)chooseAudioUnitInstrument:(id)sender;
+/** Opens the per-part, per-voice internal synthesizer patch editor. */
 - (void)showInternalSynthPatchEditor:(id)sender;
+/** Opens the active Audio Unit's vendor or generic editor. */
 - (void)showAudioUnitEditor:(id)sender;
+/** Presents user-preset load, save, and removal controls. */
 - (void)manageAudioUnitPresets:(id)sender;
+/** Presents compatible replacements for a missing Audio Unit. */
 - (void)relinkAudioUnitInstrument:(id)sender;
+/** Presents persisted Audio Unit validation results and blacklist controls. */
 - (void)showAudioUnitCompatibilityReport:(id)sender;
+/** Presents the shared master effects-chain editor. */
 - (void)editEffects:(id)sender;
+/** Presents options and renders the score to an audio file. */
 - (void)renderOfflineAudio:(id)sender;
+/** Opens the document's syntax-highlighted score-source editor. */
 - (void)showScoreSourceEditor:(id)sender;
+/** Parses and atomically applies the current source-editor contents. */
 - (void)applyScoreSource:(id)sender;
+/** Replaces unapplied source edits with source generated from the score model. */
 - (void)revertScoreSource:(id)sender;
 @end

@@ -20,7 +20,16 @@
 #import <Foundation/Foundation.h>
 #import "ScoreModel.h"
 
+/** Converts uncompressed MusicXML files to and from ScoreMaker documents. */
 @interface MusicXMLParser : NSObject
+/**
+ * Parses the MusicXML file at <var>path</var>.
+ * Returns a new score document, or <code>nil</code> and an error on failure.
+ */
 + (ScoreDocument *)parseFileAtPath:(NSString *)path error:(NSError **)error;
+/**
+ * Encodes <var>document</var> as uncompressed MusicXML data.
+ * Returns <code>nil</code> and an error if serialization fails.
+ */
 + (NSData *)dataForDocument:(ScoreDocument *)document error:(NSError **)error;
 @end

@@ -19,6 +19,10 @@
 
 #import <AppKit/AppKit.h>
 
+/**
+ * Coordinates application startup, document commands, and the dynamically
+ * populated Score menu.
+ */
 @interface AppDelegate : NSObject <NSApplicationDelegate, NSMenuDelegate>
 {
   NSMenu *_recentDocumentsMenu;
