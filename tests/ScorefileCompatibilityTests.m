@@ -291,6 +291,16 @@ main (void)
              && [restoredPart midiFallbackUniqueID] == 8484
              && [[restoredPart midiFallbackName] isEqualToString:@"Backup MIDI Interface"],
            @"native project persistence lost the per-part MIDI fallback assignment");
+  ScoreDocument *reparsed = [[[ScoreDocument alloc] init] autorelease];
+  [reparsed rebuildStructuredPartsFromLegacyTracks];
+  [reparsed copyMIDIRoutingAssignmentsFromDocument:projectRoundTrip];
+  ScorePartDefinition *reparsedPart = [[reparsed parts] objectAtIndex:0];
+  Require ([reparsedPart midiOutputUniqueID] == 4242
+             && [[reparsedPart midiOutputName] isEqualToString:@"Studio MIDI Interface"]
+             && [[reparsedPart midiFallbackMode] isEqualToString:@"device"]
+             && [reparsedPart midiFallbackUniqueID] == 8484
+             && [[reparsedPart midiFallbackName] isEqualToString:@"Backup MIDI Interface"],
+           @"reparsing score source lost the routing matrix fallback assignment");
   Require (
     [[restoredInstrument backendIdentifier]
       isEqualToString:@"audio-unit:1635085685:1935764848:1634758764"]

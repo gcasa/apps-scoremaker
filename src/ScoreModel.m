@@ -937,6 +937,30 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
   [_tempoEvents addObject:tempo];
 }
 
+- (void)copyMIDIRoutingAssignmentsFromDocument:(ScoreDocument *)document
+{
+  if (!document || document == self)
+    return;
+
+  NSMutableDictionary *sourcePartsByTrack = [NSMutableDictionary dictionary];
+  for (ScorePartDefinition *part in [document parts])
+    [sourcePartsByTrack setObject:part
+                          forKey:[NSNumber numberWithInteger:[part legacyTrack]]];
+
+  for (ScorePartDefinition *part in _parts)
+    {
+      ScorePartDefinition *source =
+        [sourcePartsByTrack objectForKey:[NSNumber numberWithInteger:[part legacyTrack]]];
+      if (!source)
+        continue;
+      [part setMidiOutputUniqueID:[source midiOutputUniqueID]];
+      [part setMidiOutputName:[source midiOutputName]];
+      [part setMidiFallbackMode:[source midiFallbackMode] ?: @"builtin"];
+      [part setMidiFallbackUniqueID:[source midiFallbackUniqueID]];
+      [part setMidiFallbackName:[source midiFallbackName]];
+    }
+}
+
 - (id)copyWithZone:(NSZone *)zone
 {
   ScoreDocument *copy = [[ScoreDocument allocWithZone:zone] init];

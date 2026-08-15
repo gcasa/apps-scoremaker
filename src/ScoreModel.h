@@ -196,4 +196,6 @@ FOUNDATION_EXPORT NSDictionary *ScoreDisplayedAccidentalMapForDocument (ScoreDoc
 - (ScoreCompositionProgram *)compositionProgram;
 - (void)setCompositionProgram:(ScoreCompositionProgram *)program;
 - (void)rebuildStructuredPartsFromLegacyTracks;
+/* Preserve user-selected routing when a parser rebuilds the structured parts. */
+- (void)copyMIDIRoutingAssignmentsFromDocument:(ScoreDocument *)document;
 @end

@@ -6435,6 +6435,7 @@ ScoreSourceNoteIdentity (ScoreNote *note, ScoreDocument *document)
 
   [self registerUndoSnapshotWithName:@"Edit Score Source"];
   _applyingScoreSource = YES;
+  [parsed copyMIDIRoutingAssignmentsFromDocument:[self scoreDocument]];
   [self setScoreDocument:parsed];
   [[self scoreView] reloadDocument];
   [self refreshInspector];
