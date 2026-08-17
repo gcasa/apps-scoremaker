@@ -41,7 +41,29 @@ typedef NS_ENUM (NSInteger, ScoreNotationKind) {
   /** A key-signature change. */
   ScoreNotationKeySignature,
   /** A repeat barline. */
-  ScoreNotationRepeat
+  ScoreNotationRepeat,
+  /** A lyric syllable. */
+  ScoreNotationLyric,
+  /** An ornament such as a trill or turn. */
+  ScoreNotationOrnament,
+  /** An unmetered grace-note marker. */
+  ScoreNotationGrace,
+  /** A cue-sized note marker. */
+  ScoreNotationCue,
+  /** A measured or unmeasured tremolo. */
+  ScoreNotationTremolo,
+  /** A boxed rehearsal mark. */
+  ScoreNotationRehearsalMark,
+  /** A volta/ending span. */
+  ScoreNotationEnding,
+  /** Crescendo or diminuendo wedge. */
+  ScoreNotationHairpin,
+  /** Piano sustain-pedal line. */
+  ScoreNotationPedal,
+  /** 8va or 8vb line. */
+  ScoreNotationOctaveShift,
+  /** Free score text anchored to a rhythmic position. */
+  ScoreNotationText
 };
 
 /**

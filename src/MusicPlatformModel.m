@@ -122,16 +122,21 @@ ScoreNewIdentifier (void)
 @synthesize identifier = _identifier, name = _name, abbreviatedName = _abbreviatedName;
 @synthesize legacyTrack = _legacyTrack, visible = _visible, instrument = _instrument,
             staves = _staves;
+@synthesize muted = _muted, soloed = _soloed, gain = _gain, pan = _pan;
+@synthesize groupName = _groupName;
 @synthesize midiOutputUniqueID = _midiOutputUniqueID, midiOutputName = _midiOutputName;
 @synthesize midiFallbackMode = _midiFallbackMode, midiFallbackUniqueID = _midiFallbackUniqueID,
             midiFallbackName = _midiFallbackName;
 @synthesize synthesisGraph = _synthesisGraph;
+- (void)setGain:(CGFloat)value { _gain = MIN ((CGFloat)2.0, MAX ((CGFloat)0.0, value)); }
+- (void)setPan:(CGFloat)value { _pan = MIN ((CGFloat)1.0, MAX ((CGFloat)-1.0, value)); }
 - (id)init
 {
   if ((self = [super init]))
     {
       _identifier = [ScoreNewIdentifier () copy];
       _visible = YES;
+      _gain = 1.0;
       _midiFallbackMode = [@"builtin" copy];
       _staves = [[NSMutableArray alloc] init];
       _synthesisGraph = [[ScoreSynthesisGraph alloc] init];
@@ -146,6 +151,11 @@ ScoreNewIdentifier (void)
   copy.abbreviatedName = _abbreviatedName;
   copy.legacyTrack = _legacyTrack;
   copy.visible = _visible;
+  copy.muted = _muted;
+  copy.soloed = _soloed;
+  copy.gain = _gain;
+  copy.pan = _pan;
+  copy.groupName = _groupName;
   copy.midiOutputUniqueID = _midiOutputUniqueID;
   copy.midiOutputName = _midiOutputName;
   copy.midiFallbackMode = _midiFallbackMode;
@@ -161,12 +171,62 @@ ScoreNewIdentifier (void)
   [_identifier release];
   [_name release];
   [_abbreviatedName release];
+  [_groupName release];
   [_midiOutputName release];
   [_midiFallbackMode release];
   [_midiFallbackName release];
   [_instrument release];
   [_staves release];
   [_synthesisGraph release];
+  [super dealloc];
+}
+@end
+
+@implementation ScorePageLayout
+@synthesize paperWidth = _paperWidth, paperHeight = _paperHeight;
+@synthesize marginTop = _marginTop, marginRight = _marginRight;
+@synthesize marginBottom = _marginBottom, marginLeft = _marginLeft;
+@synthesize staffScale = _staffScale, systemSpacing = _systemSpacing;
+@synthesize showPageNumbers = _showPageNumbers, showHeaders = _showHeaders;
+@synthesize headerText = _headerText, footerText = _footerText;
+- (id)init
+{
+  if ((self = [super init]))
+    {
+      /* Screen-space defaults preserve ScoreMaker's established page while
+         remaining fully configurable for publication and PDF output. */
+      _paperWidth = 944.0;
+      _paperHeight = 1222.0;
+      _marginTop = _marginRight = _marginBottom = _marginLeft = 48.0;
+      _staffScale = 1.0;
+      _systemSpacing = 24.0;
+      _showPageNumbers = YES;
+      _showHeaders = YES;
+    }
+  return self;
+}
+- (void)setPaperWidth:(CGFloat)value { _paperWidth = MAX (72.0, value); }
+- (void)setPaperHeight:(CGFloat)value { _paperHeight = MAX (72.0, value); }
+- (void)setMarginTop:(CGFloat)value { _marginTop = MAX (0.0, value); }
+- (void)setMarginRight:(CGFloat)value { _marginRight = MAX (0.0, value); }
+- (void)setMarginBottom:(CGFloat)value { _marginBottom = MAX (0.0, value); }
+- (void)setMarginLeft:(CGFloat)value { _marginLeft = MAX (0.0, value); }
+- (void)setStaffScale:(CGFloat)value { _staffScale = MIN (2.0, MAX (0.5, value)); }
+- (void)setSystemSpacing:(CGFloat)value { _systemSpacing = MAX (0.0, value); }
+- (id)copyWithZone:(NSZone *)zone
+{
+  ScorePageLayout *copy = [[ScorePageLayout allocWithZone:zone] init];
+  copy.paperWidth = _paperWidth; copy.paperHeight = _paperHeight;
+  copy.marginTop = _marginTop; copy.marginRight = _marginRight;
+  copy.marginBottom = _marginBottom; copy.marginLeft = _marginLeft;
+  copy.staffScale = _staffScale; copy.systemSpacing = _systemSpacing;
+  copy.showPageNumbers = _showPageNumbers; copy.showHeaders = _showHeaders;
+  copy.headerText = _headerText; copy.footerText = _footerText;
+  return copy;
+}
+- (void)dealloc
+{
+  [_headerText release]; [_footerText release];
   [super dealloc];
 }
 @end

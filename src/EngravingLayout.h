@@ -24,6 +24,7 @@
 @interface ScoreEngravingSystem : NSObject
 {
   NSUInteger _startTick, _endTick, _firstMeasureIndex, _lastMeasureIndex;
+  BOOL _startsNewPage;
   NSArray *_ticks, *_fractions;
 }
 /** First tick included in the system. */
@@ -34,6 +35,8 @@
 @property (nonatomic) NSUInteger firstMeasureIndex;
 /** Zero-based index of the last included measure. */
 @property (nonatomic) NSUInteger lastMeasureIndex;
+/** Whether this system was forced to the top of a new page. */
+@property (nonatomic) BOOL startsNewPage;
 /** Ordered NSNumber tick anchors used for horizontal interpolation. */
 @property (nonatomic, copy) NSArray *ticks;
 /** Ordered NSNumber horizontal fractions corresponding to the tick anchors. */
@@ -41,6 +44,15 @@
 /** Returns the normalized horizontal position for <var>tick</var>. */
 - (CGFloat)fractionForTick:(NSUInteger)tick;
 @end
+
+/** Returns the zero-based page containing a system, honoring forced page starts. */
+FOUNDATION_EXPORT NSUInteger ScorePageIndexForSystem (NSArray *systems,
+                                                       NSUInteger systemIndex,
+                                                       NSUInteger systemsPerPage);
+/** Returns the zero-based vertical position of a system on its assigned page. */
+FOUNDATION_EXPORT NSUInteger ScorePositionOnPageForSystem (NSArray *systems,
+                                                            NSUInteger systemIndex,
+                                                            NSUInteger systemsPerPage);
 
 /** Contains every engraved system and the normalized notation elements. */
 @interface ScoreEngravingLayout : NSObject

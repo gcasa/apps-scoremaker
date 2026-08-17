@@ -181,8 +181,7 @@ ScoreMakerStructureComment (ScoreDocument *document, NSError **error)
   NSMutableArray *measures = [NSMutableArray array];
   for (ScoreMeasure *measure in [document measures])
     {
-      [measures
-        addObject:[NSDictionary
+      NSMutableDictionary *measureDetail = [NSMutableDictionary
                     dictionaryWithObjectsAndKeys:
                       [NSNumber numberWithInteger:[measure number]], @"number",
                       [NSNumber numberWithUnsignedInteger:[measure startTick]], @"startTick",
@@ -195,7 +194,14 @@ ScoreMakerStructureComment (ScoreDocument *document, NSError **error)
                       [NSNumber numberWithInteger:[measure keySignatureFifths]], @"keyFifths",
                       [measure keyMode], @"keyMode",
                       [NSNumber numberWithBool:[measure repeatStart]], @"repeatStart",
-                      [NSNumber numberWithBool:[measure repeatEnd]], @"repeatEnd", nil]];
+                      [NSNumber numberWithBool:[measure repeatEnd]], @"repeatEnd", nil];
+      if ([[measure rehearsalMark] length])
+        [measureDetail setObject:[measure rehearsalMark] forKey:@"rehearsalMark"];
+      if ([[measure endingText] length])
+        [measureDetail setObject:[measure endingText] forKey:@"endingText"];
+      [measureDetail setObject:[NSNumber numberWithBool:[measure systemBreak]] forKey:@"systemBreak"];
+      [measureDetail setObject:[NSNumber numberWithBool:[measure pageBreak]] forKey:@"pageBreak"];
+      [measures addObject:measureDetail];
     }
   NSMutableArray *noteDetails = [NSMutableArray array];
   for (ScoreNote *note in [document notes])
@@ -204,6 +210,8 @@ ScoreMakerStructureComment (ScoreDocument *document, NSError **error)
         dictionaryWithObjectsAndKeys:[NSNumber numberWithInteger:[note voice]], @"voice",
                                      [NSNumber numberWithInteger:[note measureIndex]],
                                      @"measureIndex",
+                                     [NSNumber numberWithInteger:[note staffAssignment]],
+                                     @"staffAssignment",
                                      [NSNumber numberWithUnsignedInteger:[note startTick]],
                                      @"startTick",
                                      [NSNumber numberWithUnsignedInteger:[note durationTicks]],
@@ -222,6 +230,26 @@ ScoreMakerStructureComment (ScoreDocument *document, NSError **error)
         [detail setObject:[note dynamic] forKey:@"dynamic"];
       if ([[note articulation] length])
         [detail setObject:[note articulation] forKey:@"articulation"];
+      if ([[note lyric] length])
+        [detail setObject:[note lyric] forKey:@"lyric"];
+      if ([[note ornament] length])
+        [detail setObject:[note ornament] forKey:@"ornament"];
+      if ([note isGrace])
+        [detail setObject:@YES forKey:@"grace"];
+      if ([note isCue])
+        [detail setObject:@YES forKey:@"cue"];
+      if ([note tremoloStrokes])
+        [detail setObject:@([note tremoloStrokes]) forKey:@"tremoloStrokes"];
+      if ([[note hairpinStart] length])
+        [detail setObject:[note hairpinStart] forKey:@"hairpinStart"];
+      if ([note hairpinEnd]) [detail setObject:@YES forKey:@"hairpinEnd"];
+      if ([note pedalStart]) [detail setObject:@YES forKey:@"pedalStart"];
+      if ([note pedalEnd]) [detail setObject:@YES forKey:@"pedalEnd"];
+      if ([note octaveShiftStart])
+        [detail setObject:@([note octaveShiftStart]) forKey:@"octaveShiftStart"];
+      if ([note octaveShiftEnd]) [detail setObject:@YES forKey:@"octaveShiftEnd"];
+      if ([[note directionText] length])
+        [detail setObject:[note directionText] forKey:@"directionText"];
       if ([[note provenance] length])
         [detail setObject:[note provenance] forKey:@"provenance"];
       [noteDetails addObject:detail];
@@ -265,6 +293,10 @@ ApplyScoreMakerStructure (ScoreDocument *document, NSDictionary *structure)
           [measure setKeyMode:[item objectForKey:@"keyMode"]];
           [measure setRepeatStart:[[item objectForKey:@"repeatStart"] boolValue]];
           [measure setRepeatEnd:[[item objectForKey:@"repeatEnd"] boolValue]];
+          [measure setRehearsalMark:[item objectForKey:@"rehearsalMark"]];
+          [measure setEndingText:[item objectForKey:@"endingText"]];
+          [measure setSystemBreak:[[item objectForKey:@"systemBreak"] boolValue]];
+          [measure setPageBreak:[[item objectForKey:@"pageBreak"] boolValue]];
           [measures addObject:measure];
         }
       if ([measures count])
@@ -313,6 +345,7 @@ ApplyScoreMakerStructure (ScoreDocument *document, NSDictionary *structure)
       [note setTrack:[[item objectForKey:@"track"] integerValue]];
       [note setVoice:[[item objectForKey:@"voice"] integerValue]];
       [note setMeasureIndex:[[item objectForKey:@"measureIndex"] integerValue]];
+      [note setStaffAssignment:[[item objectForKey:@"staffAssignment"] integerValue]];
       NSNumber *velocity = [item objectForKey:@"velocity"];
       if (velocity)
         [note setVelocity:[velocity unsignedIntegerValue]];
@@ -322,6 +355,18 @@ ApplyScoreMakerStructure (ScoreDocument *document, NSDictionary *structure)
       [note setTupletNormal:[[item objectForKey:@"tupletNormal"] unsignedIntegerValue]];
       [note setDynamic:[item objectForKey:@"dynamic"]];
       [note setArticulation:[item objectForKey:@"articulation"]];
+      [note setLyric:[item objectForKey:@"lyric"]];
+      [note setOrnament:[item objectForKey:@"ornament"]];
+      [note setGrace:[[item objectForKey:@"grace"] boolValue]];
+      [note setCue:[[item objectForKey:@"cue"] boolValue]];
+      [note setTremoloStrokes:[[item objectForKey:@"tremoloStrokes"] unsignedIntegerValue]];
+      [note setHairpinStart:[item objectForKey:@"hairpinStart"]];
+      [note setHairpinEnd:[[item objectForKey:@"hairpinEnd"] boolValue]];
+      [note setPedalStart:[[item objectForKey:@"pedalStart"] boolValue]];
+      [note setPedalEnd:[[item objectForKey:@"pedalEnd"] boolValue]];
+      [note setOctaveShiftStart:[[item objectForKey:@"octaveShiftStart"] integerValue]];
+      [note setOctaveShiftEnd:[[item objectForKey:@"octaveShiftEnd"] boolValue]];
+      [note setDirectionText:[item objectForKey:@"directionText"]];
       [note setProvenance:[item objectForKey:@"provenance"]];
     }
   [[document notes] sortUsingSelector:@selector (compareScoreNote:)];

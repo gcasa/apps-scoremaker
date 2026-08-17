@@ -79,9 +79,19 @@
 - (NSArray *)eventsFromTick:(NSUInteger)startTick throughTick:(NSUInteger)endTick
 {
   NSMutableArray *events = [NSMutableArray array];
+  BOOL hasSolo = NO;
+  for (ScorePartDefinition *part in [_document parts])
+    if ([part soloed])
+      { hasSolo = YES; break; }
   for (ScoreNote *note in [_document notes])
     {
       if ([note isRest])
+        continue;
+      ScorePartDefinition *notePart = nil;
+      for (ScorePartDefinition *part in [_document parts])
+        if ([part legacyTrack] == [note track])
+          { notePart = part; break; }
+      if (notePart && ([notePart muted] || (hasSolo && ![notePart soloed])))
         continue;
       NSUInteger offTick = [note startTick] + [note durationTicks];
       if ([note startTick] >= startTick && [note startTick] <= endTick)

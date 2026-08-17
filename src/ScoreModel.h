@@ -22,6 +22,7 @@
 @class ScorePartDefinition;
 @class ScoreTempoEvent;
 @class ScoreMIDIRoute;
+@class ScorePageLayout;
 @class ScoreSynthesisGraph;
 @class ScoreCompositionProgram;
 @class ScoreDocument;
@@ -47,6 +48,19 @@
   NSUInteger _tupletNormal;
   NSString *_dynamic;
   NSString *_articulation;
+  NSString *_lyric;
+  NSString *_ornament;
+  BOOL _grace;
+  BOOL _cue;
+  NSUInteger _tremoloStrokes;
+  NSString *_hairpinStart;
+  BOOL _hairpinEnd;
+  BOOL _pedalStart;
+  BOOL _pedalEnd;
+  NSInteger _octaveShiftStart;
+  BOOL _octaveShiftEnd;
+  NSString *_directionText;
+  NSInteger _staffAssignment;
   NSInteger _voice;
   NSInteger _measureIndex;
   NSUInteger _velocity;
@@ -112,6 +126,48 @@
 - (NSString *)articulation;
 /** Sets the articulation name. */
 - (void)setArticulation:(NSString *)value;
+/** Returns the lyric syllable aligned to this note. */
+- (NSString *)lyric;
+/** Sets the lyric syllable aligned to this note. */
+- (void)setLyric:(NSString *)value;
+/** Returns the ornament name, such as trill or turn. */
+- (NSString *)ornament;
+/** Sets the ornament name. */
+- (void)setOrnament:(NSString *)value;
+/** Returns whether this is an unmetered grace note. */
+- (BOOL)isGrace;
+/** Sets whether this is an unmetered grace note. */
+- (void)setGrace:(BOOL)value;
+/** Returns whether this note is printed at cue size. */
+- (BOOL)isCue;
+/** Sets whether this note is printed at cue size. */
+- (void)setCue:(BOOL)value;
+/** Returns the number of tremolo strokes. */
+- (NSUInteger)tremoloStrokes;
+/** Sets the number of tremolo strokes, clamped to zero through four. */
+- (void)setTremoloStrokes:(NSUInteger)value;
+/** Returns crescendo or diminuendo when a hairpin begins here. */
+- (NSString *)hairpinStart;
+- (void)setHairpinStart:(NSString *)value;
+/** Returns whether a hairpin ends here. */
+- (BOOL)hairpinEnd;
+- (void)setHairpinEnd:(BOOL)value;
+- (BOOL)pedalStart;
+- (void)setPedalStart:(BOOL)value;
+- (BOOL)pedalEnd;
+- (void)setPedalEnd:(BOOL)value;
+/** Returns octave displacement at the start: positive 8va, negative 8vb. */
+- (NSInteger)octaveShiftStart;
+- (void)setOctaveShiftStart:(NSInteger)value;
+- (BOOL)octaveShiftEnd;
+- (void)setOctaveShiftEnd:(BOOL)value;
+/** Returns free score text anchored to this note. */
+- (NSString *)directionText;
+- (void)setDirectionText:(NSString *)value;
+/** Returns 0 for automatic placement, 1 for upper staff, or 2 for lower staff. */
+- (NSInteger)staffAssignment;
+/** Sets automatic, upper-staff, or lower-staff placement. */
+- (void)setStaffAssignment:(NSInteger)value;
 /** Returns the one-based notation voice number. */
 - (NSInteger)voice;
 /** Sets the one-based notation voice number. */
@@ -145,6 +201,10 @@
   NSString *_keyMode;
   BOOL _repeatStart;
   BOOL _repeatEnd;
+  NSString *_rehearsalMark;
+  NSString *_endingText;
+  BOOL _systemBreak;
+  BOOL _pageBreak;
 }
 /** Returns the displayed measure number. */
 - (NSInteger)number;
@@ -186,6 +246,22 @@
 - (BOOL)repeatEnd;
 /** Sets whether a backward repeat ends at this measure. */
 - (void)setRepeatEnd:(BOOL)value;
+/** Returns the rehearsal mark displayed at this measure. */
+- (NSString *)rehearsalMark;
+/** Sets the rehearsal mark displayed at this measure. */
+- (void)setRehearsalMark:(NSString *)value;
+/** Returns the volta/ending label, such as “1.” or “1, 2.”. */
+- (NSString *)endingText;
+/** Sets the volta/ending label. */
+- (void)setEndingText:(NSString *)value;
+/** Returns whether this measure begins a new system. */
+- (BOOL)systemBreak;
+/** Forces this measure to begin a new system. */
+- (void)setSystemBreak:(BOOL)value;
+/** Returns whether this measure begins a new page. */
+- (BOOL)pageBreak;
+/** Forces this measure to begin a new page (and therefore a new system). */
+- (void)setPageBreak:(BOOL)value;
 @end
 
 /** Returns the key-signature alteration for diatonic step zero through six. */
@@ -221,6 +297,7 @@ FOUNDATION_EXPORT NSDictionary *ScoreDisplayedAccidentalMapForDocument (ScoreDoc
   NSMutableArray *_midiRoutes;
   ScoreSynthesisGraph *_synthesisGraph;
   ScoreCompositionProgram *_compositionProgram;
+  ScorePageLayout *_pageLayout;
 }
 /** Returns the score title. */
 - (NSString *)title;
@@ -308,6 +385,10 @@ FOUNDATION_EXPORT NSDictionary *ScoreDisplayedAccidentalMapForDocument (ScoreDoc
 - (ScoreCompositionProgram *)compositionProgram;
 /** Replaces the generative composition program. */
 - (void)setCompositionProgram:(ScoreCompositionProgram *)program;
+/** Returns publication settings used by screen, print, and PDF output. */
+- (ScorePageLayout *)pageLayout;
+/** Replaces the publication settings. */
+- (void)setPageLayout:(ScorePageLayout *)layout;
 /** Reconstructs structured parts and default routes from legacy tracks. */
 - (void)rebuildStructuredPartsFromLegacyTracks;
 /**

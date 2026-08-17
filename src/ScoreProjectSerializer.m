@@ -28,10 +28,15 @@ ScoreProjectSchemas (void)
                              @[
                                @"identifier", @"name", @"abbreviatedName", @"legacyTrack",
                                @"visible", @"midiOutputUniqueID", @"midiOutputName",
+                               @"muted", @"soloed", @"gain", @"pan", @"groupName",
                                @"midiFallbackMode", @"midiFallbackUniqueID", @"midiFallbackName",
                                @"instrument", @"staves", @"synthesisGraph"
                              ],
-                             @"ScorePartDefinition", @[ @"tick", @"microsecondsPerQuarter" ],
+                             @"ScorePartDefinition",
+                             @[ @"paperWidth", @"paperHeight", @"marginTop", @"marginRight",
+                                @"marginBottom", @"marginLeft", @"staffScale", @"systemSpacing",
+                                @"showPageNumbers", @"showHeaders", @"headerText", @"footerText" ],
+                             @"ScorePageLayout", @[ @"tick", @"microsecondsPerQuarter" ],
                              @"ScoreTempoEvent",
                              @[
                                @"identifier", @"sourceIdentifier", @"sourceChannel",
@@ -153,7 +158,8 @@ ScoreProjectDecode (id encoded)
                                  ScoreProjectEncode ([document midiRoutes]), @"midiRoutes",
                                  ScoreProjectEncode ([document synthesisGraph]), @"synthesisGraph",
                                  ScoreProjectEncode ([document compositionProgram]),
-                                 @"compositionProgram", nil];
+                                 @"compositionProgram",
+                                 ScoreProjectEncode ([document pageLayout]), @"pageLayout", nil];
   NSDictionary *project = [NSDictionary
     dictionaryWithObjectsAndKeys:@2, @"version", [scoreData base64EncodedStringWithOptions:0],
                                  @"scorefile",
@@ -214,6 +220,9 @@ ScoreProjectDecode (id encoded)
   value = ScoreProjectDecode ([platform objectForKey:@"compositionProgram"]);
   if (value)
     [document setCompositionProgram:value];
+  value = ScoreProjectDecode ([platform objectForKey:@"pageLayout"]);
+  if (value)
+    [document setPageLayout:value];
   return document;
 }
 @end

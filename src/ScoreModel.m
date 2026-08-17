@@ -201,6 +201,49 @@ DefaultAccidentalForPitch (NSInteger pitch)
       _articulation = [value copy];
     }
 }
+- (NSString *)lyric { return _lyric; }
+- (void)setLyric:(NSString *)value
+{
+  if (_lyric != value) { [_lyric release]; _lyric = [value copy]; }
+}
+- (NSString *)ornament { return _ornament; }
+- (void)setOrnament:(NSString *)value
+{
+  if (_ornament != value) { [_ornament release]; _ornament = [value copy]; }
+}
+- (BOOL)isGrace { return _grace; }
+- (void)setGrace:(BOOL)value { _grace = value; }
+- (BOOL)isCue { return _cue; }
+- (void)setCue:(BOOL)value { _cue = value; }
+- (NSUInteger)tremoloStrokes { return _tremoloStrokes; }
+- (void)setTremoloStrokes:(NSUInteger)value { _tremoloStrokes = MIN ((NSUInteger)4, value); }
+- (NSString *)hairpinStart { return _hairpinStart; }
+- (void)setHairpinStart:(NSString *)value
+{
+  NSString *normalized = ([value isEqualToString:@"crescendo"] ||
+                          [value isEqualToString:@"diminuendo"]) ? value : nil;
+  if (_hairpinStart != normalized) { [_hairpinStart release]; _hairpinStart = [normalized copy]; }
+}
+- (BOOL)hairpinEnd { return _hairpinEnd; }
+- (void)setHairpinEnd:(BOOL)value { _hairpinEnd = value; }
+- (BOOL)pedalStart { return _pedalStart; }
+- (void)setPedalStart:(BOOL)value { _pedalStart = value; }
+- (BOOL)pedalEnd { return _pedalEnd; }
+- (void)setPedalEnd:(BOOL)value { _pedalEnd = value; }
+- (NSInteger)octaveShiftStart { return _octaveShiftStart; }
+- (void)setOctaveShiftStart:(NSInteger)value { _octaveShiftStart = MIN ((NSInteger)1, MAX ((NSInteger)-1, value)); }
+- (BOOL)octaveShiftEnd { return _octaveShiftEnd; }
+- (void)setOctaveShiftEnd:(BOOL)value { _octaveShiftEnd = value; }
+- (NSString *)directionText { return _directionText; }
+- (void)setDirectionText:(NSString *)value
+{
+  if (_directionText != value) { [_directionText release]; _directionText = [value copy]; }
+}
+- (NSInteger)staffAssignment { return _staffAssignment; }
+- (void)setStaffAssignment:(NSInteger)value
+{
+  _staffAssignment = MIN (MAX (value, (NSInteger)0), (NSInteger)2);
+}
 
 - (NSInteger)voice
 {
@@ -278,6 +321,19 @@ DefaultAccidentalForPitch (NSInteger pitch)
   [copy setTupletNormal:_tupletNormal];
   [copy setDynamic:_dynamic];
   [copy setArticulation:_articulation];
+  [copy setLyric:_lyric];
+  [copy setOrnament:_ornament];
+  [copy setGrace:_grace];
+  [copy setCue:_cue];
+  [copy setTremoloStrokes:_tremoloStrokes];
+  [copy setHairpinStart:_hairpinStart];
+  [copy setHairpinEnd:_hairpinEnd];
+  [copy setPedalStart:_pedalStart];
+  [copy setPedalEnd:_pedalEnd];
+  [copy setOctaveShiftStart:_octaveShiftStart];
+  [copy setOctaveShiftEnd:_octaveShiftEnd];
+  [copy setDirectionText:_directionText];
+  [copy setStaffAssignment:_staffAssignment];
   [copy setVoice:_voice];
   [copy setMeasureIndex:_measureIndex];
   [copy setVelocity:_velocity];
@@ -289,6 +345,10 @@ DefaultAccidentalForPitch (NSInteger pitch)
 {
   [_dynamic release];
   [_articulation release];
+  [_lyric release];
+  [_ornament release];
+  [_hairpinStart release];
+  [_directionText release];
   [_provenance release];
   [super dealloc];
 }
@@ -388,6 +448,25 @@ DefaultAccidentalForPitch (NSInteger pitch)
 {
   _repeatEnd = value;
 }
+- (NSString *)rehearsalMark { return _rehearsalMark; }
+- (void)setRehearsalMark:(NSString *)value
+{
+  if (_rehearsalMark != value) { [_rehearsalMark release]; _rehearsalMark = [value copy]; }
+}
+- (NSString *)endingText { return _endingText; }
+- (void)setEndingText:(NSString *)value
+{
+  if (_endingText != value) { [_endingText release]; _endingText = [value copy]; }
+}
+- (BOOL)systemBreak { return _systemBreak; }
+- (void)setSystemBreak:(BOOL)value { _systemBreak = value; }
+- (BOOL)pageBreak { return _pageBreak; }
+- (void)setPageBreak:(BOOL)value
+{
+  _pageBreak = value;
+  if (value)
+    _systemBreak = YES;
+}
 - (id)copyWithZone:(NSZone *)zone
 {
   ScoreMeasure *copy = [[ScoreMeasure allocWithZone:zone] init];
@@ -401,11 +480,17 @@ DefaultAccidentalForPitch (NSInteger pitch)
   [copy setKeyMode:[self keyMode]];
   [copy setRepeatStart:_repeatStart];
   [copy setRepeatEnd:_repeatEnd];
+  [copy setRehearsalMark:_rehearsalMark];
+  [copy setEndingText:_endingText];
+  [copy setSystemBreak:_systemBreak];
+  [copy setPageBreak:_pageBreak];
   return copy;
 }
 - (void)dealloc
 {
   [_keyMode release];
+  [_rehearsalMark release];
+  [_endingText release];
   [super dealloc];
 }
 @end
@@ -745,6 +830,7 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
       _midiRoutes = [[NSMutableArray alloc] init];
       _synthesisGraph = [[ScoreSynthesisGraph alloc] init];
       _compositionProgram = [[ScoreCompositionProgram alloc] init];
+      _pageLayout = [[ScorePageLayout alloc] init];
     }
   return self;
 }
@@ -764,6 +850,7 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
   [_midiRoutes release];
   [_synthesisGraph release];
   [_compositionProgram release];
+  [_pageLayout release];
   [super dealloc];
 }
 
@@ -866,6 +953,18 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
       _compositionProgram = [program retain];
     }
 }
+- (ScorePageLayout *)pageLayout
+{
+  return _pageLayout;
+}
+- (void)setPageLayout:(ScorePageLayout *)layout
+{
+  if (_pageLayout != layout)
+    {
+      [_pageLayout release];
+      _pageLayout = [layout retain];
+    }
+}
 
 - (void)rebuildStructuredPartsFromLegacyTracks
 {
@@ -958,6 +1057,12 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
       [part setMidiFallbackMode:[source midiFallbackMode] ?: @"builtin"];
       [part setMidiFallbackUniqueID:[source midiFallbackUniqueID]];
       [part setMidiFallbackName:[source midiFallbackName]];
+      [part setMuted:[source muted]];
+      [part setSoloed:[source soloed]];
+      [part setGain:[source gain]];
+      [part setPan:[source pan]];
+      [part setVisible:[source visible]];
+      [part setGroupName:[source groupName]];
     }
 }
 
@@ -1070,6 +1175,7 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
                                                    copyItems:YES] autorelease]];
   [copy setSynthesisGraph:[[_synthesisGraph copy] autorelease]];
   [copy setCompositionProgram:[[_compositionProgram copy] autorelease]];
+  [copy setPageLayout:[[_pageLayout copy] autorelease]];
   return copy;
 }
 

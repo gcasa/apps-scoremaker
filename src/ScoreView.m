@@ -19,13 +19,11 @@
 
 #import "ScoreView.h"
 #import "PlaybackMonitorView.h"
+#import "MusicPlatformModel.h"
 #import <math.h>
 
-static CGFloat const PageWidth = 980.0;
 static CGFloat const PaperInset = 18.0;
-static CGFloat const BasePaperHeight = 1222.0;
 static CGFloat const PageGap = 24.0;
-static CGFloat const Margin = 48.0;
 static CGFloat const PartLabelWidth = 82.0;
 static CGFloat const SinglePartSystemHeight = 210.0;
 static CGFloat const StaffGap = 82.0;
@@ -40,8 +38,6 @@ static CGFloat const ChordSnapDistance = 9.0;
 static CGFloat const NoteHorizontalInset = 6.0;
 static CGFloat const MeasureLeadingNoteHorizontalInset = 15.0;
 static CGFloat const MinimumMeasureWidth = 140.0;
-static CGFloat const EngravingMusicWidth = 684.0;
-static CGFloat const SystemsPageHeight = 1050.0;
 static CGFloat const PlaybackCartoucheVerticalInset = 17.0;
 static CGFloat const PlaybackCartoucheDamageInset = 20.0;
 NSString *const ScoreViewDidEditScoreNotification = @"ScoreViewDidEditScoreNotification";
@@ -72,6 +68,56 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 }
 
 @implementation ScoreView
+
+- (CGFloat)pageWidth
+{
+  return (_document && [_document pageLayout])
+           ? [[_document pageLayout] paperWidth] + 2.0 * PaperInset : 980.0;
+}
+- (CGFloat)leftMargin
+{
+  return (_document && [_document pageLayout]) ? [[_document pageLayout] marginLeft] : 48.0;
+}
+- (CGFloat)rightMargin
+{
+  return (_document && [_document pageLayout]) ? [[_document pageLayout] marginRight] : 48.0;
+}
+- (CGFloat)topMargin
+{
+  return (_document && [_document pageLayout]) ? [[_document pageLayout] marginTop] : 48.0;
+}
+- (CGFloat)bottomMargin
+{
+  return (_document && [_document pageLayout]) ? [[_document pageLayout] marginBottom] : 48.0;
+}
+- (CGFloat)partSpacing
+{
+  return PartStaffSpacing;
+}
+- (CGFloat)systemSpacingAdjustment
+{
+  CGFloat spacing = (_document && [_document pageLayout])
+                      ? [[_document pageLayout] systemSpacing] : 24.0;
+  return spacing - 24.0;
+}
+- (CGFloat)staffScale
+{
+  return (_document && [_document pageLayout]) ? [[_document pageLayout] staffScale] : 1.0;
+}
+
+- (BOOL)isTrebleStaffForNote:(ScoreNote *)note
+{
+  if ([note staffAssignment] == 1)
+    return YES;
+  if ([note staffAssignment] == 2)
+    return NO;
+  return [note pitch] >= 60;
+}
+- (CGFloat)musicWidth
+{
+  return MAX (240.0, [self pageWidth] - PaperInset * 2.0 - [self leftMargin]
+                       - [self rightMargin] - PartLabelWidth);
+}
 
 - (id)initWithFrame:(NSRect)frame
 {
@@ -293,7 +339,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   NSUInteger pages = [self pageCount];
   CGFloat height
     = 2.0 * PaperInset + (CGFloat)pages * [self paperHeight] + (CGFloat)(pages - 1) * PageGap;
-  [self setFrameSize:NSMakeSize (PageWidth, height)];
+  [self setFrameSize:NSMakeSize ([self pageWidth], height)];
 }
 
 - (void)reloadDocument
@@ -324,7 +370,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
     }
   ScoreEngraver *engraver = [[[ScoreEngraver alloc] init] autorelease];
   _engravingLayout = [[engraver layoutDocument:layoutDocument
-                                    musicWidth:EngravingMusicWidth
+                                    musicWidth:[self musicWidth]
                            minimumMeasureWidth:MinimumMeasureWidth] retain];
   return [_engravingLayout systems];
 }
@@ -336,8 +382,19 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 
 - (NSUInteger)pageCount
 {
-  NSUInteger perPage = [self systemsPerPage];
-  return MAX ((NSUInteger)1, ([self systemCount] + perPage - 1) / perPage);
+  NSUInteger count = [self systemCount];
+  return count ? [self pageForSystem:count - 1] + 1 : 1;
+}
+
+- (NSUInteger)pageForSystem:(NSUInteger)targetSystem
+{
+  return ScorePageIndexForSystem ([self systemLayouts], targetSystem, [self systemsPerPage]);
+}
+
+- (NSUInteger)positionOnPageForSystem:(NSUInteger)targetSystem
+{
+  return ScorePositionOnPageForSystem ([self systemLayouts], targetSystem,
+                                       [self systemsPerPage]);
 }
 
 - (NSArray *)scoreTracks
@@ -349,7 +406,17 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
     [trackSet addObject:[NSNumber numberWithInteger:[note track]]];
   if ([trackSet count] == 0)
     [trackSet addObject:@0];
-  return [[trackSet allObjects] sortedArrayUsingSelector:@selector (compare:)];
+  NSMutableArray *ordered = [NSMutableArray array];
+  for (ScorePartDefinition *part in [_document parts])
+    {
+      NSNumber *track = [NSNumber numberWithInteger:[part legacyTrack]];
+      [trackSet removeObject:track];
+      if ([part visible]) [ordered addObject:track];
+    }
+  [ordered addObjectsFromArray:[[trackSet allObjects] sortedArrayUsingSelector:@selector (compare:)]];
+  if ([ordered count] == 0)
+    [ordered addObject:@0];
+  return ordered;
 }
 
 - (CGFloat)partGrandStaffHeight
@@ -360,19 +427,26 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 - (CGFloat)systemHeight
 {
   NSUInteger parts = _separateParts ? MAX ((NSUInteger)1, [[self scoreTracks] count]) : 1;
-  return [self partGrandStaffHeight] * parts + PartStaffSpacing * (parts - 1)
-         + (SinglePartSystemHeight - [self partGrandStaffHeight]);
+  CGFloat base = [self partGrandStaffHeight] * parts + [self partSpacing] * (parts - 1)
+                 + (SinglePartSystemHeight - [self partGrandStaffHeight])
+                 + [self systemSpacingAdjustment];
+  return base * [self staffScale];
 }
 
 - (NSUInteger)systemsPerPage
 {
-  return MAX ((NSUInteger)1, (NSUInteger)floor (SystemsPageHeight / [self systemHeight]));
+  CGFloat available = [self paperHeight] - [self topMargin] - [self bottomMargin]
+                      - FirstSystemOffset;
+  return MAX ((NSUInteger)1, (NSUInteger)floor (available / [self systemHeight]));
 }
 
 - (CGFloat)paperHeight
 {
   /* Keep unusually large ensembles on the paper instead of clipping staves. */
-  return MAX (BasePaperHeight, Margin + FirstSystemOffset + [self systemHeight] + Margin);
+  CGFloat requested = (_document && [_document pageLayout])
+                        ? [[_document pageLayout] paperHeight] : 1222.0;
+  return MAX (requested, [self topMargin] + FirstSystemOffset + [self systemHeight]
+                         + [self bottomMargin]);
 }
 
 - (CGFloat)pageOriginY:(NSUInteger)page
@@ -382,10 +456,9 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 
 - (CGFloat)yForSystem:(NSUInteger)system
 {
-  NSUInteger perPage = [self systemsPerPage];
-  NSUInteger page = system / perPage;
-  NSUInteger systemOnPage = system % perPage;
-  return [self pageOriginY:page] + Margin + FirstSystemOffset
+  NSUInteger page = [self pageForSystem:system];
+  NSUInteger systemOnPage = [self positionOnPageForSystem:system];
+  return [self pageOriginY:page] + [self topMargin] + FirstSystemOffset
          + (CGFloat)systemOnPage * [self systemHeight];
 }
 
@@ -399,13 +472,13 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 - (NSRect)rectForPage:(NSInteger)page
 {
   NSUInteger pageIndex = page > 0 ? (NSUInteger)page - 1 : 0;
-  return NSMakeRect (PaperInset, [self pageOriginY:pageIndex], PageWidth - 2.0 * PaperInset,
+  return NSMakeRect (PaperInset, [self pageOriginY:pageIndex], [self pageWidth] - 2.0 * PaperInset,
                      [self paperHeight]);
 }
 
 - (NSSize)printedPageContentSize
 {
-  return NSMakeSize (PageWidth - 2.0 * PaperInset, [self paperHeight]);
+  return NSMakeSize ([self pageWidth] - 2.0 * PaperInset, [self paperHeight]);
 }
 
 - (void)drawRect:(NSRect)dirtyRect
@@ -421,7 +494,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
       for (NSUInteger page = 0; page < [self pageCount]; page++)
         {
           NSRect paper = NSMakeRect (PaperInset, [self pageOriginY:page],
-                                     PageWidth - 2.0 * PaperInset, [self paperHeight]);
+                                     [self pageWidth] - 2.0 * PaperInset, [self paperHeight]);
           if (!NSIntersectsRect (NSInsetRect (dirtyRect, -8.0, -8.0), paper))
             continue;
           [[NSColor colorWithCalibratedWhite:0.75 alpha:0.35] setFill];
@@ -452,8 +525,8 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 
       for (NSUInteger page = 0; page < [self pageCount]; page++)
         {
-          NSRect paper = NSMakeRect (PaperInset, [self pageOriginY:page],
-                                     PageWidth - 2.0 * PaperInset, [self paperHeight]);
+      NSRect paper = NSMakeRect (PaperInset, [self pageOriginY:page],
+                                     [self pageWidth] - 2.0 * PaperInset, [self paperHeight]);
           if (!NSIntersectsRect (dirtyRect, paper))
             continue;
 
@@ -468,12 +541,10 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
           [fit concat];
 
           [self drawHeaderForPage:page atOriginY:[self pageOriginY:page]];
-          NSUInteger perPage = [self systemsPerPage];
-          NSUInteger firstSystem = page * perPage;
-          NSUInteger lastSystem = MIN (systemCount, firstSystem + perPage);
-          for (NSUInteger system = firstSystem; system < lastSystem; system++)
+          for (NSUInteger system = 0; system < systemCount; system++)
             {
-              [self drawSystemAtY:[self yForSystem:system] systemIndex:system];
+              if ([self pageForSystem:system] == page)
+                [self drawSystemAtY:[self yForSystem:system] systemIndex:system];
             }
           [NSGraphicsContext restoreGraphicsState];
         }
@@ -483,7 +554,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   for (NSUInteger page = 0; page < [self pageCount]; page++)
     {
       CGFloat originY = [self pageOriginY:page];
-      NSRect paper = NSMakeRect (PaperInset, originY, PageWidth - 2.0 * PaperInset,
+      NSRect paper = NSMakeRect (PaperInset, originY, [self pageWidth] - 2.0 * PaperInset,
                                  [self paperHeight]);
       if (NSIntersectsRect (dirtyRect, paper))
         [self drawHeaderForPage:page atOriginY:originY];
@@ -515,6 +586,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 
 - (void)drawHeaderForPage:(NSUInteger)page atOriginY:(CGFloat)pageOriginY
 {
+  ScorePageLayout *layout = [_document pageLayout];
   CGFloat titleSize = page == 0 ? 30.0 : 18.0;
   NSFont *titleFont = [NSFont fontWithName:[_document titleFontName] size:titleSize];
   if (!titleFont)
@@ -528,8 +600,11 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                                                NSForegroundColorAttributeName, centered,
                                                NSParagraphStyleAttributeName, nil];
   NSString *title = [_document title] ? [_document title] : @"Untitled";
-  NSRect titleRect = NSMakeRect (Margin + 90.0, pageOriginY + Margin - 28.0,
-                                 PageWidth - 2.0 * (Margin + 90.0), 40.0);
+  CGFloat pageWidth = [self pageWidth];
+  CGFloat leftMargin = [self leftMargin], rightMargin = [self rightMargin];
+  CGFloat topMargin = [self topMargin];
+  NSRect titleRect = NSMakeRect (leftMargin + 90.0, pageOriginY + topMargin - 28.0,
+                                 pageWidth - leftMargin - rightMargin - 180.0, 40.0);
   [title drawInRect:titleRect withAttributes:titleAttrs];
   if (_publicationTrack)
     {
@@ -541,8 +616,8 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
         dictionaryWithObjectsAndKeys:[NSFont boldSystemFontOfSize:14.0], NSFontAttributeName,
                                      [NSColor blackColor], NSForegroundColorAttributeName, centered,
                                      NSParagraphStyleAttributeName, nil];
-      [partName drawInRect:NSMakeRect (Margin + 90.0, pageOriginY + Margin + 8.0,
-                                       PageWidth - 2.0 * (Margin + 90.0), 22.0)
+      [partName drawInRect:NSMakeRect (leftMargin + 90.0, pageOriginY + topMargin + 8.0,
+                                       pageWidth - leftMargin - rightMargin - 180.0, 22.0)
             withAttributes:partAttrs];
     }
 
@@ -557,7 +632,9 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                                                rightAligned, NSParagraphStyleAttributeName, nil];
   NSString *pageNumber = [NSString stringWithFormat:@"%lu", (unsigned long)(page + 1)];
   NSRect pageNumberRect
-    = NSMakeRect (PageWidth - Margin - 54.0, pageOriginY + Margin - 24.0, 54.0, 20.0);
+    = NSMakeRect (pageWidth - rightMargin - 54.0, pageOriginY + topMargin - 24.0, 54.0, 20.0);
+  if (![[_document pageLayout] showPageNumbers])
+    pageNumber = @"";
   [pageNumber drawInRect:pageNumberRect withAttributes:pageNumberAttrs];
 
   NSString *composer = [_document composer];
@@ -571,8 +648,35 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                                      NSForegroundColorAttributeName, rightAligned,
                                      NSParagraphStyleAttributeName, nil];
       NSRect composerRect
-        = NSMakeRect (PageWidth / 2.0, pageOriginY + Margin + 10.0, PageWidth / 2.0 - Margin, 24.0);
+        = NSMakeRect (pageWidth / 2.0, pageOriginY + topMargin + 10.0,
+                      pageWidth / 2.0 - rightMargin, 24.0);
       [composer drawInRect:composerRect withAttributes:composerAttrs];
+    }
+  if (page > 0 && [layout showHeaders] && [[layout headerText] length])
+    {
+      NSDictionary *runningAttrs = @{
+        NSFontAttributeName : [NSFont systemFontOfSize:11.0],
+        NSForegroundColorAttributeName : [NSColor darkGrayColor]
+      };
+      [[layout headerText]
+        drawInRect:NSMakeRect (leftMargin, pageOriginY + 12.0,
+                               pageWidth - leftMargin - rightMargin, 18.0)
+        withAttributes:runningAttrs];
+    }
+  if ([[layout footerText] length])
+    {
+      NSMutableParagraphStyle *footerStyle = [[[NSMutableParagraphStyle alloc] init] autorelease];
+      [footerStyle setAlignment:NSTextAlignmentCenter];
+      NSDictionary *footerAttrs = @{
+        NSFontAttributeName : [NSFont systemFontOfSize:10.0],
+        NSForegroundColorAttributeName : [NSColor darkGrayColor],
+        NSParagraphStyleAttributeName : footerStyle
+      };
+      [[layout footerText]
+        drawInRect:NSMakeRect (leftMargin,
+                               pageOriginY + [self paperHeight] - [self bottomMargin] + 14.0,
+                               pageWidth - leftMargin - rightMargin, 16.0)
+        withAttributes:footerAttrs];
     }
 }
 
@@ -592,7 +696,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                         left:left
                        right:right];
   NSUInteger parts = _separateParts ? MAX ((NSUInteger)1, [[self scoreTracks] count]) : 1;
-  CGFloat partStride = [self partGrandStaffHeight] + PartStaffSpacing;
+  CGFloat partStride = [self partGrandStaffHeight] + [self partSpacing];
   CGFloat top = y - PlaybackCartoucheVerticalInset;
   CGFloat bottom = y + (CGFloat)(parts - 1) * partStride + [self partGrandStaffHeight]
                    + PlaybackCartoucheVerticalInset;
@@ -631,7 +735,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                          left:left
                         right:right];
   NSUInteger parts = _separateParts ? MAX ((NSUInteger)1, [[self scoreTracks] count]) : 1;
-  CGFloat partStride = [self partGrandStaffHeight] + PartStaffSpacing;
+  CGFloat partStride = [self partGrandStaffHeight] + [self partSpacing];
   CGFloat top = y - 11.0;
   CGFloat bottom = y + (CGFloat)(parts - 1) * partStride + [self partGrandStaffHeight] + 11.0;
   NSRect rect = NSMakeRect (x1, top, MAX ((CGFloat)8.0, x2 - x1), bottom - top);
@@ -645,15 +749,25 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 
 - (void)drawSystemAtY:(CGFloat)y systemIndex:(NSUInteger)systemIndex
 {
-  CGFloat left = Margin + PartLabelWidth;
-  CGFloat right = PageWidth - Margin;
+  CGFloat staffScale = [self staffScale];
+  [NSGraphicsContext saveGraphicsState];
+  if (fabs (staffScale - 1.0) > 0.001)
+    {
+      NSAffineTransform *transform = [NSAffineTransform transform];
+      [transform translateXBy:0.0 yBy:y];
+      [transform scaleXBy:1.0 yBy:staffScale];
+      [transform translateXBy:0.0 yBy:-y];
+      [transform concat];
+    }
+  CGFloat left = [self leftMargin] + PartLabelWidth;
+  CGFloat right = [self pageWidth] - PaperInset * 2.0 - [self rightMargin];
   ScoreEngravingSystem *layout = [[self systemLayouts] objectAtIndex:systemIndex];
   NSUInteger startTick = [layout startTick];
   NSUInteger endTick = [layout endTick];
 
   ScoreMeasure *openingMeasure = [_document measureContainingTick:startTick];
   NSInteger openingFifths = openingMeasure ? [openingMeasure keySignatureFifths] : 0;
-  BOOL drawsOpeningTime = systemIndex % [self systemsPerPage] == 0;
+  BOOL drawsOpeningTime = [self positionOnPageForSystem:systemIndex] == 0;
   CGFloat keySignatureX = left + 39.0;
   CGFloat keySignatureWidth = labs (openingFifths) * 8.0;
   CGFloat timeSignatureX = openingFifths ? keySignatureX + keySignatureWidth + 7.0 : left + 58.0;
@@ -662,8 +776,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                                             : keySignatureX + keySignatureWidth + 12.0);
   CGFloat musicRight = right - 18.0;
   NSArray *tracks = _separateParts ? [self scoreTracks] : [NSArray arrayWithObject:@-1];
-  CGFloat partStride = [self partGrandStaffHeight] + PartStaffSpacing;
-  NSUInteger perPage = [self systemsPerPage];
+  CGFloat partStride = [self partGrandStaffHeight] + [self partSpacing];
   [self drawLoopSelectionAtY:y
                  systemStart:startTick
                    systemEnd:endTick
@@ -680,7 +793,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
       CGFloat trebleTop = y + partIndex * partStride;
       CGFloat bassTop = trebleTop + StaffGap;
       [self drawPartNameForTrack:track
-                               x:Margin - 10.0
+                               x:[self leftMargin] - 10.0
                                y:trebleTop
                           height:[self partGrandStaffHeight]];
       [self drawStaffFromX:left toX:right topY:trebleTop];
@@ -696,7 +809,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                inRect:NSMakeRect (left + 16.0, bassTop - 10.0, ClefImageWidth, ClefImageHeight)];
       if (systemIndex == 0 && partIndex == 0)
         [self drawTempoMarkAtX:musicLeft y:trebleTop - 30.0];
-      if (systemIndex % perPage == 0)
+      if (drawsOpeningTime)
         [self drawTimeSignatureAtX:timeSignatureX trebleY:trebleTop bassY:bassTop];
       if (openingMeasure && [openingMeasure keySignatureFifths] != 0)
         [self drawKeySignature:[openingMeasure keySignatureFifths]
@@ -734,6 +847,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                  systemEnd:endTick
                      track:track];
     }
+  [NSGraphicsContext restoreGraphicsState];
 }
 
 - (void)drawKeyAccidentals:(NSInteger)fifths symbol:(NSString *)symbol
@@ -1005,6 +1119,27 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                 bezierPathWithOvalInRect:NSMakeRect (dotX - 2.0, staffY + 14.0 + dot * 10.0, 4.0,
                                                      4.0)] fill];
         }
+      if ([[measure rehearsalMark] length])
+        {
+          NSDictionary *attrs = @{ NSFontAttributeName : [NSFont boldSystemFontOfSize:12.0],
+                                   NSForegroundColorAttributeName : [NSColor blackColor] };
+          NSSize size = [[measure rehearsalMark] sizeWithAttributes:attrs];
+          NSRect box = NSMakeRect (x + 4.0, top - 30.0, size.width + 12.0, size.height + 6.0);
+          [[NSBezierPath bezierPathWithRoundedRect:box xRadius:2.0 yRadius:2.0] stroke];
+          [[measure rehearsalMark] drawAtPoint:NSMakePoint (x + 10.0, top - 27.0)
+                                 withAttributes:attrs];
+        }
+      if ([[measure endingText] length])
+        {
+          CGFloat endingY = top - 15.0;
+          [NSBezierPath strokeLineFromPoint:NSMakePoint (x, endingY)
+                                    toPoint:NSMakePoint (MIN (right, x + 90.0), endingY)];
+          [NSBezierPath strokeLineFromPoint:NSMakePoint (x, endingY)
+                                    toPoint:NSMakePoint (x, endingY + 12.0)];
+          [[measure endingText] drawAtPoint:NSMakePoint (x + 5.0, endingY - 2.0)
+                              withAttributes:@{ NSFontAttributeName : [NSFont systemFontOfSize:10.0],
+                                                NSForegroundColorAttributeName : [NSColor blackColor] }];
+        }
     }
 
   NSUInteger compositionEnd = [_document totalTicks];
@@ -1051,7 +1186,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
           continue;
         }
 
-      BOOL treble = [note pitch] >= 60;
+      BOOL treble = [self isTrebleStaffForNote:note];
       CGFloat staffTop = treble ? trebleY : bassY;
       CGFloat x = [note isRest] ? [self noteXForTick:[note startTick]
                                                start:systemStart
@@ -1095,7 +1230,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
         {
           continue;
         }
-      BOOL treble = [note pitch] >= 60;
+      BOOL treble = [self isTrebleStaffForNote:note];
       NSUInteger beat = [note startTick] / quarter;
       NSString *key = [NSString stringWithFormat:@"%ld:%ld:%d:%lu", (long)[note track],
                                                  (long)[note voice], treble, (unsigned long)beat];
@@ -1177,7 +1312,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   noteEnumerator = [visibleNotes objectEnumerator];
   while ((note = [noteEnumerator nextObject]) != nil)
     {
-      BOOL treble = [note pitch] >= 60;
+      BOOL treble = [self isTrebleStaffForNote:note];
       CGFloat staffTop = treble ? trebleY : bassY;
       CGFloat x = [self engravedXForNote:note
                                    start:systemStart
@@ -1244,7 +1379,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
     {
       if ([note isRest])
         continue;
-      BOOL treble = [note pitch] >= 60;
+      BOOL treble = [self isTrebleStaffForNote:note];
       CGFloat staff = treble ? trebleY : bassY;
       CGFloat x = [self engravedXForNote:note
                                    start:systemStart
@@ -1257,7 +1392,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   for (NSUInteger i = 0; i < [notes count]; i++)
     {
       ScoreNote *note = [notes objectAtIndex:i];
-      BOOL treble = [note pitch] >= 60;
+      BOOL treble = [self isTrebleStaffForNote:note];
       CGFloat staff = treble ? trebleY : bassY;
       CGFloat x = [self engravedXForNote:note
                                    start:systemStart
@@ -1290,6 +1425,80 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
           NSRect rect = ScorePlaceRect (
             NSMakeRect (x - size.width / 2.0, y - 40.0, size.width, size.height), occupied, -12.0);
           [number drawAtPoint:rect.origin withAttributes:small];
+        }
+      if ([[note ornament] length])
+        {
+          NSString *mark = [[note ornament] isEqualToString:@"trill-mark"] ? @"tr" : @"∿";
+          NSFont *font = [NSFont fontWithName:@"Times New Roman Italic" size:12.0];
+          if (!font) font = [NSFont systemFontOfSize:12.0];
+          NSDictionary *attrs = @{ NSFontAttributeName : font,
+                                   NSForegroundColorAttributeName : [NSColor blackColor] };
+          NSSize size = [mark sizeWithAttributes:attrs];
+          NSRect rect = ScorePlaceRect (NSMakeRect (x - size.width / 2.0, y - 38.0,
+                                                    size.width, size.height), occupied, -12.0);
+          [mark drawAtPoint:rect.origin withAttributes:attrs];
+        }
+      if ([[note lyric] length])
+        {
+          NSDictionary *lyricAttrs = @{ NSFontAttributeName : [NSFont systemFontOfSize:11.0],
+                                        NSForegroundColorAttributeName : [NSColor blackColor] };
+          NSSize size = [[note lyric] sizeWithAttributes:lyricAttrs];
+          NSRect rect = ScorePlaceRect (NSMakeRect (x - size.width / 2.0, staff + 66.0,
+                                                    size.width, size.height), occupied, 13.0);
+          [[note lyric] drawAtPoint:rect.origin withAttributes:lyricAttrs];
+        }
+      if ([[note directionText] length])
+        {
+          NSFont *textFont = [NSFont fontWithName:@"Times New Roman Italic" size:11.0];
+          if (!textFont) textFont = [NSFont systemFontOfSize:11.0];
+          NSDictionary *textAttrs = @{ NSFontAttributeName : textFont,
+                                       NSForegroundColorAttributeName : [NSColor blackColor] };
+          [[note directionText] drawAtPoint:NSMakePoint (x - 4.0, staff - 34.0)
+                              withAttributes:textAttrs];
+        }
+      ScoreNote *spanEnd = nil;
+      if ([[note hairpinStart] length] || [note pedalStart] || [note octaveShiftStart])
+        for (NSUInteger j = i + 1; j < [notes count]; j++)
+          {
+            ScoreNote *candidate = [notes objectAtIndex:j];
+            if ([candidate track] != [note track] || [candidate voice] != [note voice]) continue;
+            if (([[note hairpinStart] length] && [candidate hairpinEnd])
+                || ([note pedalStart] && [candidate pedalEnd])
+                || ([note octaveShiftStart] && [candidate octaveShiftEnd]))
+              { spanEnd = candidate; break; }
+          }
+      CGFloat spanEndX = spanEnd ? [self engravedXForNote:spanEnd start:systemStart end:systemEnd
+                                                         left:left right:right]
+                                 : MIN (right, x + 72.0);
+      if ([[note hairpinStart] length])
+        {
+          CGFloat lineY = staff + 64.0, opening = 7.0;
+          BOOL crescendo = [[note hairpinStart] isEqualToString:@"crescendo"];
+          CGFloat leftOpen = crescendo ? 0.0 : opening, rightOpen = crescendo ? opening : 0.0;
+          [NSBezierPath strokeLineFromPoint:NSMakePoint (x, lineY - leftOpen)
+                                    toPoint:NSMakePoint (spanEndX, lineY - rightOpen)];
+          [NSBezierPath strokeLineFromPoint:NSMakePoint (x, lineY + leftOpen)
+                                    toPoint:NSMakePoint (spanEndX, lineY + rightOpen)];
+        }
+      if ([note pedalStart])
+        {
+          CGFloat lineY = staff + 84.0;
+          [@"Ped." drawAtPoint:NSMakePoint (x, lineY - 8.0) withAttributes:small];
+          [NSBezierPath strokeLineFromPoint:NSMakePoint (x + 26.0, lineY)
+                                    toPoint:NSMakePoint (spanEndX, lineY)];
+          [NSBezierPath strokeLineFromPoint:NSMakePoint (spanEndX, lineY)
+                                    toPoint:NSMakePoint (spanEndX, lineY - 7.0)];
+        }
+      if ([note octaveShiftStart])
+        {
+          CGFloat lineY = staff - 42.0;
+          NSString *label = [note octaveShiftStart] > 0 ? @"8va" : @"8vb";
+          [label drawAtPoint:NSMakePoint (x, lineY - 8.0) withAttributes:small];
+          NSBezierPath *line = [NSBezierPath bezierPath];
+          [line setLineDash:(CGFloat[]){ 4.0, 3.0 } count:2 phase:0.0];
+          [line moveToPoint:NSMakePoint (x + 24.0, lineY)];
+          [line lineToPoint:NSMakePoint (spanEndX, lineY)];
+          [line stroke];
         }
       if (![note tieStart])
         continue;
@@ -1395,7 +1604,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   if ([note isRest])
     return 0.0;
   NSMutableArray *chord = [NSMutableArray array];
-  BOOL treble = [note pitch] >= 60;
+  BOOL treble = [self isTrebleStaffForNote:note];
   for (ScoreNote *candidate in [_document notes])
     {
       if ([candidate isRest] || [candidate startTick] != [note startTick] ||
@@ -1455,7 +1664,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
         == NSIntegerMax)
     return 0.0;
   NSMutableArray *accidentals = [NSMutableArray array];
-  BOOL treble = [note pitch] >= 60;
+  BOOL treble = [self isTrebleStaffForNote:note];
   for (ScoreNote *candidate in [_document notes])
     {
       if ([candidate isRest] ||
@@ -1615,8 +1824,10 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 - (NSInteger)pitchForY:(CGFloat)y treble:(BOOL)treble staffTop:(CGFloat)staffTop
 {
   NSInteger bottomLinePitch = treble ? 64 : 43;
-  CGFloat bottomY = staffTop + 4.0 * LineSpacing;
-  NSInteger steps = (NSInteger)llround ((bottomY - y) / (LineSpacing / 2.0));
+  CGFloat scale = [self staffScale];
+  CGFloat bottomY = staffTop + 4.0 * LineSpacing * scale;
+  NSInteger steps
+    = (NSInteger)llround ((bottomY - y) / ((LineSpacing * scale) / 2.0));
   NSInteger bottomOctave = bottomLinePitch / 12;
   NSInteger bottomDegree = [self scaleDegreeForPitchClass:(bottomLinePitch % 12)];
   NSInteger absoluteDegree = bottomOctave * 7 + bottomDegree + steps;
@@ -1712,25 +1923,30 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
       return NO;
     }
   NSUInteger systemCount = [self systemCount];
-  CGFloat staffLeft = Margin + PartLabelWidth + 100.0;
-  CGFloat staffRight = PageWidth - Margin - 18.0;
+  CGFloat staffLeft = [self leftMargin] + PartLabelWidth + 100.0;
+  CGFloat staffRight = [self pageWidth] - PaperInset * 2.0 - [self rightMargin] - 18.0;
   NSArray *tracks = _separateParts ? [self scoreTracks] : [NSArray arrayWithObject:@-1];
-  CGFloat partStride = [self partGrandStaffHeight] + PartStaffSpacing;
+  CGFloat partStride = [self partGrandStaffHeight] + [self partSpacing];
+  CGFloat scale = [self staffScale];
   for (NSUInteger system = 0; system < systemCount; system++)
     {
       CGFloat y = [self yForSystem:system];
       for (NSUInteger partIndex = 0; partIndex < [tracks count]; partIndex++)
         {
-          CGFloat trebleTop = y + partIndex * partStride;
-          CGFloat bassTop = trebleTop + StaffGap;
+          CGFloat baseTrebleTop = y + partIndex * partStride;
+          CGFloat baseBassTop = baseTrebleTop + StaffGap;
+          CGFloat trebleTop = y + (baseTrebleTop - y) * scale;
+          CGFloat bassTop = y + (baseBassTop - y) * scale;
           BOOL isTreble = NO;
           CGFloat top = 0.0;
-          if (point.y >= trebleTop - 30.0 && point.y <= trebleTop + 4.0 * LineSpacing + 21.0)
+          if (point.y >= trebleTop - 30.0 * scale
+              && point.y <= trebleTop + (4.0 * LineSpacing + 21.0) * scale)
             {
               isTreble = YES;
               top = trebleTop;
             }
-          else if (point.y >= bassTop - 21.0 && point.y <= bassTop + 4.0 * LineSpacing + 30.0)
+          else if (point.y >= bassTop - 21.0 * scale
+                   && point.y <= bassTop + (4.0 * LineSpacing + 30.0) * scale)
             {
               isTreble = NO;
               top = bassTop;
@@ -1911,8 +2127,8 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
       return nil;
     }
   NSUInteger systemCount = [self systemCount];
-  CGFloat left = Margin + PartLabelWidth + 100.0;
-  CGFloat right = PageWidth - Margin - 18.0;
+  CGFloat left = [self leftMargin] + PartLabelWidth + 100.0;
+  CGFloat right = [self pageWidth] - PaperInset * 2.0 - [self rightMargin] - 18.0;
   ScoreNote *found = nil;
   NSEnumerator *noteEnumerator = [[_document notes] reverseObjectEnumerator];
   ScoreNote *note = nil;
@@ -1934,16 +2150,18 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
               break;
             }
         }
-      CGFloat y = [self yForSystem:system];
+      CGFloat systemY = [self yForSystem:system];
+      CGFloat scale = [self staffScale];
       NSUInteger partIndex
         = _separateParts
             ? [[self scoreTracks] indexOfObject:[NSNumber numberWithInteger:[note track]]]
             : 0;
       if (partIndex == NSNotFound)
         continue;
-      y += partIndex * ([self partGrandStaffHeight] + PartStaffSpacing);
-      BOOL treble = [note pitch] >= 60;
-      CGFloat staffTop = treble ? y : y + StaffGap;
+      CGFloat basePartTop
+        = systemY + partIndex * ([self partGrandStaffHeight] + [self partSpacing]);
+      BOOL treble = [self isTrebleStaffForNote:note];
+      CGFloat baseStaffTop = treble ? basePartTop : basePartTop + StaffGap;
       CGFloat x = [note isRest] ? [self noteXForTick:[note startTick]
                                                start:systemStart
                                                  end:systemEnd
@@ -1954,9 +2172,11 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                                                      end:systemEnd
                                                     left:left
                                                    right:right];
-      CGFloat noteY = [note isRest] ? staffTop + 2.0 * LineSpacing
-                                    : [self yForNote:note treble:treble staffTop:staffTop];
-      NSRect hitRect = NSMakeRect (x - 14.0, noteY - 16.0, 28.0, 32.0);
+      CGFloat baseNoteY = [note isRest]
+                            ? baseStaffTop + 2.0 * LineSpacing
+                            : [self yForNote:note treble:treble staffTop:baseStaffTop];
+      CGFloat noteY = systemY + (baseNoteY - systemY) * scale;
+      NSRect hitRect = NSMakeRect (x - 14.0, noteY - 16.0 * scale, 28.0, 32.0 * scale);
       if (NSPointInRect (point, hitRect))
         {
           found = note;
@@ -1988,6 +2208,8 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   [self setNeedsDisplay:YES];
   [[NSNotificationCenter defaultCenter] postNotificationName:ScoreViewSelectionDidChangeNotification
                                                       object:self];
+  if (clickedNote && [event clickCount] == 2)
+    [NSApp sendAction:NSSelectorFromString (@"playFromSelection:") to:nil from:self];
 }
 
 - (void)mouseDragged:(NSEvent *)event
@@ -2215,13 +2437,21 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
       [item isEqualToString:@"natural"] || [item isEqualToString:@"slur"] ||
       [item isEqualToString:@"tie"] || [item isEqualToString:@"triplet"] ||
       [item isEqualToString:@"mf"] || [item isEqualToString:@"staccato"] ||
-      [item isEqualToString:@"accent"] || [item isEqualToString:@"tenuto"])
+      [item isEqualToString:@"accent"] || [item isEqualToString:@"tenuto"] ||
+      [item isEqualToString:@"grace"] || [item isEqualToString:@"cue"] ||
+      [item isEqualToString:@"trill"] || [item isEqualToString:@"tremolo"] ||
+      [item isEqualToString:@"crescendo"] || [item isEqualToString:@"diminuendo"] ||
+      [item isEqualToString:@"pedal"] || [item isEqualToString:@"8va"] ||
+      [item isEqualToString:@"8vb"])
     {
       ScoreNote *target = [self noteAtPoint:point];
       if (!target || [target isRest])
         return NO;
 
-      if ([item isEqualToString:@"slur"] || [item isEqualToString:@"tie"])
+      if ([item isEqualToString:@"slur"] || [item isEqualToString:@"tie"]
+          || [item isEqualToString:@"crescendo"] || [item isEqualToString:@"diminuendo"]
+          || [item isEqualToString:@"pedal"] || [item isEqualToString:@"8va"]
+          || [item isEqualToString:@"8vb"])
         {
           if (!_selectedNote || _selectedNote == target || [_selectedNote isRest] ||
               [_selectedNote startTick] >= [target startTick])
@@ -2233,12 +2463,27 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
               [_selectedNote setSlurStart:YES];
               [target setSlurEnd:YES];
             }
-          else
+          else if ([item isEqualToString:@"tie"])
             {
               if ([_selectedNote pitch] != [target pitch])
                 return NO;
               [_selectedNote setTieStart:YES];
               [target setTieEnd:YES];
+            }
+          else if ([item isEqualToString:@"crescendo"] || [item isEqualToString:@"diminuendo"])
+            {
+              [_selectedNote setHairpinStart:item];
+              [target setHairpinEnd:YES];
+            }
+          else if ([item isEqualToString:@"pedal"])
+            {
+              [_selectedNote setPedalStart:YES];
+              [target setPedalEnd:YES];
+            }
+          else
+            {
+              [_selectedNote setOctaveShiftStart:[item isEqualToString:@"8va"] ? 1 : -1];
+              [target setOctaveShiftEnd:YES];
             }
         }
       else if ([item isEqualToString:@"triplet"])
@@ -2255,6 +2500,14 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
         {
           [target setArticulation:item];
         }
+      else if ([item isEqualToString:@"grace"])
+        [target setGrace:![target isGrace]];
+      else if ([item isEqualToString:@"cue"])
+        [target setCue:![target isCue]];
+      else if ([item isEqualToString:@"trill"])
+        [target setOrnament:@"trill-mark"];
+      else if ([item isEqualToString:@"tremolo"])
+        [target setTremoloStrokes:[target tremoloStrokes] ? 0 : 3];
       else
         {
           NSInteger basePitch = [target pitch] - [target accidental];
@@ -2289,7 +2542,9 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   (void)treble;
   NSUInteger duration = [note durationTicks];
   BOOL filled = duration < ([_document ticksPerQuarter] * 2);
-  NSRect oval = NSMakeRect (x - 5.5, y - 4.0, 11.0, 8.0);
+  CGFloat noteScale = ([note isGrace] || [note isCue]) ? 0.72 : 1.0;
+  NSRect oval = NSMakeRect (x - 5.5 * noteScale, y - 4.0 * noteScale,
+                            11.0 * noteScale, 8.0 * noteScale);
   NSBezierPath *head = [NSBezierPath bezierPathWithOvalInRect:oval];
   [[NSColor blackColor] setStroke];
   if (filled)
@@ -2308,7 +2563,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   if (accidental != NSIntegerMax)
     {
       NSString *symbol = accidental > 0 ? @"♯" : (accidental < 0 ? @"♭" : @"♮");
-      NSFont *font = [NSFont fontWithName:@"Times New Roman" size:20.0];
+      NSFont *font = [NSFont fontWithName:@"Times New Roman" size:20.0 * noteScale];
       if (!font)
         font = [NSFont systemFontOfSize:17.0];
       NSDictionary *attrs =
@@ -2354,6 +2609,18 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
             controlPoint2:NSMakePoint (stemX + direction * 14.0, flagY + (stemsUp ? 8.0 : -8.0))];
           [flag stroke];
         }
+    }
+  if ([note isGrace])
+    [NSBezierPath strokeLineFromPoint:NSMakePoint (stemX - 4.0, (y + stemEnd) / 2.0 + 4.0)
+                              toPoint:NSMakePoint (stemX + 7.0, (y + stemEnd) / 2.0 - 5.0)];
+  for (NSUInteger stroke = 0; stroke < [note tremoloStrokes]; stroke++)
+    {
+      CGFloat center = y + (stemEnd - y) * 0.55 + (CGFloat)stroke * (stemsUp ? -5.0 : 5.0);
+      NSBezierPath *tremolo = [NSBezierPath bezierPath];
+      [tremolo moveToPoint:NSMakePoint (stemX - 6.0, center + 3.0)];
+      [tremolo lineToPoint:NSMakePoint (stemX + 7.0, center - 3.0)];
+      [tremolo setLineWidth:2.0];
+      [tremolo stroke];
     }
 }
 

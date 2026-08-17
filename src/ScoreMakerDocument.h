@@ -64,6 +64,17 @@
   NSPopUpButton *_tupletPopUp;
   NSPopUpButton *_dynamicPopUp;
   NSPopUpButton *_articulationPopUp;
+  NSTextField *_lyricField;
+  NSPopUpButton *_ornamentPopUp;
+  NSButton *_graceButton;
+  NSButton *_cueButton;
+  NSPopUpButton *_tremoloPopUp;
+  NSTextField *_rehearsalMarkField;
+  NSTextField *_endingTextField;
+  NSButton *_systemBreakButton;
+  NSButton *_pageBreakButton;
+  NSPopUpButton *_staffAssignmentPopUp;
+  NSTextField *_directionTextField;
   NSButton *_playButton;
   NSButton *_pauseButton;
   NSButton *_stopButton;
@@ -185,6 +196,8 @@
 - (void)convertVoicesToParts:(id)sender;
 /** Combines all score parts as independent voices in one part. */
 - (void)convertPartsToVoices:(id)sender;
+/** Replaces the current blank score with a standard ensemble template. */
+- (void)applyScoreTemplate:(id)sender;
 /** Transposes the current note or Shift-click range by the sender's tag. */
 - (void)transposeSelection:(id)sender;
 /** Snaps selected note starts and durations to the inspector's note value. */
@@ -199,10 +212,28 @@
 - (void)pausePlayback:(id)sender;
 /** Starts or resumes score playback using current routing. */
 - (void)playScore:(id)sender;
+/** Starts playback at the selected note, or the beginning when nothing is selected. */
+- (void)playFromSelection:(id)sender;
+/** Stops playback and returns the score view to the beginning. */
+- (void)rewindScore:(id)sender;
+/** Prompts for a measure number and reveals it. */
+- (void)goToMeasure:(id)sender;
+/** Applies a zoom percentage from the sender tag. */
+- (void)setScoreZoom:(id)sender;
+/** Fits the score page width to the viewport. */
+- (void)fitScoreWidth:(id)sender;
+/** Fits an entire score page to the viewport. */
+- (void)fitScorePage:(id)sender;
 /** Enables or disables looping over the ScoreView selection. */
 - (void)toggleLoopSelection:(id)sender;
 /** Presents the standard print workflow for the current score. */
 - (void)printDocument:(id)sender;
+/** Presents publication settings for screen, print, and PDF output. */
+- (void)editPageLayout:(id)sender;
+/** Exports the full score or selected part as a vector PDF. */
+- (void)exportPDF:(id)sender;
+/** Presents format-specific interchange and portability diagnostics. */
+- (void)showExportCompatibilityReport:(id)sender;
 /** Presents an editor for the score title. */
 - (void)editScoreTitle:(id)sender;
 /** Presents the font panel for the score title. */

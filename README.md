@@ -1,8 +1,6 @@
 # ScoreMaker
 
-ScoreMaker is a small Objective-C AppKit score viewer for macOS, with an experimental GNUstep port. It opens Standard MIDI files and MusicKit-style `.score` scorefiles, renders their pitched notes on simple treble and bass staves, and can save the current score back out as a `.score` file.
-
-The renderer is intentionally lightweight. It focuses on extracting timing, pitch, tempo, and time-signature data well enough to inspect a score visually; it is not a full notation editor or MusicKit synthesis environment.
+ScoreMaker is a native Objective-C/AppKit notation, playback, recording, and publication application for macOS, with an experimental GNUstep port. It edits MusicKit-style `.score` projects and exchanges Standard MIDI and MusicXML while preserving a richer native project model.
 
 ## Features
 
@@ -13,6 +11,7 @@ The renderer is intentionally lightweight. It focuses on extracting timing, pitc
 - Edit each score's MusicKit source in its own syntax-highlighted window, validate and apply it
   atomically, and preserve applied comments and statements when saving `.score` files.
 - Export scores as uncompressed MusicXML.
+- Publish vector PDF scores or independently reflowed parts, and render WAV, AIFF, CAF, or individual stems.
 - Render notes across treble and bass staves with measure lines.
 - Read MIDI tempo and time-signature metadata when available.
 - Add pitched notes and edit score notes, tempo, and time signature from the inspector next to the sheet.
@@ -25,6 +24,11 @@ The renderer is intentionally lightweight. It focuses on extracting timing, pitc
 - Support document-level Undo/Redo, single-action undo for complete MIDI takes, CoreMIDI hot-plug updates, and routing either to the selected part or from MIDI channels to parts.
 - Loop an audition passage by selecting its first note, Shift-clicking its last note, and enabling **Score > Loop Selection**.
 - Print the rendered score from the standard print panel.
+- Manage parts in one persistent workspace: rename, reorder, duplicate, remove, group, hide, mute,
+  solo, mix, assign instruments, and configure resilient MIDI routing.
+- Start from piano, SATB choir, string quartet, concert band, or orchestra templates.
+- Configure paper size, margins, staff scale, system spacing, running headers, footers, and page
+  numbers; use zoom presets, Fit Width, or Fit Page while editing.
 - Support common MusicKit scorefile timing, variable, `freq`, `keyNum`, `noteOn`, `noteOff`, `noteUpdate`, and duration-note patterns.
 - Map common scorefile instrument, patch, sound, preset, and program declarations to General MIDI sounds for playback.
 - Host AUv2 and AUv3 music devices out of process, with vendor and generic editors, user presets,
@@ -38,17 +42,23 @@ The renderer is intentionally lightweight. It focuses on extracting timing, pitc
   compressor, delay, and reverb chain; save named patches globally and reuse them in any score.
 - Run opt-in compatibility validation for every installed Audio Unit instrument with
   `make test-plugins`; results are written to `build/tests/audio-unit-compatibility.json`.
-
-The native macOS plug-in format is currently sufficient for the supported macOS host. VST3 is
-therefore not enabled by default; it requires the Steinberg VST3 SDK and a separate host adapter
-before ScoreMaker targets systems or vendors that do not supply Audio Units.
 - Preserve independent note voices and explicit measure boundaries, including pickup measures and per-measure time signatures.
 - Convert the selected part's notation voices into independent parts, or combine all parts into independent voices, from the Score menu with full Undo support.
 - Shift-click a note range for bulk deletion, clipboard editing, transposition, quantization, tuplets, dynamics, and articulations; drag notes directly or use the arrow keys for semitone and sixteenth-note adjustments.
 - Reflow measures across systems and printed pages according to notation density, with collision-aware onset spacing, displaced seconds in chords, and staggered accidental columns.
+- Override automatic engraving with explicit system/page starts, scalable staves, and upper/lower cross-staff note placement; preserve these choices in native projects and MusicXML.
 - Import, export, preserve, and render major/minor key signatures, including mid-system changes,
   cancellation naturals, contextual measure accidentals, ties, tuplets, dynamics, common
-  articulations, and repeat barlines.
+  articulations, repeat barlines, lyrics, ornaments, grace and cue notes, tremolos, rehearsal marks,
+  volta endings, hairpins, pedal lines, octave lines, and expression text.
+- Navigate directly to a measure, play from a selected note, double-click to audition from a score
+  position, rewind, and loop an inclusive note range.
+- Autosave in place, recover through the macOS document architecture, and treat every recording,
+  template, notation, layout, routing, and mixer operation as an undoable document edit.
+
+The native macOS plug-in format is currently sufficient for the supported macOS host. VST3 is
+therefore not enabled by default; it requires the Steinberg VST3 SDK and a separate host adapter
+before ScoreMaker targets systems or vendors that do not supply Audio Units.
 
 ## Screenshots
 
@@ -132,8 +142,9 @@ The input menu updates when MIDI devices are connected or removed. **Selected Pa
 
 Choose `Score > Play` or the Play button in the inspector to hear the current score. ScoreMaker sends the generated MIDI data directly to AVFoundation, using the platform AVFoundation implementation on macOS or GNUstep.
 
-On macOS, choose **Score > Routing Matrix...** to see and edit every part's output device, MIDI
-channel, General MIDI program, connection state, and fallback in one place. The matrix stays open
+On macOS, choose **Score > Routing Matrix...** to open the combined parts, mixer, and routing
+workspace. Rename, reorder, duplicate, remove, group, show/hide, mute, solo, adjust volume and pan,
+and edit every part's output device, MIDI channel, General MIDI program, connection state, and fallback. The workspace stays open
 while you work, updates when MIDI hardware changes, and preserves missing device assignments so
 they can reconnect later. Each external route can fall back to the built-in synthesizer, mute the
 part, or use a second MIDI device. Duplicate device/channel assignments are flagged as conflicts.
@@ -151,6 +162,14 @@ The inspector's **Instrument** menu provides the fast sound-selection path. Its 
 To rehearse or inspect a passage repeatedly, select its first note, Shift-click its last note, enable **Score > Loop Selection**, and start playback. The inclusive loop range is tinted on the score and may span systems.
 
 Choose `File > Print...` to print the complete rendered score.
+
+Choose **Score > Page Layout...** to set publication geometry and running text. Choose
+**Score > Export PDF...** to publish the full score or the selected part with independent reflow.
+Choose **Score > Render Internal DSP Audio...** to render a full mix or part stem as WAV, AIFF, or CAF.
+
+The **View** menu provides zoom presets plus Fit Width and Fit Page. In the **Score** menu, use
+**Play from Selection**, **Rewind**, or **Go to Measure...** for rehearsal navigation. Double-clicking
+a note also begins playback at that position.
 
 To save the displayed score as a MusicKit-style scorefile, choose `File > Save Score As...`.
 

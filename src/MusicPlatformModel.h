@@ -106,6 +106,11 @@ typedef NS_ENUM (NSInteger, ScoreStaffClef) {
   NSString *_abbreviatedName;
   NSInteger _legacyTrack;
   BOOL _visible;
+  BOOL _muted;
+  BOOL _soloed;
+  CGFloat _gain;
+  CGFloat _pan;
+  NSString *_groupName;
   NSInteger _midiOutputUniqueID;
   NSString *_midiOutputName;
   NSString *_midiFallbackMode;
@@ -125,6 +130,16 @@ typedef NS_ENUM (NSInteger, ScoreStaffClef) {
 @property (nonatomic) NSInteger legacyTrack;
 /** Whether the part participates in normal score display. */
 @property (nonatomic) BOOL visible;
+/** Whether playback of this part is suppressed. */
+@property (nonatomic) BOOL muted;
+/** Whether this part participates in the mixer solo set. */
+@property (nonatomic) BOOL soloed;
+/** Linear playback gain in the range 0 through 2. */
+@property (nonatomic) CGFloat gain;
+/** Stereo position in the range -1 (left) through 1 (right). */
+@property (nonatomic) CGFloat pan;
+/** Optional user-visible ensemble or section grouping. */
+@property (nonatomic, copy) NSString *groupName;
 /**
  * Persistent output assignment. Zero selects the built-in synthesizer;
  * nonzero values are CoreMIDI endpoint unique identifiers on macOS.
@@ -144,6 +159,36 @@ typedef NS_ENUM (NSInteger, ScoreStaffClef) {
 @property (nonatomic, retain) NSMutableArray *staves;
 /** Per-part synthesis and effects graph. */
 @property (nonatomic, retain) ScoreSynthesisGraph *synthesisGraph;
+@end
+
+/** Persistent publication settings shared by screen, print, and PDF output. */
+@interface ScorePageLayout : NSObject <NSCopying>
+{
+  CGFloat _paperWidth;
+  CGFloat _paperHeight;
+  CGFloat _marginTop;
+  CGFloat _marginRight;
+  CGFloat _marginBottom;
+  CGFloat _marginLeft;
+  CGFloat _staffScale;
+  CGFloat _systemSpacing;
+  BOOL _showPageNumbers;
+  BOOL _showHeaders;
+  NSString *_headerText;
+  NSString *_footerText;
+}
+@property (nonatomic) CGFloat paperWidth;
+@property (nonatomic) CGFloat paperHeight;
+@property (nonatomic) CGFloat marginTop;
+@property (nonatomic) CGFloat marginRight;
+@property (nonatomic) CGFloat marginBottom;
+@property (nonatomic) CGFloat marginLeft;
+@property (nonatomic) CGFloat staffScale;
+@property (nonatomic) CGFloat systemSpacing;
+@property (nonatomic) BOOL showPageNumbers;
+@property (nonatomic) BOOL showHeaders;
+@property (nonatomic, copy) NSString *headerText;
+@property (nonatomic, copy) NSString *footerText;
 @end
 
 /** Represents a tempo change at an absolute score tick. */

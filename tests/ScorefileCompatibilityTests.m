@@ -280,6 +280,16 @@ main (void)
   [persistentPart setMidiFallbackMode:@"device"];
   [persistentPart setMidiFallbackUniqueID:8484];
   [persistentPart setMidiFallbackName:@"Backup MIDI Interface"];
+  [persistentPart setMuted:YES];
+  [persistentPart setSoloed:YES];
+  [persistentPart setGain:0.75];
+  [persistentPart setPan:-0.25];
+  [persistentPart setGroupName:@"Woodwinds"];
+  ScorePageLayout *publication = [platform pageLayout];
+  [publication setPaperWidth:595.0];
+  [publication setPaperHeight:842.0];
+  [publication setStaffScale:0.85];
+  [publication setHeaderText:@"Rehearsal score"];
   projectData = [ScoreProjectSerializer dataForDocument:platform error:&platformError];
   projectRoundTrip = [ScoreProjectSerializer documentFromData:projectData error:&platformError];
   restoredInstrument = [[[projectRoundTrip parts] objectAtIndex:0] instrument];
@@ -291,6 +301,17 @@ main (void)
              && [restoredPart midiFallbackUniqueID] == 8484
              && [[restoredPart midiFallbackName] isEqualToString:@"Backup MIDI Interface"],
            @"native project persistence lost the per-part MIDI fallback assignment");
+  Require ([restoredPart muted] && [restoredPart soloed]
+             && fabs ([restoredPart gain] - 0.75) < 0.001
+             && fabs ([restoredPart pan] + 0.25) < 0.001
+             && [[restoredPart groupName] isEqualToString:@"Woodwinds"],
+           @"native project persistence lost professional mixer and grouping state");
+  Require (fabs ([[projectRoundTrip pageLayout] paperWidth] - 595.0) < 0.001
+             && fabs ([[projectRoundTrip pageLayout] paperHeight] - 842.0) < 0.001
+             && fabs ([[projectRoundTrip pageLayout] staffScale] - 0.85) < 0.001
+             && [[[projectRoundTrip pageLayout] headerText]
+                  isEqualToString:@"Rehearsal score"],
+           @"native project persistence lost publication layout settings");
   ScoreDocument *reparsed = [[[ScoreDocument alloc] init] autorelease];
   [reparsed rebuildStructuredPartsFromLegacyTracks];
   [reparsed copyMIDIRoutingAssignmentsFromDocument:projectRoundTrip];
@@ -519,16 +540,33 @@ main (void)
           [note setTupletNormal:2];
           [note setDynamic:@"mf"];
           [note setArticulation:@"staccato"];
+          [note setLyric:@"Glo-"];
+          [note setOrnament:@"trill-mark"];
+          [note setGrace:YES];
+          [note setCue:YES];
+          [note setTremoloStrokes:2];
+          [note setHairpinStart:@"crescendo"];
+          [note setPedalStart:YES];
+          [note setOctaveShiftStart:1];
+          [note setDirectionText:@"dolce"];
+          [note setStaffAssignment:2];
         }
       else
         {
           [note setTieEnd:YES];
+          [note setHairpinEnd:YES];
+          [note setPedalEnd:YES];
+          [note setOctaveShiftEnd:YES];
         }
       [[voices notes] addObject:note];
     }
   [pickup setKeySignatureFifths:2];
   [pickup setKeyMode:@"minor"];
   [pickup setRepeatStart:YES];
+  [pickup setRehearsalMark:@"A"];
+  [pickup setEndingText:@"1."];
+  [measure setSystemBreak:YES];
+  [measure setPageBreak:YES];
   [measure setKeySignatureFifths:-3];
   [measure setRepeatEnd:YES];
   NSError *error = nil;
@@ -595,8 +633,31 @@ main (void)
   ScoreNote *scoreFeatureNote = [[voiceRoundTrip notes] objectAtIndex:0];
   Require ([scoreFeatureNote tieStart] && [scoreFeatureNote tupletActual] == 3 &&
              [[scoreFeatureNote dynamic] isEqualToString:@"mf"] &&
-             [[scoreFeatureNote articulation] isEqualToString:@"staccato"],
+             [[scoreFeatureNote articulation] isEqualToString:@"staccato"] &&
+             [[scoreFeatureNote lyric] isEqualToString:@"Glo-"] &&
+             [[scoreFeatureNote ornament] isEqualToString:@"trill-mark"] &&
+             [scoreFeatureNote isGrace] && [scoreFeatureNote isCue] &&
+             [scoreFeatureNote tremoloStrokes] == 2 &&
+             [[scoreFeatureNote hairpinStart] isEqualToString:@"crescendo"] &&
+             [scoreFeatureNote pedalStart] && [scoreFeatureNote octaveShiftStart] == 1 &&
+             [[scoreFeatureNote directionText] isEqualToString:@"dolce"] &&
+             [scoreFeatureNote staffAssignment] == 2 &&
+             [secondVoiceNote hairpinEnd] && [secondVoiceNote pedalEnd]
+             && [secondVoiceNote octaveShiftEnd] &&
+             [[[voiceRoundTrip measures][0] rehearsalMark] isEqualToString:@"A"] &&
+             [[[voiceRoundTrip measures][0] endingText] isEqualToString:@"1."],
            @"scorefile note notation did not round trip");
+  Require ([[voiceRoundTrip measures][1] systemBreak] && [[voiceRoundTrip measures][1] pageBreak],
+           @"scorefile manual layout breaks did not round trip");
+  ScoreEngravingLayout *forcedLayout = [[[ScoreEngraver alloc] init]
+    layoutDocument:voiceRoundTrip musicWidth:2000.0 minimumMeasureWidth:60.0];
+  Require ([[forcedLayout systems] count] == 2,
+           @"manual system/page break was not honored by engraving layout");
+  Require ([[forcedLayout systems][1] startsNewPage],
+           @"engraving layout did not preserve the forced page boundary");
+  Require (ScorePageIndexForSystem ([forcedLayout systems], 1, 8) == 1
+             && ScorePositionOnPageForSystem ([forcedLayout systems], 1, 8) == 0,
+           @"forced page break did not advance the system to the top of the next page");
 
   NSData *musicXML = [MusicXMLParser dataForDocument:voices error:&error];
   NSString *xmlPath =
@@ -609,10 +670,25 @@ main (void)
   ScoreNote *secondXMLNote = [[xmlRoundTrip notes] objectAtIndex:1];
   Require ([firstXMLNote voice] == 1 && [secondXMLNote voice] == 2,
            @"MusicXML voices did not round trip");
+  Require ([[firstXMLNote lyric] isEqualToString:@"Glo-"]
+             && [[firstXMLNote ornament] isEqualToString:@"trill-mark"]
+             && [firstXMLNote isGrace] && [firstXMLNote isCue]
+             && [firstXMLNote tremoloStrokes] == 2
+             && [[firstXMLNote hairpinStart] isEqualToString:@"crescendo"]
+             && [firstXMLNote pedalStart] && [firstXMLNote octaveShiftStart] == 1
+             && [[firstXMLNote directionText] isEqualToString:@"dolce"]
+             && [firstXMLNote staffAssignment] == 2
+             && [secondXMLNote hairpinEnd] && [secondXMLNote pedalEnd]
+             && [secondXMLNote octaveShiftEnd],
+           @"MusicXML extended notation did not round trip");
   Require ([[xmlRoundTrip measures][0] keySignatureFifths] == 2 &&
              [[[xmlRoundTrip measures][0] keyMode] isEqualToString:@"minor"] &&
-             [[xmlRoundTrip measures][0] repeatStart] && [[xmlRoundTrip measures][1] repeatEnd],
+             [[xmlRoundTrip measures][0] repeatStart] && [[xmlRoundTrip measures][1] repeatEnd] &&
+             [[[xmlRoundTrip measures][0] rehearsalMark] isEqualToString:@"A"] &&
+             [[[xmlRoundTrip measures][0] endingText] isEqualToString:@"1."],
            @"MusicXML signatures or repeats did not round trip");
+  Require ([[xmlRoundTrip measures][1] systemBreak] && [[xmlRoundTrip measures][1] pageBreak],
+           @"MusicXML manual layout breaks did not round trip");
 
   NSData *midiKeys = [MidiParser dataForDocument:voices error:&error];
   NSString *midiKeyPath = [NSTemporaryDirectory () stringByAppendingPathComponent:@"scoremaker-keys.mid"];

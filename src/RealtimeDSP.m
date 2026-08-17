@@ -24,6 +24,7 @@ typedef struct
   int pitch;
   int notationVoice;
   float velocity;
+  float pan;
   BOOL on;
   uint64_t sampleFrame;
 } ScoreDSPEvent;
@@ -61,6 +62,7 @@ typedef struct
   float filterLow;
   float filterBand;
   float velocity;
+  float pan;
   int envelopeStage;
   int filterEnvelopeStage;
   BOOL active;
@@ -355,7 +357,7 @@ ScoreDSPPush (ScoreDSPState *s, int pitch, int notationVoice, float velocity, BO
   unsigned next = (write + 1) % SCORE_DSP_EVENTS;
   if (next == atomic_load_explicit (&s->readIndex, memory_order_acquire))
     return;
-  s->events[write] = (ScoreDSPEvent){ pitch, notationVoice, velocity, on, 0 };
+  s->events[write] = (ScoreDSPEvent){ pitch, notationVoice, velocity, 0.0f, on, 0 };
   atomic_store_explicit (&s->writeIndex, next, memory_order_release);
 }
 static void
@@ -380,6 +382,7 @@ ScoreDSPApplyEvent (ScoreDSPState *s, ScoreDSPEvent e)
                             .envelopeLevel = 0,
                             .releaseRate = 0,
                             .velocity = e.velocity,
+                            .pan = e.pan,
                             .envelopeStage = 0,
                             .active = YES,
                             .releasing = NO };
@@ -415,7 +418,8 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
       while (s->scheduledEventIndex < s->scheduledEventCount
              && s->scheduledEvents[s->scheduledEventIndex].sampleFrame <= s->renderedFrames)
         ScoreDSPApplyEvent (s, s->scheduledEvents[s->scheduledEventIndex++]);
-      double voiceMix[SCORE_DSP_PATCHES] = { 0 };
+      double voiceLeftMix[SCORE_DSP_PATCHES] = { 0 };
+      double voiceRightMix[SCORE_DSP_PATCHES] = { 0 };
       for (int i = 0; i < SCORE_DSP_VOICES; i++)
         {
           ScoreDSPVoice *v = &s->voices[i];
@@ -527,7 +531,10 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
               v->filterBand += coefficient * high;
               filtered = v->filterLow;
             }
-          voiceMix[patchIndex] += filtered * v->envelopeLevel * velocityGain;
+          double sample = filtered * v->envelopeLevel * velocityGain;
+          float pan = MAX (-1.0f, MIN (1.0f, v->pan));
+          voiceLeftMix[patchIndex] += sample * sqrt ((1.0 - pan) * 0.5);
+          voiceRightMix[patchIndex] += sample * sqrt ((1.0 + pan) * 0.5);
           v->phase += 2.0 * M_PI * hz / s->sampleRate;
           if (v->phase >= 2.0 * M_PI)
             v->phase -= 2.0 * M_PI;
@@ -540,8 +547,8 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
       float mixedRight = 0.0f;
       for (NSUInteger patchIndex = 0; patchIndex < SCORE_DSP_PATCHES; patchIndex++)
         {
-          float voiceLeft = (float)(voiceMix[patchIndex] * 0.22);
-          float voiceRight = voiceLeft;
+          float voiceLeft = (float)(voiceLeftMix[patchIndex] * 0.31);
+          float voiceRight = (float)(voiceRightMix[patchIndex] * 0.31);
           ScoreDSPApplyVoiceEffects (s, patchIndex, &voiceLeft, &voiceRight);
           mixedLeft += voiceLeft;
           mixedRight += voiceRight;
@@ -1730,6 +1737,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
         [[item objectForKey:@"pitch"] intValue],
         MAX (1, [[item objectForKey:@"voice"] intValue]),
         [[item objectForKey:@"velocity"] floatValue] / 127.0f,
+        MAX (-1.0f, MIN (1.0f, [[item objectForKey:@"pan"] floatValue])),
         [[item objectForKey:@"on"] boolValue],
         (uint64_t)llround ([[item objectForKey:@"time"] doubleValue] * _dsp->sampleRate)
       };
@@ -1822,6 +1830,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
         [[item objectForKey:@"pitch"] intValue],
         MAX (1, [[item objectForKey:@"voice"] intValue]),
         [[item objectForKey:@"velocity"] floatValue] / 127.0f,
+        MAX (-1.0f, MIN (1.0f, [[item objectForKey:@"pan"] floatValue])),
         [[item objectForKey:@"on"] boolValue],
         (uint64_t)llround ([[item objectForKey:@"time"] doubleValue] * sampleRate)
       };

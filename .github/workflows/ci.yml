@@ -1,46 +1,28 @@
-name: CI
+name: ScoreMaker CI
 
 on:
   push:
   pull_request:
 
-permissions:
-  contents: read
-
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   macos:
-    name: macOS build and tests
-    runs-on: macos-14
-    timeout-minutes: 20
-
+    runs-on: macos-15
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Build and run compatibility suite
+      - uses: actions/checkout@v4
+      - name: Build and test
         run: make test
-
-      - name: Run Xcode Release tests
+      - name: Run Xcode test bundle
+        run: >-
+          xcodebuild -project ScoreMaker.xcodeproj
+          -scheme ScoreMakerCompatibilityTests
+          -configuration Debug test CODE_SIGNING_ALLOWED=NO
+      - name: Verify application metadata
         run: |
-          mkdir -p build/test-results
-          xcodebuild \
-            -project ScoreMaker.xcodeproj \
-            -scheme ScoreMakerCompatibilityTests \
-            -configuration Release \
-            -destination 'platform=macOS' \
-            -resultBundlePath build/test-results/ScoreMaker.xcresult \
-            CODE_SIGNING_ALLOWED=NO \
-            test
-
-      - name: Upload Xcode test results
+          plutil -lint Info.plist ScoreMaker.entitlements
+          sh -n tools/release.sh tools/install.sh
+      - name: Archive test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: xcode-test-results
-          path: build/test-results/ScoreMaker.xcresult
-          if-no-files-found: ignore
-          retention-days: 14
+          name: scoremaker-test-build
+          path: build/
