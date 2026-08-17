@@ -565,6 +565,29 @@ main (void)
     }
   Require ([restoredVoices count] == 2 && [[converted parts] count] == 1,
            @"part-to-voice conversion did not preserve independent voices");
+
+  ScoreDocument *manyParts = [[[ScoreDocument alloc] init] autorelease];
+  [manyParts setName:@"Empty placeholder" forTrack:0];
+  [manyParts setProgram:@0 forTrack:0];
+  for (NSInteger track = 1; track <= 8; track++)
+    {
+      [manyParts setName:[NSString stringWithFormat:@"Part %ld", (long)track]
+                forTrack:track];
+      ScoreNote *partNote = [[[ScoreNote alloc] init] autorelease];
+      [partNote setTrack:track];
+      [partNote setPitch:59 + track];
+      [partNote setStartTick:0];
+      [partNote setDurationTicks:480];
+      [[manyParts notes] addObject:partNote];
+    }
+  Require ([manyParts convertPartsToVoices] == 8,
+           @"eight populated parts were not converted to eight voices");
+  NSMutableIndexSet *manyVoiceNumbers = [NSMutableIndexSet indexSet];
+  for (ScoreNote *partNote in [manyParts notes])
+    [manyVoiceNumbers addIndex:(NSUInteger)[partNote voice]];
+  Require ([manyVoiceNumbers count] == 8 && [manyVoiceNumbers firstIndex] == 1
+             && [manyVoiceNumbers lastIndex] == 8,
+           @"an empty part consumed voice 1 during many-part conversion");
   Require ([[voiceRoundTrip measures][0] keySignatureFifths] == 2 &&
              [[[voiceRoundTrip measures][0] keyMode] isEqualToString:@"minor"] &&
              [[voiceRoundTrip measures][0] repeatStart] && [[voiceRoundTrip measures][1] repeatEnd],

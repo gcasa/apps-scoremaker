@@ -1006,8 +1006,10 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
 
 - (NSUInteger)convertPartsToVoices
 {
-  NSMutableSet *trackSet = [NSMutableSet setWithArray:[_partNames allKeys]];
-  [trackSet addObjectsFromArray:[_trackPrograms allKeys]];
+  /* Only populated tracks can become notation voices.  Including an empty
+   * named/programmed placeholder here creates a voice definition with no
+   * notes and shifts the first audible part to voice 2. */
+  NSMutableSet *trackSet = [NSMutableSet set];
   for (ScoreNote *note in _notes)
     [trackSet addObject:[NSNumber numberWithInteger:[note track]]];
   NSArray *tracks = [[trackSet allObjects] sortedArrayUsingSelector:@selector (compare:)];

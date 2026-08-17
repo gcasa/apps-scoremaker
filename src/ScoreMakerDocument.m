@@ -1909,8 +1909,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   ScoreDocument *document = [self scoreDocument];
   if (!document)
     return;
-  NSMutableSet *tracks = [NSMutableSet setWithArray:[[document partNames] allKeys]];
-  [tracks addObjectsFromArray:[[document trackPrograms] allKeys]];
+  NSMutableSet *tracks = [NSMutableSet set];
   for (ScoreNote *note in [document notes])
     [tracks addObject:[NSNumber numberWithInteger:[note track]]];
   if ([tracks count] < 2)
