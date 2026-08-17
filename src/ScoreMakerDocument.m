@@ -160,6 +160,12 @@ ScoreMakerTransportImage (NSString *kind)
       NSRectFill (NSMakeRect (3.0, 2.0, 4.0, 12.0));
       NSRectFill (NSMakeRect (9.0, 2.0, 4.0, 12.0));
     }
+  else if ([kind isEqualToString:@"record"])
+    {
+      NSBezierPath *path = [NSBezierPath bezierPathWithOvalInRect:NSMakeRect (3.0, 3.0,
+                                                                              10.0, 10.0)];
+      [path fill];
+    }
   else
     NSRectFill (NSMakeRect (3.0, 3.0, 10.0, 10.0));
   [image unlockFocus];
@@ -1431,7 +1437,11 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [[self inspectorView] addSubview:_midiQuantizePopUp];
   _recordButton = [[NSButton alloc]
     initWithFrame:NSMakeRect (InspectorPadding + 224.0, frame.size.height - 452.0, 60.0, 26.0)];
-  [_recordButton setTitle:@"Record"];
+  [_recordButton setTitle:@""];
+  [_recordButton setImage:ScoreMakerTransportImage (@"record")];
+  [_recordButton setImagePosition:NSImageOnly];
+  [_recordButton setToolTip:@"Record"];
+  ScoreMakerSetAccessibilityLabel (_recordButton, @"Record");
   [_recordButton setTarget:self];
   [_recordButton setAction:@selector (toggleMIDIRecording:)];
   [_recordButton setAutoresizingMask:NSViewMinYMargin];
@@ -5703,25 +5713,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
             }
           if ([_realtimeDSP isRunning])
             [_realtimeDSP noteOn:data1 velocity:(NSUInteger)data2];
-          if ([_midiHeldStepNotes count] == 0)
-            {
-              [self registerUndoSnapshotWithName:@"MIDI Step Entry"];
-              _midiStepStartTick = (NSUInteger)llround (MAX (0.0, [_noteStartField doubleValue]) *
-                                                        [[self scoreDocument] ticksPerQuarter]);
-            }
-          ScoreNote *enteredNote =
-            [self appendMIDINotePitch:data1
-                             velocity:data2
-                                track:destinationTrack
-                            startTick:_midiStepStartTick
-                        durationTicks:[self durationTicksForNoteValueDenominator:
-                                              [self denominatorForSelectedNoteValue]]];
           [_midiHeldStepNotes addObject:key];
-          if (enteredNote)
-            [_midiHeldStepScoreNotes setObject:enteredNote forKey:key];
-          [[[self scoreDocument] notes] sortUsingSelector:@selector (compareScoreNote:)];
-          [self updateChangeCount:NSChangeDone];
-          [self updateScoreSourceMIDIInputHighlight];
         }
       return;
     }
@@ -5742,19 +5734,6 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       if ([_realtimeDSP isRunning])
         [_realtimeDSP noteOff:data1];
       [_midiHeldStepNotes removeObject:key];
-      [_midiHeldStepScoreNotes removeObjectForKey:key];
-      [self updateScoreSourceMIDIInputHighlight];
-      if ([_midiHeldStepNotes count] == 0)
-        {
-          double durationBeats =
-            [self beatsForNoteValueDenominator:[self denominatorForSelectedNoteValue]];
-          [_noteStartField
-            setDoubleValue:(double)_midiStepStartTick / [[self scoreDocument] ticksPerQuarter] +
-                           durationBeats];
-          /* Re-engrave once for the completed note or chord, not per key. */
-          [[self scoreView] reloadDocument];
-          [self commitUndoBaseline];
-        }
     }
 }
 
@@ -5772,11 +5751,16 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
         {
           _midiCountingIn = NO;
           _midiCountInBeatsRemaining = 0;
-          [_recordButton setTitle:@"Stop"];
+          [_recordButton setTitle:@""];
+          [_recordButton setImage:ScoreMakerTransportImage (@"stop")];
+          [_recordButton setImagePosition:NSImageOnly];
+          [_recordButton setToolTip:@"Stop Recording"];
+          ScoreMakerSetAccessibilityLabel (_recordButton, @"Stop Recording");
         }
       else if (_midiCountInBeatsRemaining > 0)
         {
           _midiCountInBeatsRemaining--;
+          [_recordButton setImage:nil];
           [_recordButton
             setTitle:[NSString stringWithFormat:@"%lu", (unsigned long)_midiCountInBeatsRemaining]];
         }
@@ -5811,7 +5795,10 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   if (beatDuration <= 0.0)
     beatDuration = 0.5;
   _midiRecordStartTime = [NSDate timeIntervalSinceReferenceDate] + beatDuration * beats;
+  [_recordButton setImage:nil];
   [_recordButton setTitle:[NSString stringWithFormat:@"%lu", (unsigned long)beats]];
+  [_recordButton setToolTip:@"Stop Recording"];
+  ScoreMakerSetAccessibilityLabel (_recordButton, @"Stop Recording");
   _midiMetronomeSound = [[NSSound soundNamed:@"Tink"] retain];
   _midiMetronomeTimer = [[NSTimer scheduledTimerWithTimeInterval:beatDuration
                                                           target:self
@@ -5854,7 +5841,11 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_midiHeldStepScoreNotes removeAllObjects];
   [self updateScoreSourceMIDIInputHighlight];
   [_playbackMonitorView clearLiveNotes];
-  [_recordButton setTitle:@"Record"];
+  [_recordButton setTitle:@""];
+  [_recordButton setImage:ScoreMakerTransportImage (@"record")];
+  [_recordButton setImagePosition:NSImageOnly];
+  [_recordButton setToolTip:@"Record"];
+  ScoreMakerSetAccessibilityLabel (_recordButton, @"Record");
   if (_midiRecordedNotes && [self scoreDocument])
     {
       if (_midiRecordingUndoSnapshot)
