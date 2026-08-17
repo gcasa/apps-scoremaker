@@ -5703,8 +5703,29 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
            * auditionPitch: here: it serializes a MIDI file and constructs and
            * prepares a new AVMIDIPlayer for every key press, blocking delivery
            * of the following MIDI events.  The realtime engine is persistent
-           * and accepts polyphonic note events without that setup cost.
+          * and accepts polyphonic note events without that setup cost.
            */
+          ScorePartDefinition *inputPart = nil;
+          for (ScorePartDefinition *part in [[self scoreDocument] parts])
+            if ([part legacyTrack] == destinationTrack)
+              {
+                inputPart = part;
+                break;
+              }
+          NSString *backend = [[inputPart instrument] backendIdentifier];
+          if (!backend || [backend isEqualToString:@"general-midi"])
+            {
+              NSNumber *program = [[self scoreDocument] programForTrack:destinationTrack];
+              NSError *programError = nil;
+              if (![_realtimeDSP useGeneralMIDIProgram:[program integerValue]
+                                                 error:&programError])
+                NSLog (@"Could not load MIDI input program: %@", programError);
+            }
+          else if ([backend isEqualToString:@"scoremaker-internal-synth"])
+            {
+              [_realtimeDSP useInternalSynthesizer];
+              [self configureVoicePatchesForPart:inputPart];
+            }
           if (![_realtimeDSP isRunning])
             {
               NSError *error = nil;

@@ -570,6 +570,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   AVAudioUnitMIDIInstrument *_instrument;
   NSDictionary *_instrumentDescription;
   NSMutableArray *_engineEffectNodes;
+  NSInteger _generalMIDIProgram;
 #endif
   NSArray *_effectConfiguration;
   NSMutableDictionary *_internalSynthPatches;
@@ -873,6 +874,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   if ((self = [super init]))
     {
       _dsp = calloc (1, sizeof (*_dsp));
+      _generalMIDIProgram = -1;
       ScoreDSPInitializeEffects (_dsp, 48000.0);
       _effectConfiguration = [[NSArray alloc] init];
       _internalSynthPatches = [[NSMutableDictionary alloc] init];
@@ -1004,6 +1006,46 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   _instrument = nil;
   [_instrumentDescription release];
   _instrumentDescription = nil;
+  _generalMIDIProgram = -1;
+#endif
+}
+- (BOOL)useGeneralMIDIProgram:(NSInteger)program error:(NSError **)error
+{
+#if defined(__APPLE__)
+  program = MAX ((NSInteger)0, MIN ((NSInteger)127, program));
+  if (_instrument && !_instrumentDescription && _generalMIDIProgram == program)
+    return YES;
+
+  NSURL *soundBankURL = [NSURL fileURLWithPath:
+    @"/System/Library/Components/CoreAudio.component/Contents/Resources/gs_instruments.dls"];
+  AVAudioUnitSampler *sampler = [[[AVAudioUnitSampler alloc] init] autorelease];
+  NSError *loadError = nil;
+  if (![sampler loadSoundBankInstrumentAtURL:soundBankURL
+                                     program:(uint8_t)program
+                                     bankMSB:kAUSampler_DefaultMelodicBankMSB
+                                     bankLSB:kAUSampler_DefaultBankLSB
+                                       error:&loadError])
+    {
+      if (error)
+        *error = loadError;
+      return NO;
+    }
+
+  [self stop];
+  [_instrument release];
+  _instrument = [sampler retain];
+  [_instrumentDescription release];
+  _instrumentDescription = nil;
+  _generalMIDIProgram = program;
+  return YES;
+#else
+  (void)program;
+  if (error)
+    *error = [NSError errorWithDomain:@"ScoreMakerDSP"
+                                 code:12
+                             userInfo:@{ NSLocalizedDescriptionKey :
+                                           @"General MIDI live audition is unavailable." }];
+  return NO;
 #endif
 }
 - (void)loadAudioUnitInstrument:(NSDictionary *)description
@@ -1077,6 +1119,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
                           _instrument = [(AVAudioUnitMIDIInstrument *)unit retain];
                           [_instrumentDescription release];
                           _instrumentDescription = savedDescription;
+                          _generalMIDIProgram = -1;
                           NSDictionary *state = [description objectForKey:@"state"];
                           if (state)
                             [[_instrument AUAudioUnit] setFullState:state];

@@ -58,6 +58,8 @@ typedef id ScoreAudioUnitViewCompletion;
 - (BOOL)isRunning;
 /** Selects the built-in synthesizer as the active instrument. */
 - (void)useInternalSynthesizer;
+/** Selects the system General MIDI sampler and loads a zero-based program. */
+- (BOOL)useGeneralMIDIProgram:(NSInteger)program error:(NSError **)error;
 /** Asynchronously loads the Audio Unit described by <var>description</var>. */
 - (void)loadAudioUnitInstrument:(NSDictionary *)description
                      completion:(ScoreAudioUnitLoadCompletion)completion;
