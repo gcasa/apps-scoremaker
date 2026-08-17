@@ -2246,7 +2246,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   ScorePartDefinition *part = [self selectedStructuredPartCreatingIfNeeded:YES];
   if ([kind isEqualToString:@"gm"])
     {
-      [document setProgram:[selection objectForKey:@"program"] forTrack:[self selectedPartNumber]];
+      NSNumber *program = [selection objectForKey:@"program"];
+      [document setProgram:program forTrack:[self selectedPartNumber]];
+      [[part instrument] setProgram:[program integerValue]];
       [[part instrument] setBackendIdentifier:@"general-midi"];
     }
   else if ([kind isEqualToString:@"synth"])
@@ -4554,7 +4556,34 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   for (ScorePartDefinition *part in [document parts])
     if ([part legacyTrack] == track)
       return part;
-  return [[document parts] count] ? [[document parts] objectAtIndex:0] : nil;
+  if (!create)
+    return nil;
+
+  /* addPart: establishes the legacy name/program immediately, while the richer
+     structured part list may already contain other parts.  Create only the
+     missing definition here; returning part zero caused instrument changes for
+     a new part to be stored on the first part instead. */
+  NSString *name = [document nameForTrack:track];
+  if (![name length])
+    name = [NSString stringWithFormat:@"Part %ld", (long)(track + 1)];
+  ScorePartDefinition *part = [[[ScorePartDefinition alloc] init] autorelease];
+  [part setLegacyTrack:track];
+  [part setName:name];
+  [part setAbbreviatedName:name];
+
+  ScoreInstrumentDefinition *instrument =
+    [[[ScoreInstrumentDefinition alloc] init] autorelease];
+  [instrument setName:name];
+  [instrument setProgram:[[document programForTrack:track] integerValue]];
+  [part setInstrument:instrument];
+
+  ScoreStaffDefinition *staff = [[[ScoreStaffDefinition alloc] init] autorelease];
+  ScoreVoiceDefinition *voice = [[[ScoreVoiceDefinition alloc] init] autorelease];
+  [voice setNumber:1];
+  [[staff voices] addObject:voice];
+  [[part staves] addObject:staff];
+  [[document parts] addObject:part];
+  return part;
 }
 
 - (NSDictionary *)patchForPart:(ScorePartDefinition *)part
@@ -6258,6 +6287,13 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_midiActiveNotes removeObjectForKey:key];
   [_midiSustainedNotes removeObject:key];
   _midiRecordedNotes = YES;
+
+  /* Keep notation and a clean source editor in step with the take.  Previously
+     both views were refreshed only when Record was stopped, which made a live
+     recording appear to have captured nothing. */
+  [[[self scoreDocument] notes] sortUsingSelector:@selector (compareScoreNote:)];
+  [[self scoreView] reloadDocument];
+  [self refreshScoreSourceEditorFromScoreIfClean];
 }
 
 - (void)handleMIDIInputEvent:(NSDictionary *)event
@@ -6314,7 +6350,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
                    forKey:key];
             }
         }
-      else if (![_midiHeldStepNotes containsObject:key])
+      if (![_midiHeldStepNotes containsObject:key])
         {
           /*
            * MIDI input is already delivered on the main thread.  Do not use
@@ -6368,12 +6404,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
             [self finishRecordedMIDIKey:key atTime:time];
         }
     }
-  else
-    {
-      if ([_realtimeDSP isRunning])
-        [_realtimeDSP noteOff:data1];
-      [_midiHeldStepNotes removeObject:key];
-    }
+  if ([_realtimeDSP isRunning])
+    [_realtimeDSP noteOff:data1];
+  [_midiHeldStepNotes removeObject:key];
 }
 
 - (void)midiMetronomeTick:(NSTimer *)timer
