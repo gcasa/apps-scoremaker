@@ -62,8 +62,20 @@ ScorePartColor (NSInteger track, BOOL darkVariant)
       _liveNotes = [[NSMutableDictionary alloc] init];
       _pinnedTracks = [[NSMutableSet alloc] init];
       _showAllParts = NO;
+      _controllerFirstPitch = -1;
+      _controllerLastPitch = -1;
     }
   return self;
+}
+
+- (void)setControllerRangeFirstPitch:(NSInteger)firstPitch
+                           lastPitch:(NSInteger)lastPitch
+                             visible:(BOOL)visible
+{
+  _controllerFirstPitch = MAX ((NSInteger)0, MIN ((NSInteger)127, firstPitch));
+  _controllerLastPitch = MAX ((NSInteger)0, MIN ((NSInteger)127, lastPitch));
+  _controllerRangeVisible = visible && _controllerFirstPitch <= _controllerLastPitch;
+  [self setNeedsDisplay:YES];
 }
 
 - (void)setSelectedTrack:(NSInteger)track
@@ -247,7 +259,12 @@ ScorePartColor (NSInteger track, BOOL darkVariant)
       NSColor *activeColor = distinguishParts && [tracks count] > 0
                                ? ScorePartColor ([[tracks objectAtIndex:0] integerValue], NO)
                                : ScoreVoiceColor (voice ? [voice integerValue] : 1, NO);
-      [(active ? activeColor : [NSColor whiteColor]) setFill];
+      BOOL inControllerRange = _controllerRangeVisible && pitch >= _controllerFirstPitch
+                               && pitch <= _controllerLastPitch;
+      [(active ? activeColor
+               : (inControllerRange
+                    ? [NSColor colorWithCalibratedRed:0.88 green:0.93 blue:0.98 alpha:1.0]
+                    : [NSColor whiteColor])) setFill];
       NSRectFill (key);
       if (active && distinguishParts && [tracks count] > 1)
         {
@@ -300,8 +317,12 @@ ScorePartColor (NSInteger track, BOOL darkVariant)
       NSColor *activeColor = distinguishParts && [tracks count] > 0
                                ? ScorePartColor ([[tracks objectAtIndex:0] integerValue], YES)
                                : ScoreVoiceColor (voice ? [voice integerValue] : 1, YES);
+      BOOL inControllerRange = _controllerRangeVisible && pitch >= _controllerFirstPitch
+                               && pitch <= _controllerLastPitch;
       [(active ? activeColor
-               : [NSColor colorWithCalibratedWhite:0.08 alpha:1.0]) setFill];
+               : (inControllerRange
+                    ? [NSColor colorWithCalibratedRed:0.16 green:0.23 blue:0.31 alpha:1.0]
+                    : [NSColor colorWithCalibratedWhite:0.08 alpha:1.0])) setFill];
       NSRectFill (key);
       if (active && distinguishParts && [tracks count] > 1)
         {

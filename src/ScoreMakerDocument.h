@@ -82,6 +82,8 @@
   NSPopUpButton *_midiQuantizePopUp;
   NSPopUpButton *_midiRoutingPopUp;
   NSButton *_recordButton;
+  NSButton *_midiRangeShadeButton;
+  NSPopUpButton *_midiOctavePopUp;
   NSTextView *_annotationTextView;
   NSWindow *_scoreSourceEditorWindow;
   NSTextView *_scoreSourceTextView;
@@ -109,6 +111,7 @@
   NSMutableSet *_midiHeldStepNotes;
   NSMutableDictionary *_midiHeldStepScoreNotes;
   NSMutableSet *_midiSustainedNotes;
+  NSMutableDictionary *_midiAuditionPitches;
   NSTimer *_midiMetronomeTimer;
   NSSound *_midiMetronomeSound;
   NSTimeInterval _midiRecordStartTime;

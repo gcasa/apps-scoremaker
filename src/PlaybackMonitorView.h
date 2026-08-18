@@ -40,6 +40,9 @@ NSColor *ScoreVoiceColor (NSInteger voice, BOOL darkVariant);
   NSMutableSet *_pinnedTracks;
   BOOL _rackVisible;
   BOOL _showAllParts;
+  BOOL _controllerRangeVisible;
+  NSInteger _controllerFirstPitch;
+  NSInteger _controllerLastPitch;
 }
 /** Sets the score whose parts and notes are monitored. */
 - (void)setDocument:(ScoreDocument *)document;
@@ -65,4 +68,8 @@ NSColor *ScoreVoiceColor (NSInteger voice, BOOL darkVariant);
 - (void)clearLiveNotes;
 /** Sets the track emphasized by the monitor and part rack. */
 - (void)setSelectedTrack:(NSInteger)track;
+/** Shades the MIDI pitches physically covered by the selected input controller. */
+- (void)setControllerRangeFirstPitch:(NSInteger)firstPitch
+                           lastPitch:(NSInteger)lastPitch
+                             visible:(BOOL)visible;
 @end

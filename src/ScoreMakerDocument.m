@@ -306,6 +306,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (void)stopMIDIRecording;
 - (void)handleMIDIInputEvent:(NSDictionary *)event;
 - (void)midiDevicesChanged:(id)sender;
+- (void)midiRangeDisplayDidChange:(id)sender;
+- (void)midiOctaveDidChange:(id)sender;
+- (void)updateMIDIControllerRangeDisplay;
 - (void)refreshRoutingMatrix;
 - (void)registerUndoSnapshotWithName:(NSString *)name;
 - (void)restoreScoreSnapshot:(ScoreDocument *)snapshot;
@@ -1021,11 +1024,14 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_midiQuantizePopUp release];
   [_midiRoutingPopUp release];
   [_recordButton release];
+  [_midiRangeShadeButton release];
+  [_midiOctavePopUp release];
   [_midiInputManager release];
   [_midiActiveNotes release];
   [_midiHeldStepNotes release];
   [_midiHeldStepScoreNotes release];
   [_midiSustainedNotes release];
+  [_midiAuditionPitches release];
   [_midiMetronomeSound release];
   [_undoBaseline release];
   [_midiRecordingUndoSnapshot release];
@@ -1144,6 +1150,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _midiHeldStepNotes = [[NSMutableSet alloc] init];
   _midiHeldStepScoreNotes = [[NSMutableDictionary alloc] init];
   _midiSustainedNotes = [[NSMutableSet alloc] init];
+  _midiAuditionPitches = [[NSMutableDictionary alloc] init];
 
   CGFloat inspectorContentHeight = MAX (InspectorContentHeight, inspectorFrame.size.height);
   [self buildInspectorWithFrame:NSMakeRect (0.0, 0.0, InspectorWidth, inspectorContentHeight)];
@@ -1512,13 +1519,41 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [[self inspectorView] addSubview:_recordButton];
   [self reloadMIDIInputs];
 
+  _midiRangeShadeButton = [[NSButton alloc]
+    initWithFrame:NSMakeRect (InspectorPadding + 112.0, frame.size.height - 482.0, 108.0, 20.0)];
+  [_midiRangeShadeButton setTitle:@"Shade Keys"];
+  [_midiRangeShadeButton setButtonType:ScoreMakerSwitchButton];
+  [_midiRangeShadeButton setState:ScoreMakerStateOn];
+  [_midiRangeShadeButton setToolTip:@"Shade the virtual keys covered by the selected MIDI input"];
+  [_midiRangeShadeButton setTarget:self];
+  [_midiRangeShadeButton setAction:@selector (midiRangeDisplayDidChange:)];
+  [_midiRangeShadeButton setAutoresizingMask:NSViewMinYMargin];
+  [[self inspectorView] addSubview:_midiRangeShadeButton];
+
+  _midiOctavePopUp = [[NSPopUpButton alloc]
+    initWithFrame:NSMakeRect (InspectorPadding + 192.0, frame.size.height - 510.0, 92.0, 26.0)
+        pullsDown:NO];
+  for (NSInteger octave = -4; octave <= 4; octave++)
+    {
+      NSString *title = octave == 0 ? @"Oct 0"
+                                    : [NSString stringWithFormat:@"%+ld oct", (long)octave];
+      [_midiOctavePopUp addItemWithTitle:title];
+      [[_midiOctavePopUp lastItem] setRepresentedObject:@(octave)];
+    }
+  [_midiOctavePopUp selectItemAtIndex:4];
+  [_midiOctavePopUp setToolTip:@"Shift incoming MIDI notes by octaves in software"];
+  [_midiOctavePopUp setTarget:self];
+  [_midiOctavePopUp setAction:@selector (midiOctaveDidChange:)];
+  [_midiOctavePopUp setAutoresizingMask:NSViewMinYMargin];
+  [[self inspectorView] addSubview:_midiOctavePopUp];
+
   NSTextField *routingLabel =
     [self labelWithString:@"Input Routing"
                     frame:NSMakeRect (InspectorPadding, frame.size.height - 482.0, 120.0, 18.0)];
   [routingLabel setAutoresizingMask:NSViewMinYMargin];
   [[self inspectorView] addSubview:routingLabel];
   _midiRoutingPopUp = [[NSPopUpButton alloc]
-    initWithFrame:NSMakeRect (InspectorPadding, frame.size.height - 510.0, 218.0, 26.0)
+    initWithFrame:NSMakeRect (InspectorPadding, frame.size.height - 510.0, 186.0, 26.0)
         pullsDown:NO];
   [_midiRoutingPopUp addItemWithTitle:@"Selected Part"];
   [[_midiRoutingPopUp lastItem] setRepresentedObject:@"selected"];
@@ -1810,6 +1845,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_stopButton setEnabled:hasDocument];
   [_recordButton setEnabled:hasDocument && [_midiInputPopUp indexOfSelectedItem] > 0];
   [_midiQuantizePopUp setEnabled:hasDocument];
+  [_midiRangeShadeButton setEnabled:[_midiInputPopUp indexOfSelectedItem] > 0];
+  [_midiOctavePopUp setEnabled:[_midiInputPopUp indexOfSelectedItem] > 0];
   [_annotationTextView setEditable:hasDocument];
 
   if (!hasDocument)
@@ -6156,6 +6193,48 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     }
 }
 
+- (void)updateMIDIControllerRangeDisplay
+{
+  BOOL selected = _midiInputPopUp && [_midiInputPopUp indexOfSelectedItem] > 0;
+  BOOL visible = selected && (!_midiRangeShadeButton
+                              || [_midiRangeShadeButton state] == ScoreMakerStateOn);
+  NSString *name = selected ? [[_midiInputPopUp selectedItem] title] : @"";
+  NSString *lower = [name lowercaseString];
+  NSInteger first = 21;
+  NSInteger last = 108;
+  if ([lower rangeOfString:@"mini 32"].location != NSNotFound)
+    {
+      first = 41;  // F2
+      last = 72;   // C5
+    }
+  else if ([lower rangeOfString:@"49"].location != NSNotFound)
+    {
+      first = 36;  // C2
+      last = 84;   // C6
+    }
+  else if ([lower rangeOfString:@"61"].location != NSNotFound)
+    {
+      first = 48;  // C3
+      last = 108;  // C8
+    }
+  NSInteger octave = [[[_midiOctavePopUp selectedItem] representedObject] integerValue];
+  first += octave * 12;
+  last += octave * 12;
+  [_playbackMonitorView setControllerRangeFirstPitch:first lastPitch:last visible:visible];
+}
+
+- (void)midiRangeDisplayDidChange:(id)sender
+{
+  (void)sender;
+  [self updateMIDIControllerRangeDisplay];
+}
+
+- (void)midiOctaveDidChange:(id)sender
+{
+  (void)sender;
+  [self updateMIDIControllerRangeDisplay];
+}
+
 - (void)midiDevicesChanged:(id)sender
 {
   (void)sender;
@@ -6186,6 +6265,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [_midiInputManager connectToSource:0];
       [_midiInputPopUp selectItemAtIndex:0];
     }
+  [self updateMIDIControllerRangeDisplay];
   [self refreshInspector];
 }
 
@@ -6209,6 +6289,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       if (![_realtimeDSP startWithError:&error])
         NSLog (@"Could not prepare MIDI input audition: %@", error);
     }
+  [self updateMIDIControllerRangeDisplay];
   [self refreshInspector];
 }
 
@@ -6327,10 +6408,12 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   if (!noteOn && !noteOff)
     return;
   NSString *key = [NSString stringWithFormat:@"%ld:%ld", (long)channel, (long)data1];
+  NSInteger octave = [[[_midiOctavePopUp selectedItem] representedObject] integerValue];
+  NSInteger shiftedPitch = MAX ((NSInteger)0, MIN ((NSInteger)127, data1 + octave * 12));
 
   if (noteOn)
     {
-      [_playbackMonitorView liveNoteOn:data1 voice:voice velocity:data2];
+      [_playbackMonitorView liveNoteOn:shiftedPitch voice:voice velocity:data2];
       if (_midiRecording)
         {
           if (!_midiCountingIn)
@@ -6340,7 +6423,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
               [_midiActiveNotes
                 setObject:[NSDictionary
                             dictionaryWithObjectsAndKeys:[NSNumber numberWithDouble:time], @"time",
-                                                         [NSNumber numberWithInteger:data1],
+                                                         [NSNumber numberWithInteger:shiftedPitch],
                                                          @"pitch",
                                                          [NSNumber numberWithInteger:data2],
                                                          @"velocity",
@@ -6387,13 +6470,16 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
                 NSLog (@"Could not start MIDI input audition: %@", error);
             }
           if ([_realtimeDSP isRunning])
-            [_realtimeDSP noteOn:data1 velocity:(NSUInteger)data2];
+            [_realtimeDSP noteOn:shiftedPitch velocity:(NSUInteger)data2];
           [_midiHeldStepNotes addObject:key];
+          [_midiAuditionPitches setObject:@(shiftedPitch) forKey:key];
         }
       return;
     }
 
-  [_playbackMonitorView liveNoteOff:data1];
+  NSNumber *auditionPitch = [_midiAuditionPitches objectForKey:key];
+  NSInteger releasedPitch = auditionPitch ? [auditionPitch integerValue] : shiftedPitch;
+  [_playbackMonitorView liveNoteOff:releasedPitch];
   if (_midiRecording)
     {
       if (!_midiCountingIn)
@@ -6405,8 +6491,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
         }
     }
   if ([_realtimeDSP isRunning])
-    [_realtimeDSP noteOff:data1];
+    [_realtimeDSP noteOff:releasedPitch];
   [_midiHeldStepNotes removeObject:key];
+  [_midiAuditionPitches removeObjectForKey:key];
 }
 
 - (void)midiMetronomeTick:(NSTimer *)timer
@@ -6486,6 +6573,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     {
       [_midiHeldStepNotes removeAllObjects];
       [_midiHeldStepScoreNotes removeAllObjects];
+      [_midiAuditionPitches removeAllObjects];
       [self updateScoreSourceMIDIInputHighlight];
       [_playbackMonitorView clearLiveNotes];
       return;
@@ -6511,6 +6599,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_midiSustainedNotes removeAllObjects];
   [_midiHeldStepNotes removeAllObjects];
   [_midiHeldStepScoreNotes removeAllObjects];
+  [_midiAuditionPitches removeAllObjects];
   [self updateScoreSourceMIDIInputHighlight];
   [_playbackMonitorView clearLiveNotes];
   [_recordButton setTitle:@""];
