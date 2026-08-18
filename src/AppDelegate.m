@@ -465,6 +465,9 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Loop Selection"
                                                  action:@selector (toggleLoopSelection:)
                                           keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Metronome"
+                                                 action:@selector (toggleMetronome:)
+                                          keyEquivalent:@""] autorelease]];
   [scoreMenu addItem:[NSMenuItem separatorItem]];
   NSMenuItem *templateItem = [[[NSMenuItem alloc] initWithTitle:@"Templates"
                                                          action:NULL keyEquivalent:@""] autorelease];

@@ -114,6 +114,10 @@
   NSMutableDictionary *_midiAuditionPitches;
   NSTimer *_midiMetronomeTimer;
   NSSound *_midiMetronomeSound;
+  NSTimer *_practiceMetronomeTimer;
+  NSSound *_practiceMetronomeSound;
+  NSUInteger _practiceMetronomeBeat;
+  BOOL _practiceMetronomeActive;
   NSTimeInterval _midiRecordStartTime;
   NSUInteger _midiRecordStartTick;
   NSUInteger _midiStepStartTick;
@@ -229,6 +233,8 @@
 - (void)fitScorePage:(id)sender;
 /** Enables or disables looping over the ScoreView selection. */
 - (void)toggleLoopSelection:(id)sender;
+/** Starts or stops the audible, animated practice metronome. */
+- (void)toggleMetronome:(id)sender;
 /** Presents the standard print workflow for the current score. */
 - (void)printDocument:(id)sender;
 /** Presents publication settings for screen, print, and PDF output. */

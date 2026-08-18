@@ -917,6 +917,107 @@ main (void)
               objectForKey:@"ampFn"] objectForKey:@"hasSustainPoint"] != nil,
            @"conditionals, part defaults, or executable envelope metadata failed");
 
+  NSString *randomProgram = @"part Random; BEGIN; t 0; int randomSeed = 4242; int i = 0;"
+                             "while (i < 4) { Random (.1) freq:220 + ran * 110 amp:.5;"
+                             "t + .1; i = i + 1; } END;";
+  ScoreDocument *randomFirst = [ScorefileParser parseString:randomProgram
+                                             suggestedTitle:@"Random A" error:&validationError];
+  ScoreDocument *randomSecond = [ScorefileParser parseString:randomProgram
+                                              suggestedTitle:@"Random B" error:&validationError];
+  Require (randomFirst && randomSecond && [[randomFirst notes] count] == 4 &&
+           [[randomSecond notes] count] == 4,
+           @"deterministic random ScoreFile did not generate its notes");
+  for (NSUInteger randomIndex = 0; randomIndex < 4; randomIndex++)
+    Require (fabs ([[[randomFirst notes] objectAtIndex:randomIndex] playbackFrequency] -
+                   [[[randomSecond notes] objectAtIndex:randomIndex] playbackFrequency]) < 1e-12,
+             @"identical ScoreFile source produced different random values");
+  NSString *differentSeedProgram = [randomProgram
+    stringByReplacingOccurrencesOfString:@"randomSeed = 4242"
+                              withString:@"randomSeed = 4243"];
+  ScoreDocument *randomDifferent = [ScorefileParser parseString:differentSeedProgram
+                                                 suggestedTitle:@"Random C"
+                                                          error:&validationError];
+  Require (fabs ([[[randomFirst notes] objectAtIndex:0] playbackFrequency] -
+                 [[[randomDifferent notes] objectAtIndex:0] playbackFrequency]) > 1e-9,
+           @"an explicit randomSeed did not change the generated sequence");
+
+  NSString *implicitRandom = @"part Random; BEGIN; t 0; Random (.1) freq:220 + ran * 10; END;";
+  ScoreDocument *implicitFirst = [ScorefileParser parseString:implicitRandom
+                                               suggestedTitle:@"Implicit A"
+                                                        error:&validationError];
+  ScoreDocument *implicitSecond = [ScorefileParser parseString:
+    [@"/* comments do not perturb the musical seed */\n" stringByAppendingString:implicitRandom]
+                                                suggestedTitle:@"Implicit B"
+                                                         error:&validationError];
+  Require (fabs ([[[implicitFirst notes] objectAtIndex:0] playbackFrequency] -
+                 [[[implicitSecond notes] objectAtIndex:0] playbackFrequency]) < 1e-12,
+           @"comments unexpectedly changed the default deterministic random seed");
+
+  NSString *includeDirectory = [NSTemporaryDirectory () stringByAppendingPathComponent:
+    [NSString stringWithFormat:@"scoremaker-includes-%@", [[NSUUID UUID] UUIDString]]];
+  Require ([[NSFileManager defaultManager] createDirectoryAtPath:includeDirectory
+                                      withIntermediateDirectories:YES attributes:nil
+                                                           error:&validationError],
+           @"could not create include compatibility fixture");
+  NSString *includeRoot = [includeDirectory stringByAppendingPathComponent:@"root.score"];
+  NSString *includeChild = [includeDirectory stringByAppendingPathComponent:@"child.score"];
+  NSString *includeRootSource = @"part Included; BEGIN;\ninclude \"child.score\";\n"
+                                 "t 1; Included (.5) keyNum:e4k; END;";
+  NSString *includeChildSource = @"t 0; Included (.5) keyNum:c4k;";
+  Require ([includeRootSource writeToFile:includeRoot atomically:YES
+                                  encoding:NSUTF8StringEncoding error:&validationError] &&
+           [includeChildSource writeToFile:includeChild atomically:YES
+                                   encoding:NSUTF8StringEncoding error:&validationError],
+           @"could not write include compatibility fixture");
+  ScoreDocument *included = [ScorefileParser parseFileAtPath:includeRoot error:&validationError];
+  Require (included && [[included notes] count] == 2 &&
+           [[[[included notes] objectAtIndex:0] provenance]
+             isEqual:[includeChild stringByStandardizingPath]] &&
+           [[[[included notes] objectAtIndex:1] provenance]
+             isEqual:[includeRoot stringByStandardizingPath]] &&
+           [[[included scorefileCompatibility] objectForKey:@"sourceFiles"]
+             containsObject:[includeChild stringByStandardizingPath]] &&
+           [[[included scorefileCompatibility] objectForKey:@"sourceFiles"]
+             containsObject:[includeRoot stringByStandardizingPath]],
+           @"included notes did not retain canonical per-file provenance");
+
+  NSString *cycleA = [includeDirectory stringByAppendingPathComponent:@"cycle-a.score"];
+  NSString *cycleB = [includeDirectory stringByAppendingPathComponent:@"cycle-b.score"];
+  [@"include \"cycle-b.score\";" writeToFile:cycleA atomically:YES
+                                      encoding:NSUTF8StringEncoding error:&validationError];
+  [@"include \"cycle-a.score\";" writeToFile:cycleB atomically:YES
+                                      encoding:NSUTF8StringEncoding error:&validationError];
+  validationError = nil;
+  Require ([ScorefileParser parseFileAtPath:cycleA error:&validationError] == nil &&
+           [[[validationError localizedDescription] lowercaseString] rangeOfString:@"cycle"].location
+             != NSNotFound,
+           @"an include cycle did not produce an explicit diagnostic");
+
+  NSMutableString *tooManyIncludes = [NSMutableString string];
+  for (NSUInteger includeIndex = 0; includeIndex < 129; includeIndex++)
+    [tooManyIncludes appendString:@"include \"child.score\";\n"];
+  NSString *includeBudgetPath = [includeDirectory stringByAppendingPathComponent:@"too-many.score"];
+  [tooManyIncludes writeToFile:includeBudgetPath atomically:YES
+                       encoding:NSUTF8StringEncoding error:&validationError];
+  validationError = nil;
+  Require ([ScorefileParser parseFileAtPath:includeBudgetPath error:&validationError] == nil &&
+           [[validationError localizedDescription] rangeOfString:@"128"].location != NSNotFound,
+           @"include-count budget was not enforced");
+
+  NSMutableString *deepScript = [NSMutableString stringWithString:@"part Deep; BEGIN; int x = 1;"];
+  for (NSUInteger depth = 0; depth < 129; depth++)
+    [deepScript appendString:@"if (x) {"];
+  [deepScript appendString:@"Deep (.1) keyNum:c4k;"];
+  for (NSUInteger depth = 0; depth < 129; depth++)
+    [deepScript appendString:@"}"];
+  [deepScript appendString:@"END;"];
+  validationError = nil;
+  Require ([ScorefileParser parseString:deepScript suggestedTitle:@"Too Deep"
+                                   error:&validationError] == nil &&
+           [[validationError localizedDescription] rangeOfString:@"128"].location != NSNotFound,
+           @"script-nesting budget was not enforced");
+  [[NSFileManager defaultManager] removeItemAtPath:includeDirectory error:NULL];
+
   NSString *algorithmicPath = @"examples/algorithmic-cycle-of-fifths.score";
   NSString *algorithmicSource = [NSString stringWithContentsOfFile:algorithmicPath
                                                            encoding:NSUTF8StringEncoding

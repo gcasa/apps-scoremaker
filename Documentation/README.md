@@ -1,5 +1,7 @@
 # ScoreMaker API Documentation
 
+For instructions on using the application, see the [ScoreMaker User Manual](USER_MANUAL.md).
+
 The API reference is generated from the autogsdoc comments in `src/*.h`.
 From the repository root, run:
 

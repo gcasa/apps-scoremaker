@@ -53,6 +53,41 @@ ScorePartColor (NSInteger track, BOOL darkVariant)
 
 @implementation PlaybackMonitorView
 
+- (void)updateMetronomeAnimation:(NSTimer *)timer
+{
+  (void)timer;
+  [self setNeedsDisplay:YES];
+}
+
+- (void)setMetronomeActive:(BOOL)active
+                       bpm:(NSUInteger)bpm
+           beatsPerMeasure:(NSUInteger)beatsPerMeasure
+{
+  _metronomeActive = active;
+  _metronomeBeatDuration = 60.0 / (double)MAX ((NSUInteger)1, bpm);
+  _metronomeBeatsPerMeasure = MAX ((NSUInteger)1, beatsPerMeasure);
+  if (active && !_metronomeAnimationTimer)
+    _metronomeAnimationTimer = [[NSTimer scheduledTimerWithTimeInterval:1.0 / 30.0
+                                                                  target:self
+                                                                selector:@selector (updateMetronomeAnimation:)
+                                                                userInfo:nil
+                                                                 repeats:YES] retain];
+  if (!active)
+    {
+      [_metronomeAnimationTimer invalidate];
+      [_metronomeAnimationTimer release];
+      _metronomeAnimationTimer = nil;
+    }
+  [self setNeedsDisplay:YES];
+}
+
+- (void)pulseMetronomeBeat:(NSUInteger)beat
+{
+  _metronomeBeat = beat % MAX ((NSUInteger)1, _metronomeBeatsPerMeasure);
+  _metronomeBeatTime = [NSDate timeIntervalSinceReferenceDate];
+  [self setNeedsDisplay:YES];
+}
+
 - (id)initWithFrame:(NSRect)frame
 {
   self = [super initWithFrame:frame];
@@ -542,6 +577,34 @@ ScorePartColor (NSInteger track, BOOL darkVariant)
                  active:_rackVisible];
   [@"Voices / MIDI velocity" drawAtPoint:NSMakePoint (split + 14.0, 8.0)
                           withAttributes:headingAttributes];
+  if (_metronomeActive)
+    {
+      NSTimeInterval elapsed = [NSDate timeIntervalSinceReferenceDate] - _metronomeBeatTime;
+      double progress = _metronomeBeatDuration > 0.0
+                          ? MIN (1.0, MAX (0.0, elapsed / _metronomeBeatDuration)) : 0.0;
+      CGFloat direction = (_metronomeBeat % 2 == 0) ? -1.0 : 1.0;
+      CGFloat angle = direction * (1.0 - 2.0 * progress) * 0.52;
+      NSPoint pivot = NSMakePoint (NSWidth ([self bounds]) - 34.0, 23.0);
+      CGFloat armLength = 18.0;
+      NSPoint bob = NSMakePoint (pivot.x + sin (angle) * armLength,
+                                 pivot.y - cos (angle) * armLength);
+      NSBezierPath *arm = [NSBezierPath bezierPath];
+      [arm moveToPoint:pivot];
+      [arm lineToPoint:bob];
+      [arm setLineWidth:2.0];
+      [[NSColor controlTextColor] setStroke];
+      [arm stroke];
+      NSColor *pulseColor = _metronomeBeat == 0
+                              ? [NSColor colorWithCalibratedRed:0.91 green:0.29 blue:0.22 alpha:1.0]
+                              : [NSColor selectedControlColor];
+      [pulseColor setFill];
+      [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect (bob.x - 4.0, bob.y - 4.0, 8.0, 8.0)] fill];
+      NSString *beatLabel = [NSString stringWithFormat:@"%lu/%lu",
+        (unsigned long)(_metronomeBeat + 1), (unsigned long)_metronomeBeatsPerMeasure];
+      [beatLabel drawInRect:NSMakeRect (NSWidth ([self bounds]) - 72.0, 5.0, 36.0, 14.0)
+             withAttributes:@{ NSFontAttributeName : [NSFont boldSystemFontOfSize:9.0],
+                               NSForegroundColorAttributeName : pulseColor }];
+    }
   NSArray *selectedActiveNotes = [self activeNotesForTrack:_selectedTrack];
   NSArray *keyboardActiveNotes = _showAllParts ? [self activeNotes] : selectedActiveNotes;
   CGFloat availableHeight = NSHeight ([self bounds]) - 38.0;
@@ -562,6 +625,8 @@ ScorePartColor (NSInteger track, BOOL darkVariant)
 
 - (void)dealloc
 {
+  [_metronomeAnimationTimer invalidate];
+  [_metronomeAnimationTimer release];
   [_document release];
   [_liveNotes release];
   [_pinnedTracks release];

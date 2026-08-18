@@ -26,6 +26,25 @@ NSString *const ScorefileErrorLineKey = @"ScorefileErrorLine";
 NSString *const ScorefileErrorColumnKey = @"ScorefileErrorColumn";
 static NSString *const ScoreMakerMetadataMarker = @"ScoreMaker Metadata V1";
 static NSString *const ScoreMakerStructureMarker = @"ScoreMaker Structure V2";
+static NSString *const ScorefileThreadDeadlineKey = @"ScoreMakerScorefileParserDeadline";
+static const NSUInteger ScorefileMaximumBytes = 32 * 1024 * 1024;
+static const NSUInteger ScorefileMaximumIncludes = 128;
+static const NSUInteger ScorefileMaximumIncludeDepth = 32;
+static const NSUInteger ScorefileMaximumScriptNesting = 128;
+static const NSUInteger ScorefileMaximumStatements = 250000;
+static const NSUInteger ScorefileMaximumNotes = 250000;
+static const NSTimeInterval ScorefileMaximumExecutionSeconds = 5.0;
+static NSError *ScorefileError (NSString *message);
+
+static BOOL
+ScorefileDeadlineExceeded (NSTimeInterval deadline, NSError **error)
+{
+  if ([NSDate timeIntervalSinceReferenceDate] <= deadline)
+    return NO;
+  if (error)
+    *error = ScorefileError (@"ScoreFile execution exceeded the 5-second parser budget.");
+  return YES;
+}
 
 static NSError *
 ScorefileError (NSString *message)
@@ -663,6 +682,60 @@ SkipExpressionWhitespace (ScorefileExpressionParser *parser)
 static double ParseScorefileExpression (ScorefileExpressionParser *parser);
 static double EvaluateExpression (NSString *expression, NSDictionary *variables, BOOL *ok);
 
+static NSString *const ScorefileRandomStateKey = @"__ScoreMakerRandomState";
+
+static unsigned long long
+ScorefileStableSeed (NSString *source)
+{
+  unsigned long long hash = 1469598103934665603ULL;
+  BOOL quoted = NO, escaping = NO;
+  for (NSUInteger i = 0; i < [source length]; i++)
+    {
+      unichar character = [source characterAtIndex:i];
+      if (!quoted && [[NSCharacterSet whitespaceAndNewlineCharacterSet]
+                       characterIsMember:character])
+        continue;
+      if (escaping) escaping = NO;
+      else if (quoted && character == '\\') escaping = YES;
+      else if (character == '"') quoted = !quoted;
+      unsigned int value = character;
+      hash ^= value & 0xffU;
+      hash *= 1099511628211ULL;
+      hash ^= value >> 8;
+      hash *= 1099511628211ULL;
+    }
+  return hash ?: 0x9e3779b97f4a7c15ULL;
+}
+
+static void
+SetScorefileVariable (NSMutableDictionary *variables, NSString *name, double value)
+{
+  [variables setObject:[NSNumber numberWithDouble:value] forKey:name];
+  if ([name caseInsensitiveCompare:@"randomSeed"] == NSOrderedSame)
+    {
+      unsigned long long seed = (unsigned long long)llround (fabs (value));
+      [variables setObject:[NSNumber numberWithUnsignedLongLong:
+                             seed ?: 0x9e3779b97f4a7c15ULL]
+                    forKey:ScorefileRandomStateKey];
+    }
+}
+
+static double
+ScorefileNextRandom (NSDictionary *variables)
+{
+  unsigned long long state = [[variables objectForKey:ScorefileRandomStateKey]
+                                unsignedLongLongValue];
+  if (!state) state = 0x9e3779b97f4a7c15ULL;
+  state ^= state >> 12;
+  state ^= state << 25;
+  state ^= state >> 27;
+  if ([variables isKindOfClass:[NSMutableDictionary class]])
+    [(NSMutableDictionary *)variables
+      setObject:[NSNumber numberWithUnsignedLongLong:state] forKey:ScorefileRandomStateKey];
+  unsigned long long result = state * 2685821657736338717ULL;
+  return (double)(result >> 11) * (1.0 / 9007199254740992.0);
+}
+
 static double
 ParseScorefileFactor (ScorefileExpressionParser *parser)
 {
@@ -754,7 +827,7 @@ ParseScorefileFactor (ScorefileExpressionParser *parser)
   if (variable)
     return [variable doubleValue];
   if ([[token lowercaseString] isEqualToString:@"ran"])
-    return (double)arc4random_uniform (1000001) / 1000000.0;
+    return ScorefileNextRandom (parser->variables);
 
   NSScanner *scanner = [NSScanner scannerWithString:token];
   double value = 0.0;
@@ -1421,16 +1494,24 @@ ScorefileWordAt (NSString *source, NSUInteger index, NSUInteger end, NSString *w
 
 static BOOL ExecuteScorefileScriptRange (NSString *, NSUInteger, NSUInteger,
                                          NSMutableDictionary *, NSMutableString *,
-                                         NSUInteger *, NSError **);
+                                         NSUInteger *, NSUInteger, NSUInteger *,
+                                         NSTimeInterval, NSError **);
 
 static BOOL
 ExecuteScorefileScriptRange (NSString *source, NSUInteger start, NSUInteger end,
                              NSMutableDictionary *environment, NSMutableString *output,
-                             NSUInteger *steps, NSError **error)
+                             NSUInteger *steps, NSUInteger nesting, NSUInteger *statementCount,
+                             NSTimeInterval deadline, NSError **error)
 {
+  if (nesting > ScorefileMaximumScriptNesting)
+    {
+      if (error) *error = ScorefileError (@"ScoreFile script nesting exceeds 128 blocks.");
+      return NO;
+    }
   NSUInteger index = start;
   while (index < end)
     {
+      if (ScorefileDeadlineExceeded (deadline, error)) return NO;
       ScorefileSkipSpace (source, &index, end);
       if (index >= end) break;
       BOOL isWhile = ScorefileWordAt (source, index, end, @"while");
@@ -1467,7 +1548,8 @@ ExecuteScorefileScriptRange (NSString *source, NSUInteger start, NSUInteger end,
                       return NO;
                     }
                   if (!ExecuteScorefileScriptRange (source, bodyStart, bodyEnd, environment,
-                                                    output, steps, error)) return NO;
+                                                    output, steps, nesting + 1, statementCount,
+                                                    deadline, error)) return NO;
                 }
             }
           else
@@ -1488,10 +1570,12 @@ ExecuteScorefileScriptRange (NSString *source, NSUInteger start, NSUInteger end,
                 }
               if (result)
                 { if (!ExecuteScorefileScriptRange (source, bodyStart, bodyEnd, environment,
-                                                    output, steps, error)) return NO; }
+                                                    output, steps, nesting + 1, statementCount,
+                                                    deadline, error)) return NO; }
               else if (elseStart != NSNotFound)
                 { if (!ExecuteScorefileScriptRange (source, elseStart, elseEnd, environment,
-                                                    output, steps, error)) return NO; }
+                                                    output, steps, nesting + 1, statementCount,
+                                                    deadline, error)) return NO; }
             }
           continue;
         }
@@ -1508,6 +1592,11 @@ ExecuteScorefileScriptRange (NSString *source, NSUInteger start, NSUInteger end,
                                                        index - statementStart -
                                                        ((index && [source characterAtIndex:index-1] == ';') ? 1 : 0))]);
       if (![statement length]) continue;
+      if (++(*statementCount) > ScorefileMaximumStatements)
+        {
+          if (error) *error = ScorefileError (@"ScoreFile generates more than 250,000 statements.");
+          return NO;
+        }
       NSRegularExpression *declaration = [NSRegularExpression
         regularExpressionWithPattern:@"^(?:int|double|var)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?:=\\s*(.+))?$"
                              options:NSRegularExpressionCaseInsensitive error:NULL];
@@ -1527,7 +1616,7 @@ ExecuteScorefileScriptRange (NSString *source, NSUInteger start, NSUInteger end,
           BOOL valueOK = NO;
           double value = EvaluateExpression (expression, environment, &valueOK);
           if (!valueOK) goto malformed;
-          [environment setObject:@(value) forKey:name];
+          SetScorefileVariable (environment, name, value);
           [output appendFormat:@"/*__SM_TRACE:%lu:%lu*/var %@ = %.17g;\n",
                                 (unsigned long)statementStart,
                                 (unsigned long)(index - statementStart), name, value];
@@ -1536,6 +1625,11 @@ ExecuteScorefileScriptRange (NSString *source, NSUInteger start, NSUInteger end,
         [output appendFormat:@"/*__SM_TRACE:%lu:%lu*/%@;\n",
                               (unsigned long)statementStart,
                               (unsigned long)(index - statementStart), statement];
+      if ([output lengthOfBytesUsingEncoding:NSUTF8StringEncoding] > ScorefileMaximumBytes)
+        {
+          if (error) *error = ScorefileError (@"Expanded ScoreFile exceeds the 32 MiB byte budget.");
+          return NO;
+        }
     }
   return YES;
 
@@ -1547,12 +1641,13 @@ malformed:
 }
 
 static NSString *
-ExpandScorefileScript (NSString *source, NSMutableDictionary *environment, NSError **error)
+ExpandScorefileScript (NSString *source, NSMutableDictionary *environment,
+                       NSTimeInterval deadline, NSError **error)
 {
   NSMutableString *output = [NSMutableString string];
-  NSUInteger steps = 0;
+  NSUInteger steps = 0, statementCount = 0;
   return ExecuteScorefileScriptRange (source, 0, [source length], environment, output,
-                                      &steps, error) ? output : nil;
+                                      &steps, 0, &statementCount, deadline, error) ? output : nil;
 }
 
 static NSDictionary *
@@ -1579,48 +1674,119 @@ ScorefileNamedNumericObject (NSString *declaration, NSString *kind)
 
 @implementation ScorefileParser
 
-+ (NSString *)expandedSourceAtPath:(NSString *)path visited:(NSMutableSet *)visited error:(NSError **)error
++ (NSString *)expandedSourceAtPath:(NSString *)path
+                            budget:(NSMutableDictionary *)budget
+                             depth:(NSUInteger)depth
+                            active:(NSMutableArray *)active
+                             error:(NSError **)error
 {
   NSString *canonical = [path stringByStandardizingPath];
-  if ([visited containsObject:canonical])
-    return @"";
-  [visited addObject:canonical];
-  NSString *source = [NSString stringWithContentsOfFile:canonical encoding:NSUTF8StringEncoding
-                                                  error:error];
-  if (!source)
-    source = [NSString stringWithContentsOfFile:canonical
-                                       encoding:NSISOLatin1StringEncoding error:error];
-  if (!source)
+  if (depth > ScorefileMaximumIncludeDepth)
+    {
+      if (error) *error = ScorefileError (@"ScoreFile include nesting exceeds 32 files.");
+      return nil;
+    }
+  NSUInteger includeCount = [[budget objectForKey:@"includes"] unsignedIntegerValue];
+  if (depth > 0 && ++includeCount > ScorefileMaximumIncludes)
+    {
+      if (error) *error = ScorefileError (@"ScoreFile uses more than 128 include directives.");
+      return nil;
+    }
+  [budget setObject:@(includeCount) forKey:@"includes"];
+  if ([active containsObject:canonical])
+    {
+      NSArray *cycle = [[active arrayByAddingObject:canonical]
+        valueForKey:@"lastPathComponent"];
+      if (error) *error = ScorefileError
+        ([NSString stringWithFormat:@"ScoreFile include cycle: %@.",
+                                    [cycle componentsJoinedByString:@" → "]]);
+      return nil;
+    }
+  if (ScorefileDeadlineExceeded ([[budget objectForKey:@"deadline"] doubleValue], error))
     return nil;
+
+  NSData *data = [NSData dataWithContentsOfFile:canonical
+                                        options:NSDataReadingMappedIfSafe error:error];
+  NSUInteger byteCount = [[budget objectForKey:@"bytes"] unsignedIntegerValue] + [data length];
+  if (!data || byteCount > ScorefileMaximumBytes)
+    {
+      if (data && error) *error = ScorefileError
+        (@"ScoreFile source and includes exceed the 32 MiB byte budget.");
+      return nil;
+    }
+  [budget setObject:@(byteCount) forKey:@"bytes"];
+  NSString *source = [[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] autorelease];
+  if (!source)
+    source = [[[NSString alloc] initWithData:data encoding:NSISOLatin1StringEncoding] autorelease];
+  if (!source)
+    {
+      if (error) *error = ScorefileError (@"An included ScoreFile is not valid text.");
+      return nil;
+    }
+  [active addObject:canonical];
   NSRegularExpression *include = [NSRegularExpression
     regularExpressionWithPattern:@"(?m)^\\s*(?:#include|include)\\s+\"([^\"]+)\"\\s*;?\\s*$"
                          options:0 error:NULL];
-  NSMutableString *expanded = [source mutableCopy];
+  NSMutableString *expanded = [NSMutableString string];
+  NSString *encodedPath = [[canonical dataUsingEncoding:NSUTF8StringEncoding]
+    base64EncodedStringWithOptions:0];
+  [expanded appendFormat:@"__scoremakerSourceFile \"%@\";\n", encodedPath];
   NSArray *matches = [include matchesInString:source options:0
                                          range:NSMakeRange (0, [source length])];
-  for (NSTextCheckingResult *match in [matches reverseObjectEnumerator])
+  NSUInteger cursor = 0;
+  for (NSTextCheckingResult *match in matches)
     {
+      [expanded appendString:[source substringWithRange:
+        NSMakeRange (cursor, [match range].location - cursor)]];
       NSString *relative = [source substringWithRange:[match rangeAtIndex:1]];
       NSString *includedPath = [[canonical stringByDeletingLastPathComponent]
         stringByAppendingPathComponent:relative];
-      NSString *included = [self expandedSourceAtPath:includedPath visited:visited error:error];
-      if (!included) { [expanded release]; return nil; }
-      [expanded replaceCharactersInRange:[match range] withString:included];
+      NSString *included = [self expandedSourceAtPath:includedPath budget:budget depth:depth + 1
+                                                active:active error:error];
+      if (!included) { [active removeLastObject]; return nil; }
+      [expanded appendString:included];
+      [expanded appendFormat:@"\n__scoremakerSourceFile \"%@\";\n", encodedPath];
+      cursor = NSMaxRange ([match range]);
+      if ([expanded lengthOfBytesUsingEncoding:NSUTF8StringEncoding] > ScorefileMaximumBytes)
+        {
+          [active removeLastObject];
+          if (error) *error = ScorefileError (@"Expanded ScoreFile exceeds the 32 MiB byte budget.");
+          return nil;
+        }
     }
-  return [expanded autorelease];
+  [expanded appendString:[source substringFromIndex:cursor]];
+  [active removeLastObject];
+  if ([expanded lengthOfBytesUsingEncoding:NSUTF8StringEncoding] > ScorefileMaximumBytes)
+    {
+      if (error) *error = ScorefileError (@"Expanded ScoreFile exceeds the 32 MiB byte budget.");
+      return nil;
+    }
+  return expanded;
 }
 
 + (ScoreDocument *)parseFileAtPath:(NSString *)path error:(NSError **)error
 {
-  NSString *raw = [self expandedSourceAtPath:path visited:[NSMutableSet set] error:error];
+  NSTimeInterval deadline = [NSDate timeIntervalSinceReferenceDate]
+                            + ScorefileMaximumExecutionSeconds;
+  [[[NSThread currentThread] threadDictionary] setObject:@(deadline)
+                                                  forKey:ScorefileThreadDeadlineKey];
+  NSMutableDictionary *budget = [NSMutableDictionary dictionaryWithObjectsAndKeys:
+    @0, @"bytes", @0, @"includes",
+    @(deadline), @"deadline", nil];
+  NSString *raw = [self expandedSourceAtPath:path budget:budget depth:0
+                                      active:[NSMutableArray array] error:error];
   if (!raw)
     {
+      [[[NSThread currentThread] threadDictionary] removeObjectForKey:ScorefileThreadDeadlineKey];
       return nil;
     }
 
-  return [self parseString:raw
-            suggestedTitle:[[path lastPathComponent] stringByDeletingPathExtension]
-                     error:error];
+  ScoreDocument *document = [self parseString:raw
+                               suggestedTitle:[[path lastPathComponent]
+                                                stringByDeletingPathExtension]
+                                        error:error];
+  [[[NSThread currentThread] threadDictionary] removeObjectForKey:ScorefileThreadDeadlineKey];
+  return document;
 }
 
 + (ScoreDocument *)parseString:(NSString *)raw
@@ -1643,6 +1809,15 @@ ScorefileNamedNumericObject (NSString *declaration, NSString *kind)
         *error = ScorefileError (@"The score source is empty.");
       return nil;
     }
+  if ([raw lengthOfBytesUsingEncoding:NSUTF8StringEncoding] > ScorefileMaximumBytes)
+    {
+      if (error) *error = ScorefileError (@"ScoreFile exceeds the 32 MiB byte budget.");
+      return nil;
+    }
+  NSNumber *inheritedDeadline = [[[NSThread currentThread] threadDictionary]
+    objectForKey:ScorefileThreadDeadlineKey];
+  NSTimeInterval parseDeadline = inheritedDeadline ? [inheritedDeadline doubleValue]
+    : [NSDate timeIntervalSinceReferenceDate] + ScorefileMaximumExecutionSeconds;
 
   NSError *lexicalError = ScorefileLexicalError (raw);
   if (lexicalError)
@@ -1666,15 +1841,26 @@ ScorefileNamedNumericObject (NSString *declaration, NSString *kind)
         [variables setObject:@(frequency) forKey:name];
       }
   NSString *strippedContent = StripComments (raw);
+  unsigned long long sourceSeed = ScorefileStableSeed (strippedContent);
+  [variables setObject:[NSNumber numberWithUnsignedLongLong:sourceSeed]
+                forKey:ScorefileRandomStateKey];
+  [variables setObject:[NSNumber numberWithUnsignedLongLong:sourceSeed]
+                forKey:@"randomSeed"];
   NSRegularExpression *scriptMarker = [NSRegularExpression
     regularExpressionWithPattern:@"(?m)(?:^|[;{}])\\s*(?:while\\s*\\(|if\\s*\\(|int\\s+|double\\s+)"
                          options:NSRegularExpressionCaseInsensitive error:NULL];
   BOOL hasScript = [scriptMarker firstMatchInString:strippedContent options:0
                                                range:NSMakeRange (0, [strippedContent length])] != nil;
-  NSString *content = hasScript ? ExpandScorefileScript (strippedContent, variables, error)
+  NSString *content = hasScript ? ExpandScorefileScript (strippedContent, variables,
+                                                         parseDeadline, error)
                                 : strippedContent;
   if (!content) return nil;
   NSArray *statements = ScorefileStatements (content);
+  if ([statements count] > ScorefileMaximumStatements)
+    {
+      if (error) *error = ScorefileError (@"ScoreFile contains more than 250,000 statements.");
+      return nil;
+    }
   NSArray *statementRanges = [content isEqualToString:strippedContent]
                                ? ScorefileStatementRanges (raw) : [NSArray array];
   NSMutableArray *capturedNoteRanges = noteRanges ? [NSMutableArray array] : nil;
@@ -1707,10 +1893,14 @@ ScorefileNamedNumericObject (NSString *declaration, NSString *kind)
   double currentTime = 0.0;
   BOOL inBody = NO;
   NSUInteger trackForPart = 0;
+  NSUInteger parsedNoteCount = 0;
+  NSString *currentSourcePath = nil;
   NSMutableDictionary *partTracks = [NSMutableDictionary dictionary];
 
   for (NSUInteger statementIndex = 0; statementIndex < [statements count]; statementIndex++)
     {
+      if ((statementIndex & 1023U) == 0 && ScorefileDeadlineExceeded (parseDeadline, error))
+        return nil;
       NSString *rawStatement = [statements objectAtIndex:statementIndex];
       NSValue *sourceRange = statementIndex < [statementRanges count]
                                ? [statementRanges objectAtIndex:statementIndex] : nil;
@@ -1738,6 +1928,28 @@ ScorefileNamedNumericObject (NSString *declaration, NSString *kind)
         }
       if ([statement length] == 0)
         {
+          continue;
+        }
+      NSString *encodedSourcePath = QuotedStringValue (statement, @"__scoremakerSourceFile ");
+      if (encodedSourcePath)
+        {
+          NSData *pathData = [[[NSData alloc] initWithBase64EncodedString:encodedSourcePath
+                                                                  options:0] autorelease];
+          NSString *decodedPath = pathData ? [[[NSString alloc] initWithData:pathData
+                                                                      encoding:NSUTF8StringEncoding]
+                                             autorelease] : nil;
+          if ([decodedPath length])
+            {
+              currentSourcePath = decodedPath;
+              NSMutableArray *files = [[document scorefileCompatibility]
+                objectForKey:@"sourceFiles"];
+              if (![files isKindOfClass:[NSMutableArray class]])
+                {
+                  files = files ? [NSMutableArray arrayWithArray:files] : [NSMutableArray array];
+                  [[document scorefileCompatibility] setObject:files forKey:@"sourceFiles"];
+                }
+              if (![files containsObject:decodedPath]) [files addObject:decodedPath];
+            }
           continue;
         }
       NSString *scoreTitle = StringVariableValue (statement, @"scoreTitle");
@@ -1841,7 +2053,7 @@ ScorefileNamedNumericObject (NSString *declaration, NSString *kind)
               double value = EvaluateExpression (expr, variables, &ok);
               if (ok && [name length] > 0)
                 {
-                  [variables setObject:[NSNumber numberWithDouble:value] forKey:name];
+                  SetScorefileVariable (variables, name, value);
                 }
             }
           continue;
@@ -2142,6 +2354,13 @@ ScorefileNamedNumericObject (NSString *declaration, NSString *kind)
                     if (ampOK) [continuation setVelocity:(NSUInteger)llround
                       (127.0 * MIN (1.0, MAX (0.0, value)))];
                   }
+                if (++parsedNoteCount > ScorefileMaximumNotes)
+                  {
+                    if (error) *error = ScorefileError
+                      (@"ScoreFile generates more than 250,000 notes.");
+                    return nil;
+                  }
+                if ([currentSourcePath length]) [continuation setProvenance:currentSourcePath];
                 [[document notes] addObject:continuation];
                 [activeNotes setObject:continuation forKey:activeKey];
               }
@@ -2187,10 +2406,22 @@ ScorefileNamedNumericObject (NSString *declaration, NSString *kind)
                   if (ampOK)
                     [note setVelocity:(NSUInteger)llround (127.0 * MIN (1.0, MAX (0.0, value)))];
                 }
+              if (++parsedNoteCount > ScorefileMaximumNotes)
+                {
+                  if (error) *error = ScorefileError
+                    (@"ScoreFile generates more than 250,000 notes.");
+                  return nil;
+                }
+              if ([currentSourcePath length]) [note setProvenance:currentSourcePath];
               [[document notes] addObject:note];
               if (sourceRange)
-                [capturedNoteRanges addObject:[NSDictionary dictionaryWithObjectsAndKeys:
-                  note, @"note", sourceRange, @"range", nil]];
+                {
+                  NSMutableDictionary *capture = [NSMutableDictionary dictionaryWithObjectsAndKeys:
+                    note, @"note", sourceRange, @"range", nil];
+                  if ([currentSourcePath length])
+                    [capture setObject:currentSourcePath forKey:@"sourcePath"];
+                  [capturedNoteRanges addObject:capture];
+                }
               [activeNotes setObject:note forKey:key];
             }
           continue;
@@ -2232,10 +2463,22 @@ ScorefileNamedNumericObject (NSString *declaration, NSString *kind)
           [note setSlurEnd:([params rangeOfString:@"slurStop:1" options:NSCaseInsensitiveSearch]
                               .location
                             != NSNotFound)];
+          if (++parsedNoteCount > ScorefileMaximumNotes)
+            {
+              if (error) *error = ScorefileError
+                (@"ScoreFile generates more than 250,000 notes.");
+              return nil;
+            }
+          if ([currentSourcePath length]) [note setProvenance:currentSourcePath];
           [[document notes] addObject:note];
           if (sourceRange)
-            [capturedNoteRanges addObject:[NSDictionary dictionaryWithObjectsAndKeys:
-              note, @"note", sourceRange, @"range", nil]];
+            {
+              NSMutableDictionary *capture = [NSMutableDictionary dictionaryWithObjectsAndKeys:
+                note, @"note", sourceRange, @"range", nil];
+              if ([currentSourcePath length])
+                [capture setObject:currentSourcePath forKey:@"sourcePath"];
+              [capturedNoteRanges addObject:capture];
+            }
           if ([note startTick] + [note durationTicks] > [document totalTicks])
             {
               [document setTotalTicks:[note startTick] + [note durationTicks]];

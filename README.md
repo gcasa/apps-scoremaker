@@ -20,6 +20,7 @@ ScoreMaker is a native Objective-C/AppKit notation, playback, recording, and pub
 - Route individual parts to different physical CoreMIDI output devices on macOS, with persistent
   per-part assignments and built-in-synth fallback when a saved device is unavailable.
 - Show active notes on an 88-key piano with middle C marked as C4, display live MIDI-velocity meters for each voice during playback, and audition and enter notes by clicking the piano keys.
+- Run an audible practice metronome with a tempo-synchronized animated pendulum, numbered beats, and a highlighted downbeat; reuse the animation during MIDI recording count-ins.
 - Accept live CoreMIDI keyboard input on macOS for velocity-sensitive step entry and quantized real-time recording with chord detection, count-in, metronome, and sustain-pedal handling.
 - Support document-level Undo/Redo, single-action undo for complete MIDI takes, CoreMIDI hot-plug updates, and routing either to the selected part or from MIDI channels to parts.
 - Loop an audition passage by selecting its first note, Shift-clicking its last note, and enabling **Score > Loop Selection**.
@@ -195,6 +196,16 @@ build/macos/ScoreMaker.app/Contents/MacOS/ScoreMaker path/to/song.score
 ## Limitations
 
 ScoreMaker maps common MusicKit-style instrument declarations to General MIDI programs for playback. Its ScoreFile interpreter supports typed numeric variables, assignments, expressions, conditionals, bounded loops, relative timing, tagged and untagged note updates, mute events, includes, and structured envelope/wavetable/tuning declarations. Original source and parameters without a native realization are retained in compatibility metadata and restored on export. The internal patch editor supplies its own oscillator, envelope, and LFO model, but cannot execute arbitrary Objective-C MusicKit SynthPatch classes or DSP56001 programs; those declarations are preserved and mapped to an available instrument when possible.
+
+The ScoreFile `ran` symbol uses a deterministic score-local sequence so applying, reopening, and
+source tracing reproduce the same generated notes. Declare `int randomSeed = 1234;` to choose a
+specific sequence; without an explicit seed, ScoreMaker derives one from the musical source while
+ignoring comments and insignificant whitespace.
+
+ScoreFile parsing is bounded to 32 MiB of source and expanded text, 128 includes, 32 include
+levels, 128 script-block levels, 250,000 statements, 250,000 generated notes, and five seconds for
+the complete include-and-evaluation operation. Include cycles are errors. Notes generated from
+included files retain the canonical source path in their provenance metadata.
 
 ScoreMaker keeps `.score` note statements compatible with MusicKit-style readers. Voice assignments and explicit measure structure are stored in an additional `ScoreMaker Structure V2` JSON metadata comment; older readers can ignore that comment and continue reading pitches, timing, parts, and programs. Files without V2 structure metadata open as voice 1 with measures derived from their time signature.
 

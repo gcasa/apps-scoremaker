@@ -320,6 +320,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (void)handleMIDIInputEvent:(NSDictionary *)event;
 - (void)midiDevicesChanged:(id)sender;
 - (void)midiRangeDisplayDidChange:(id)sender;
+- (void)practiceMetronomeTick:(NSTimer *)timer;
+- (void)stopPracticeMetronome;
+- (void)restartPracticeMetronomeForCurrentTempo;
 - (void)midiOctaveDidChange:(id)sender;
 - (void)updateMIDIControllerRangeDisplay;
 - (void)refreshRoutingMatrix;
@@ -1046,6 +1049,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_midiSustainedNotes release];
   [_midiAuditionPitches release];
   [_midiMetronomeSound release];
+  [_practiceMetronomeTimer invalidate];
+  [_practiceMetronomeTimer release];
+  [_practiceMetronomeSound release];
   [_undoBaseline release];
   [_midiRecordingUndoSnapshot release];
   [_annotationTextView release];
@@ -1073,6 +1079,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [self stopCurrentPlayback];
   [self stopAudition];
   [self stopMIDIRecording];
+  [self stopPracticeMetronome];
   [_midiInputManager disconnect];
   [_midiInputManager setTarget:nil];
   [super close];
@@ -1100,6 +1107,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [self stopCurrentPlayback];
   [self stopAudition];
   [self stopMIDIRecording];
+  [self stopPracticeMetronome];
   [_midiInputManager disconnect];
   [_midiInputManager setTarget:nil];
   [self closeAuxiliaryWindows];
@@ -2417,6 +2425,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     {
       [self restartPlaybackAtTick:playbackTick];
     }
+  if (_practiceMetronomeActive && tempoChanged)
+    [self restartPracticeMetronomeForCurrentTempo];
   if (markChange)
     [self commitUndoBaseline];
 }
@@ -4599,7 +4609,69 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [menuItem setState:_loopSelectionEnabled && hasSelection ? ScoreMakerStateOn : ScoreMakerStateOff];
       return hasSelection;
     }
+  if ([menuItem action] == @selector (toggleMetronome:))
+    {
+      [menuItem setState:_practiceMetronomeActive ? ScoreMakerStateOn : ScoreMakerStateOff];
+      return [self scoreDocument] != nil && !_midiRecording;
+    }
   return YES;
+}
+
+- (void)practiceMetronomeTick:(NSTimer *)timer
+{
+  (void)timer;
+  if (_practiceMetronomeSound)
+    [_practiceMetronomeSound play];
+  else
+    NSBeep ();
+  NSUInteger beats = MAX ((NSUInteger)1, [[self scoreDocument] timeSignatureNumerator]);
+  [_playbackMonitorView pulseMetronomeBeat:_practiceMetronomeBeat % beats];
+  _practiceMetronomeBeat = (_practiceMetronomeBeat + 1) % beats;
+}
+
+- (void)stopPracticeMetronome
+{
+  [_practiceMetronomeTimer invalidate];
+  [_practiceMetronomeTimer release];
+  _practiceMetronomeTimer = nil;
+  [_practiceMetronomeSound stop];
+  [_practiceMetronomeSound release];
+  _practiceMetronomeSound = nil;
+  _practiceMetronomeActive = NO;
+  [_playbackMonitorView setMetronomeActive:NO bpm:120 beatsPerMeasure:4];
+}
+
+- (void)restartPracticeMetronomeForCurrentTempo
+{
+  [_practiceMetronomeTimer invalidate];
+  [_practiceMetronomeTimer release];
+  _practiceMetronomeTimer = nil;
+  ScoreDocument *document = [self scoreDocument];
+  NSUInteger tempo = [document tempoMicrosecondsPerQuarter];
+  NSUInteger bpm = tempo > 0 ? MAX ((NSUInteger)1, 60000000 / tempo) : 120;
+  NSUInteger beats = MAX ((NSUInteger)1, [document timeSignatureNumerator]);
+  NSTimeInterval duration = 60.0 / (double)bpm;
+  _practiceMetronomeBeat = 0;
+  [_playbackMonitorView setMetronomeActive:YES bpm:bpm beatsPerMeasure:beats];
+  _practiceMetronomeTimer = [[NSTimer scheduledTimerWithTimeInterval:duration
+                                                              target:self
+                                                            selector:@selector (practiceMetronomeTick:)
+                                                            userInfo:nil
+                                                             repeats:YES] retain];
+  [self practiceMetronomeTick:_practiceMetronomeTimer];
+}
+
+- (void)toggleMetronome:(id)sender
+{
+  (void)sender;
+  if (_practiceMetronomeActive)
+    [self stopPracticeMetronome];
+  else if ([self scoreDocument] && !_midiRecording)
+    {
+      _practiceMetronomeActive = YES;
+      _practiceMetronomeSound = [[NSSound soundNamed:@"Tink"] retain];
+      [self restartPracticeMetronomeForCurrentTempo];
+    }
 }
 
 - (ScorePartDefinition *)selectedStructuredPartCreatingIfNeeded:(BOOL)create
@@ -6523,6 +6595,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     [_midiMetronomeSound play];
   else
     NSBeep ();
+  NSUInteger beats = MAX ((NSUInteger)1, [[self scoreDocument] timeSignatureNumerator]);
+  NSUInteger remaining = MIN (_midiCountInBeatsRemaining, beats);
+  [_playbackMonitorView pulseMetronomeBeat:(beats - remaining) % beats];
   if (_midiCountingIn)
     {
       NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
@@ -6556,6 +6631,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     }
   if (![self scoreDocument] || [_midiInputPopUp indexOfSelectedItem] <= 0)
     return;
+  [self stopPracticeMetronome];
   [self stopCurrentPlayback];
   [_midiActiveNotes removeAllObjects];
   [_midiSustainedNotes removeAllObjects];
@@ -6573,6 +6649,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     = (double)[[self scoreDocument] tempoMicrosecondsPerQuarter] / 1000000.0;
   if (beatDuration <= 0.0)
     beatDuration = 0.5;
+  NSUInteger bpm = (NSUInteger)MAX (1.0, llround (60.0 / beatDuration));
+  [_playbackMonitorView setMetronomeActive:YES bpm:bpm beatsPerMeasure:beats];
   _midiRecordStartTime = [NSDate timeIntervalSinceReferenceDate] + beatDuration * beats;
   [_recordButton setImage:nil];
   [_recordButton setTitle:[NSString stringWithFormat:@"%lu", (unsigned long)beats]];
@@ -6612,6 +6690,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_midiMetronomeSound stop];
   [_midiMetronomeSound release];
   _midiMetronomeSound = nil;
+  [_playbackMonitorView setMetronomeActive:NO bpm:120 beatsPerMeasure:4];
   _midiRecording = NO;
   _midiCountingIn = NO;
   _midiSustainDown = NO;

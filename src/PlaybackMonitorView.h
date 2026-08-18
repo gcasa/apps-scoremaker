@@ -43,6 +43,12 @@ NSColor *ScoreVoiceColor (NSInteger voice, BOOL darkVariant);
   BOOL _controllerRangeVisible;
   NSInteger _controllerFirstPitch;
   NSInteger _controllerLastPitch;
+  NSTimer *_metronomeAnimationTimer;
+  NSTimeInterval _metronomeBeatTime;
+  NSTimeInterval _metronomeBeatDuration;
+  NSUInteger _metronomeBeat;
+  NSUInteger _metronomeBeatsPerMeasure;
+  BOOL _metronomeActive;
 }
 /** Sets the score whose parts and notes are monitored. */
 - (void)setDocument:(ScoreDocument *)document;
@@ -72,4 +78,10 @@ NSColor *ScoreVoiceColor (NSInteger voice, BOOL darkVariant);
 - (void)setControllerRangeFirstPitch:(NSInteger)firstPitch
                            lastPitch:(NSInteger)lastPitch
                              visible:(BOOL)visible;
+/** Starts or stops the animated metronome at the supplied tempo and meter. */
+- (void)setMetronomeActive:(BOOL)active
+                       bpm:(NSUInteger)bpm
+           beatsPerMeasure:(NSUInteger)beatsPerMeasure;
+/** Advances the animated metronome to a beat, with zero representing the downbeat. */
+- (void)pulseMetronomeBeat:(NSUInteger)beat;
 @end
