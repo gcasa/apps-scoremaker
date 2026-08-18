@@ -19,6 +19,7 @@
 
 #import "ScoreModel.h"
 #import "MusicPlatformModel.h"
+#import <math.h>
 
 @implementation ScoreNote
 
@@ -30,6 +31,7 @@
       _voice = 1;
       _measureIndex = -1;
       _velocity = 64;
+      _performanceParameters = [[NSMutableDictionary alloc] init];
     }
   return self;
 }
@@ -63,6 +65,28 @@ DefaultAccidentalForPitch (NSInteger pitch)
 {
   _pitch = pitch;
   _accidental = DefaultAccidentalForPitch (pitch);
+}
+
+- (double)playbackFrequency
+{
+  return _playbackFrequency;
+}
+
+- (void)setPlaybackFrequency:(double)frequency
+{
+  _playbackFrequency = isfinite (frequency) && frequency > 0.0 ? frequency : 0.0;
+}
+
+- (NSMutableDictionary *)performanceParameters { return _performanceParameters; }
+- (void)setPerformanceParameters:(NSMutableDictionary *)parameters
+{
+  if (_performanceParameters != parameters)
+    {
+      [_performanceParameters release];
+      _performanceParameters = [parameters mutableCopy];
+      if (!_performanceParameters)
+        _performanceParameters = [[NSMutableDictionary alloc] init];
+    }
 }
 
 - (NSInteger)channel
@@ -307,6 +331,7 @@ DefaultAccidentalForPitch (NSInteger pitch)
 {
   ScoreNote *copy = [[ScoreNote allocWithZone:zone] init];
   [copy setPitch:_pitch];
+  [copy setPlaybackFrequency:_playbackFrequency];
   [copy setAccidental:_accidental];
   [copy setChannel:_channel];
   [copy setTrack:_track];
@@ -338,6 +363,7 @@ DefaultAccidentalForPitch (NSInteger pitch)
   [copy setMeasureIndex:_measureIndex];
   [copy setVelocity:_velocity];
   [copy setProvenance:_provenance];
+  [copy setPerformanceParameters:_performanceParameters];
   return copy;
 }
 
@@ -350,6 +376,7 @@ DefaultAccidentalForPitch (NSInteger pitch)
   [_hairpinStart release];
   [_directionText release];
   [_provenance release];
+  [_performanceParameters release];
   [super dealloc];
 }
 
@@ -831,6 +858,7 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
       _synthesisGraph = [[ScoreSynthesisGraph alloc] init];
       _compositionProgram = [[ScoreCompositionProgram alloc] init];
       _pageLayout = [[ScorePageLayout alloc] init];
+      _scorefileCompatibility = [[NSMutableDictionary alloc] init];
     }
   return self;
 }
@@ -851,7 +879,20 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
   [_synthesisGraph release];
   [_compositionProgram release];
   [_pageLayout release];
+  [_scorefileCompatibility release];
   [super dealloc];
+}
+
+- (NSMutableDictionary *)scorefileCompatibility { return _scorefileCompatibility; }
+- (void)setScorefileCompatibility:(NSMutableDictionary *)compatibility
+{
+  if (_scorefileCompatibility != compatibility)
+    {
+      [_scorefileCompatibility release];
+      _scorefileCompatibility = [compatibility mutableCopy];
+      if (!_scorefileCompatibility)
+        _scorefileCompatibility = [[NSMutableDictionary alloc] init];
+    }
 }
 
 - (NSString *)nameForTrack:(NSInteger)track
@@ -1176,6 +1217,7 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
   [copy setSynthesisGraph:[[_synthesisGraph copy] autorelease]];
   [copy setCompositionProgram:[[_compositionProgram copy] autorelease]];
   [copy setPageLayout:[[_pageLayout copy] autorelease]];
+  [copy setScorefileCompatibility:_scorefileCompatibility];
   return copy;
 }
 

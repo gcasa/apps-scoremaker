@@ -133,6 +133,29 @@ main (void)
              [[sourceError userInfo] objectForKey:ScorefileErrorRangeKey] != nil,
            @"unterminated string did not produce a ranged syntax error");
 
+  NSString *frequencySource = @"part Detuned;\nBEGIN;\nt 0;\n"
+                               @"Detuned (1) freq:330.59;\nEND;\n";
+  ScoreDocument *frequencyDocument = [ScorefileParser parseString:frequencySource
+                                                    suggestedTitle:@"Detuned"
+                                                             error:&sourceError];
+  ScoreNote *frequencyNote = [[frequencyDocument notes] objectAtIndex:0];
+  Require (fabs ([frequencyNote playbackFrequency] - 330.59) < 0.000001
+             && [frequencyNote pitch] == 64,
+           @"scorefile frequency was not preserved alongside its notated MIDI pitch");
+  NSData *frequencyScoreData = [ScorefileParser dataForDocument:frequencyDocument
+                                                          error:&sourceError];
+  NSString *frequencyRoundTrip = [[[NSString alloc] initWithData:frequencyScoreData
+                                                        encoding:NSUTF8StringEncoding] autorelease];
+  Require ([frequencyRoundTrip rangeOfString:@"freq:330.59"].location != NSNotFound,
+           @"generated scorefile discarded an exact playback frequency");
+  NSData *frequencyMIDI = [MidiParser dataForDocument:frequencyDocument error:&sourceError];
+  const unsigned char *frequencyBytes = [frequencyMIDI bytes];
+  BOOL foundPitchBend = NO;
+  for (NSUInteger i = 0; i < [frequencyMIDI length]; i++)
+    if ((frequencyBytes[i] & 0xf0) == 0xe0)
+      { foundPitchBend = YES; break; }
+  Require (foundPitchBend, @"MIDI playback did not encode tuning for an exact frequency");
+
   ScoreDocument *highResolution = [[[ScoreDocument alloc] init] autorelease];
   [highResolution setTicksPerQuarter:960];
   ScoreNote *highResolutionNote = [[[ScoreNote alloc] init] autorelease];
@@ -845,6 +868,32 @@ main (void)
                                                   error:&validationError]
              && [[invalidProgram diagnostics] count] > 0,
            @"composition evaluator accepted an unterminated pattern");
+
+  NSString *advancedScore = @"var beat = max(0.25, sqrt(0.25));\n"
+                             "envelope shape = [(0,0),(1,1)];\n"
+                             "part lead; lead synthPatch:\"Pluck\"; BEGIN;\n"
+                             "t 0; lead (noteOn 7) keyNum:60.5 amp:0.5 bearing:-0.25 bright:0.8;\n"
+                             "t beat; lead (noteUpdate 7) amp:0.75;\n"
+                             "t 1; lead (noteOff 7); END;";
+  ScoreDocument *advanced = [ScorefileParser parseString:advancedScore
+                                          suggestedTitle:@"Advanced" error:&validationError];
+  Require (advanced && [[advanced notes] count] == 2,
+           @"math expressions or parameter-only noteUpdate parsing failed");
+  ScoreNote *advancedFirst = [[advanced notes] objectAtIndex:0];
+  ScoreNote *advancedSecond = [[advanced notes] objectAtIndex:1];
+  Require ([advancedFirst playbackFrequency] > 0.0 && [advancedFirst velocity] == 64 &&
+           [advancedSecond velocity] == 95 &&
+           [[[advancedFirst performanceParameters] objectForKey:@"bright"] isEqual:@"0.8"] &&
+           [[advanced scorefileCompatibility] objectForKey:@"envelopes"] != nil,
+           @"tuning, synthesis parameters, envelopes, or update inheritance failed");
+  NSData *advancedData = [ScorefileParser dataForDocument:advanced error:&validationError];
+  NSString *advancedRoundTrip = [[[NSString alloc] initWithData:advancedData
+                                                       encoding:NSUTF8StringEncoding] autorelease];
+  Require ([advancedRoundTrip rangeOfString:@"bearing:-0.25"].location != NSNotFound &&
+           [advancedRoundTrip rangeOfString:@"envelope shape"].location != NSNotFound &&
+           [[[advanced scorefileCompatibility] objectForKey:@"originalSource"]
+             isEqual:advancedScore],
+           @"advanced Scorefile constructs were not preserved during export");
 
   Require ([MidiParser parseFileAtPath:@"/path/that/does/not/exist.mid" error:&validationError]
              == nil

@@ -34,6 +34,7 @@
 @interface ScoreNote : NSObject <NSCopying>
 {
   NSInteger _pitch;
+  double _playbackFrequency;
   NSInteger _channel;
   NSInteger _track;
   NSUInteger _startTick;
@@ -65,11 +66,19 @@
   NSInteger _measureIndex;
   NSUInteger _velocity;
   NSString *_provenance;
+  NSMutableDictionary *_performanceParameters;
 }
 /** Returns the MIDI pitch number. */
 - (NSInteger)pitch;
 /** Sets the MIDI pitch number. */
 - (void)setPitch:(NSInteger)pitch;
+/** Returns the original playback frequency in hertz, or zero for equal temperament. */
+- (double)playbackFrequency;
+/** Preserves an exact source frequency while notation continues to use MIDI pitch. */
+- (void)setPlaybackFrequency:(double)frequency;
+/** Scorefile synthesis parameters retained for playback and round-trip export. */
+- (NSMutableDictionary *)performanceParameters;
+- (void)setPerformanceParameters:(NSMutableDictionary *)parameters;
 /** Returns the zero-based MIDI channel. */
 - (NSInteger)channel;
 /** Sets the zero-based MIDI channel. */
@@ -298,6 +307,7 @@ FOUNDATION_EXPORT NSDictionary *ScoreDisplayedAccidentalMapForDocument (ScoreDoc
   ScoreSynthesisGraph *_synthesisGraph;
   ScoreCompositionProgram *_compositionProgram;
   ScorePageLayout *_pageLayout;
+  NSMutableDictionary *_scorefileCompatibility;
 }
 /** Returns the score title. */
 - (NSString *)title;
@@ -357,6 +367,9 @@ FOUNDATION_EXPORT NSDictionary *ScoreDisplayedAccidentalMapForDocument (ScoreDoc
 - (NSUInteger)totalTicks;
 /** Sets the total score duration in ticks. */
 - (void)setTotalTicks:(NSUInteger)totalTicks;
+/** Lossless MusicKit compatibility data (source, declarations, envelopes and tunings). */
+- (NSMutableDictionary *)scorefileCompatibility;
+- (void)setScorefileCompatibility:(NSMutableDictionary *)compatibility;
 /** Returns the display name for legacy <var>track</var>. */
 - (NSString *)nameForTrack:(NSInteger)track;
 /** Sets or removes the name for legacy <var>track</var>. */

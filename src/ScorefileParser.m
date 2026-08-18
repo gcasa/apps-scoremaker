@@ -164,6 +164,8 @@ ScoreMakerMetadataComment (ScoreDocument *document, NSError **error)
     [metadata setObject:[document composer] forKey:@"composer"];
   if ([[document annotationText] length] > 0)
     [metadata setObject:[document annotationText] forKey:@"annotation"];
+  if ([[document scorefileCompatibility] count] > 0)
+    [metadata setObject:[document scorefileCompatibility] forKey:@"scorefileCompatibility"];
   [metadata setObject:[NSNumber numberWithInteger:1] forKey:@"version"];
 
   NSData *metadataData = [NSJSONSerialization dataWithJSONObject:metadata options:0 error:error];
@@ -684,6 +686,45 @@ ParseScorefileFactor (ScorefileExpressionParser *parser)
     }
 
   NSString *token = [parser->text substringWithRange:NSMakeRange (start, parser->index - start)];
+  SkipExpressionWhitespace (parser);
+  if (parser->index < [parser->text length] &&
+      [parser->text characterAtIndex:parser->index] == '(')
+    {
+      parser->index++;
+      NSMutableArray *arguments = [NSMutableArray array];
+      SkipExpressionWhitespace (parser);
+      while (parser->valid && parser->index < [parser->text length] &&
+             [parser->text characterAtIndex:parser->index] != ')')
+        {
+          [arguments addObject:[NSNumber numberWithDouble:ParseScorefileExpression (parser)]];
+          SkipExpressionWhitespace (parser);
+          if (parser->index < [parser->text length] &&
+              [parser->text characterAtIndex:parser->index] == ',')
+            { parser->index++; continue; }
+          break;
+        }
+      if (parser->index >= [parser->text length] ||
+          [parser->text characterAtIndex:parser->index] != ')')
+        { parser->valid = NO; return 0.0; }
+      parser->index++;
+      double a = [arguments count] ? [[arguments objectAtIndex:0] doubleValue] : 0.0;
+      double b = [arguments count] > 1 ? [[arguments objectAtIndex:1] doubleValue] : 0.0;
+      NSString *fn = [token lowercaseString];
+      if ([fn isEqualToString:@"abs"] && [arguments count] == 1) return fabs (a);
+      if ([fn isEqualToString:@"sqrt"] && [arguments count] == 1 && a >= 0) return sqrt (a);
+      if ([fn isEqualToString:@"sin"] && [arguments count] == 1) return sin (a);
+      if ([fn isEqualToString:@"cos"] && [arguments count] == 1) return cos (a);
+      if ([fn isEqualToString:@"tan"] && [arguments count] == 1) return tan (a);
+      if ([fn isEqualToString:@"log"] && [arguments count] == 1 && a > 0) return log (a);
+      if ([fn isEqualToString:@"exp"] && [arguments count] == 1) return exp (a);
+      if ([fn isEqualToString:@"floor"] && [arguments count] == 1) return floor (a);
+      if ([fn isEqualToString:@"ceil"] && [arguments count] == 1) return ceil (a);
+      if ([fn isEqualToString:@"min"] && [arguments count] == 2) return MIN (a, b);
+      if ([fn isEqualToString:@"max"] && [arguments count] == 2) return MAX (a, b);
+      if ([fn isEqualToString:@"pow"] && [arguments count] == 2) return pow (a, b);
+      parser->valid = NO;
+      return 0.0;
+    }
   NSNumber *variable = [parser->variables objectForKey:token];
   if (variable)
     return [variable doubleValue];
@@ -696,6 +737,23 @@ ParseScorefileFactor (ScorefileExpressionParser *parser)
       return 0.0;
     }
   return value;
+}
+
+static NSMutableDictionary *
+ScorefileParameters (NSString *text)
+{
+  NSMutableDictionary *result = [NSMutableDictionary dictionary];
+  NSRegularExpression *regex = [NSRegularExpression
+    regularExpressionWithPattern:@"([A-Za-z_][A-Za-z0-9_]*)\\s*:\\s*(\"(?:[^\"]|\\\")*\"|[^,\\s]+)"
+                         options:0 error:NULL];
+  for (NSTextCheckingResult *match in [regex matchesInString:text options:0
+                                                       range:NSMakeRange (0, [text length])])
+    {
+      NSString *name = [text substringWithRange:[match rangeAtIndex:1]];
+      NSString *value = [text substringWithRange:[match rangeAtIndex:2]];
+      [result setObject:value forKey:name];
+    }
+  return result;
 }
 
 static double
@@ -1205,15 +1263,40 @@ ScorefileIdentifierForPartName (NSString *name)
 
 @implementation ScorefileParser
 
++ (NSString *)expandedSourceAtPath:(NSString *)path visited:(NSMutableSet *)visited error:(NSError **)error
+{
+  NSString *canonical = [path stringByStandardizingPath];
+  if ([visited containsObject:canonical])
+    return @"";
+  [visited addObject:canonical];
+  NSString *source = [NSString stringWithContentsOfFile:canonical encoding:NSUTF8StringEncoding
+                                                  error:error];
+  if (!source)
+    source = [NSString stringWithContentsOfFile:canonical
+                                       encoding:NSISOLatin1StringEncoding error:error];
+  if (!source)
+    return nil;
+  NSRegularExpression *include = [NSRegularExpression
+    regularExpressionWithPattern:@"(?m)^\\s*(?:#include|include)\\s+\"([^\"]+)\"\\s*;?\\s*$"
+                         options:0 error:NULL];
+  NSMutableString *expanded = [source mutableCopy];
+  NSArray *matches = [include matchesInString:source options:0
+                                         range:NSMakeRange (0, [source length])];
+  for (NSTextCheckingResult *match in [matches reverseObjectEnumerator])
+    {
+      NSString *relative = [source substringWithRange:[match rangeAtIndex:1]];
+      NSString *includedPath = [[canonical stringByDeletingLastPathComponent]
+        stringByAppendingPathComponent:relative];
+      NSString *included = [self expandedSourceAtPath:includedPath visited:visited error:error];
+      if (!included) { [expanded release]; return nil; }
+      [expanded replaceCharactersInRange:[match range] withString:included];
+    }
+  return [expanded autorelease];
+}
+
 + (ScoreDocument *)parseFileAtPath:(NSString *)path error:(NSError **)error
 {
-  NSString *raw = [NSString stringWithContentsOfFile:path
-                                            encoding:NSUTF8StringEncoding
-                                               error:error];
-  if (!raw)
-    {
-      raw = [NSString stringWithContentsOfFile:path encoding:NSISOLatin1StringEncoding error:error];
-    }
+  NSString *raw = [self expandedSourceAtPath:path visited:[NSMutableSet set] error:error];
   if (!raw)
     {
       return nil;
@@ -1260,6 +1343,7 @@ ScorefileIdentifierForPartName (NSString *name)
   NSMutableDictionary *variables = [NSMutableDictionary dictionary];
   NSMutableDictionary *activeNotes = [NSMutableDictionary dictionary];
   ScoreDocument *document = [[[ScoreDocument alloc] init] autorelease];
+  [[document scorefileCompatibility] setObject:raw forKey:@"originalSource"];
   [document setTitle:[title length] ? title : @"Untitled"];
   [document setTicksPerQuarter:480];
   NSDictionary *metadata = ScoreMakerMetadataFromScorefile (raw);
@@ -1268,6 +1352,10 @@ ScorefileIdentifierForPartName (NSString *name)
   NSString *metadataTitleFont = [metadata objectForKey:@"titleFont"];
   NSString *metadataComposer = [metadata objectForKey:@"composer"];
   NSString *metadataAnnotation = [metadata objectForKey:@"annotation"];
+  NSDictionary *storedCompatibility = [metadata objectForKey:@"scorefileCompatibility"];
+  if ([storedCompatibility isKindOfClass:[NSDictionary class]])
+    [document setScorefileCompatibility:[NSMutableDictionary dictionaryWithDictionary:
+                                          storedCompatibility]];
   if ([metadataTitle isKindOfClass:[NSString class]])
     [document setTitle:metadataTitle];
   if ([metadataTitleFont isKindOfClass:[NSString class]])
@@ -1429,6 +1517,23 @@ ScorefileIdentifierForPartName (NSString *name)
 
       if (!inBody)
         {
+          NSString *lower = [statement lowercaseString];
+          NSString *category = nil;
+          if ([lower hasPrefix:@"envelope "]) category = @"envelopes";
+          else if ([lower hasPrefix:@"wavetable "]) category = @"wavetables";
+          else if ([lower hasPrefix:@"tuning "] || [lower hasPrefix:@"tune "])
+            category = @"tunings";
+          if (category)
+            {
+              NSMutableArray *items = [[document scorefileCompatibility] objectForKey:category];
+              if (![items isKindOfClass:[NSMutableArray class]])
+                {
+                  items = items ? [NSMutableArray arrayWithArray:items] : [NSMutableArray array];
+                  [[document scorefileCompatibility] setObject:items forKey:category];
+                }
+              [items addObject:statement];
+              continue;
+            }
           NSArray *partInfoTokens = [statement
             componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
           NSString *partName = [partInfoTokens count] > 0 ? [partInfoTokens objectAtIndex:0] : nil;
@@ -1436,6 +1541,18 @@ ScorefileIdentifierForPartName (NSString *name)
           if (trackNumber)
             {
               NSString *instrumentDescriptor = InstrumentDescriptorInParameters (statement);
+              if ([instrumentDescriptor length])
+                {
+                  NSMutableDictionary *patches = [[document scorefileCompatibility]
+                    objectForKey:@"synthPatches"];
+                  if (![patches isKindOfClass:[NSMutableDictionary class]])
+                    {
+                      patches = patches ? [NSMutableDictionary dictionaryWithDictionary:patches]
+                                        : [NSMutableDictionary dictionary];
+                      [[document scorefileCompatibility] setObject:patches forKey:@"synthPatches"];
+                    }
+                  [patches setObject:instrumentDescriptor forKey:[trackNumber stringValue]];
+                }
               NSNumber *program = instrumentDescriptor
                                     ? GeneralMidiProgramForDescriptor (instrumentDescriptor)
                                     : nil;
@@ -1510,6 +1627,7 @@ ScorefileIdentifierForPartName (NSString *name)
       NSString *event = Trim ([statement
         substringWithRange:NSMakeRange (open.location + 1, close.location - open.location - 1)]);
       NSString *params = [statement substringFromIndex:close.location + 1];
+      NSMutableDictionary *eventParameters = ScorefileParameters (params);
       NSString *instrumentDescriptor = InstrumentDescriptorInParameters (params);
       if ([instrumentDescriptor length] > 0)
         {
@@ -1551,10 +1669,31 @@ ScorefileIdentifierForPartName (NSString *name)
 
       BOOL pitchOK = NO;
       NSInteger pitch = 60;
+      double playbackFrequency = 0.0;
       if (pitchString)
         {
-          pitch = pitchIsFrequency ? PitchForFrequency (pitchString, variables, &pitchOK)
-                                   : PitchForName (pitchString, &pitchOK);
+          if (pitchIsFrequency)
+            {
+              BOOL frequencyOK = NO;
+              playbackFrequency = EvaluateExpression (pitchString, variables, &frequencyOK);
+              pitch = PitchForFrequency (pitchString, variables, &pitchOK);
+              if (!frequencyOK || playbackFrequency <= 0.0)
+                playbackFrequency = 0.0;
+            }
+          else
+            {
+              BOOL numericOK = NO;
+              double numericKey = EvaluateExpression (pitchString, variables, &numericOK);
+              if (numericOK)
+                {
+                  pitch = (NSInteger)llround (numericKey);
+                  pitchOK = YES;
+                  if (fabs (numericKey - (double)pitch) > 0.000001)
+                    playbackFrequency = 440.0 * pow (2.0, (numericKey - 69.0) / 12.0);
+                }
+              else
+                pitch = PitchForName (pitchString, &pitchOK);
+            }
         }
       if (pitchString && !pitchOK)
         {
@@ -1585,7 +1724,7 @@ ScorefileIdentifierForPartName (NSString *name)
           continue;
         }
 
-      if (StringHasPrefix (event, @"noteOn") || (StringHasPrefix (event, @"noteUpdate") && pitchOK))
+      if (StringHasPrefix (event, @"noteOn") || StringHasPrefix (event, @"noteUpdate"))
         {
           NSArray *eventParts = [event
             componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
@@ -1596,15 +1735,31 @@ ScorefileIdentifierForPartName (NSString *name)
             {
               [previous setDurationTicks:currentTick - [previous startTick]];
             }
-          if (pitchOK)
+          if (pitchOK || (StringHasPrefix (event, @"noteUpdate") && previous))
             {
               ScoreNote *note = [[[ScoreNote alloc] init] autorelease];
-              [note setPitch:pitch];
-              [note setAccidental:AccidentalForName (pitchString)];
+              [note setPitch:pitchOK ? pitch : [previous pitch]];
+              [note setPlaybackFrequency:pitchOK ? playbackFrequency : [previous playbackFrequency]];
+              [note setAccidental:pitchOK ? AccidentalForName (pitchString) : [previous accidental]];
               [note setChannel:scorefileChannel];
               [note setTrack:[trackNumber integerValue]];
               [note setStartTick:currentTick];
               [note setDurationTicks:[document ticksPerQuarter]];
+              if (previous)
+                [note setVelocity:[previous velocity]];
+              NSMutableDictionary *combined = previous
+                ? [NSMutableDictionary dictionaryWithDictionary:[previous performanceParameters]]
+                : [NSMutableDictionary dictionary];
+              [combined addEntriesFromDictionary:eventParameters];
+              [note setPerformanceParameters:combined];
+              NSString *amp = [eventParameters objectForKey:@"amp"];
+              if (amp)
+                {
+                  BOOL ampOK = NO;
+                  double value = EvaluateExpression (amp, variables, &ampOK);
+                  if (ampOK)
+                    [note setVelocity:(NSUInteger)llround (127.0 * MIN (1.0, MAX (0.0, value)))];
+                }
               [[document notes] addObject:note];
               if (sourceRange)
                 [capturedNoteRanges addObject:[NSDictionary dictionaryWithObjectsAndKeys:
@@ -1621,12 +1776,22 @@ ScorefileIdentifierForPartName (NSString *name)
           ScoreNote *note = [[[ScoreNote alloc] init] autorelease];
           [note setRest:!pitchOK];
           [note setPitch:pitchOK ? pitch : 60];
+          [note setPlaybackFrequency:pitchOK ? playbackFrequency : 0.0];
           if (pitchOK && !pitchIsFrequency)
             {
               [note setAccidental:AccidentalForName (pitchString)];
             }
           [note setChannel:scorefileChannel];
           [note setTrack:[trackNumber integerValue]];
+          [note setPerformanceParameters:eventParameters];
+          NSString *amp = [eventParameters objectForKey:@"amp"];
+          if (amp)
+            {
+              BOOL ampOK = NO;
+              double value = EvaluateExpression (amp, variables, &ampOK);
+              if (ampOK)
+                [note setVelocity:(NSUInteger)llround (127.0 * MIN (1.0, MAX (0.0, value)))];
+            }
           [note setStartTick:currentTick];
           [note setDurationTicks:MAX ((NSUInteger)1,
                                       (NSUInteger)llround (durationSeconds * ticksPerBeat))];
@@ -1737,6 +1902,9 @@ ScorefileIdentifierForPartName (NSString *name)
   [output appendFormat:@"info tempo:%.6g timeSignature:%lu/%lu;\n", tempoBPM,
                        (unsigned long)[document timeSignatureNumerator],
                        (unsigned long)[document timeSignatureDenominator]];
+  for (NSString *category in [NSArray arrayWithObjects:@"envelopes", @"wavetables", @"tunings", nil])
+    for (NSString *declaration in [[document scorefileCompatibility] objectForKey:category])
+      [output appendFormat:@"%@;\n", declaration];
   NSMutableDictionary *partIdentifiers = [NSMutableDictionary dictionary];
   NSMutableArray *tracks = [NSMutableArray array];
   NSEnumerator *noteEnumerator = [[document notes] objectEnumerator];
@@ -1811,8 +1979,28 @@ ScorefileIdentifierForPartName (NSString *name)
         }
       else
         {
-          [output appendFormat:@"%@ (%.12g) keyNum:%@k%@%@;\n", identifier, duration,
-                               NoteNameForPitch ([note pitch], [note accidental]),
+          NSString *pitchParameter = [note playbackFrequency] > 0.0
+                                       ? [NSString stringWithFormat:@"freq:%.12g",
+                                                                    [note playbackFrequency]]
+                                       : [NSString stringWithFormat:@"keyNum:%@k",
+                                                                    NoteNameForPitch ([note pitch],
+                                                                                      [note accidental])];
+          NSMutableString *performance = [NSMutableString string];
+          NSArray *parameterNames = [[[note performanceParameters] allKeys]
+            sortedArrayUsingSelector:@selector (caseInsensitiveCompare:)];
+          for (NSString *name in parameterNames)
+            {
+              if ([name caseInsensitiveCompare:@"keyNum"] == NSOrderedSame ||
+                  [name caseInsensitiveCompare:@"freq"] == NSOrderedSame ||
+                  [name caseInsensitiveCompare:@"slurStart"] == NSOrderedSame ||
+                  [name caseInsensitiveCompare:@"slurStop"] == NSOrderedSame)
+                continue;
+              [performance appendFormat:@" %@:%@", name,
+                                        [[note performanceParameters] objectForKey:name]];
+            }
+          [output appendFormat:@"%@ (%.12g) %@%@%@%@;\n", identifier, duration,
+                               pitchParameter,
+                               performance,
                                [note slurStart] ? @" slurStart:1" : @"",
                                [note slurEnd] ? @" slurStop:1" : @""];
         }

@@ -87,6 +87,19 @@ ScoreMakerMixedVelocity (ScoreNote *note, ScorePartDefinition *part, ScoreDocume
               (NSUInteger)llround ((double)[note velocity] * MAX ((CGFloat)0.0, gain)));
 }
 
+static CGFloat
+ScoreMakerNotePan (ScoreNote *note, ScorePartDefinition *part)
+{
+  CGFloat pan = part ? [part pan] : 0.0;
+  NSString *bearing = [[note performanceParameters] objectForKey:@"bearing"];
+  if ([bearing length])
+    {
+      CGFloat value = [bearing doubleValue];
+      pan = fabs (value) <= 1.0 ? value : value / 45.0;
+    }
+  return MIN (1.0, MAX (-1.0, pan));
+}
+
 #if defined(__APPLE__)
 #define ScoreMakerSwitchButton NSButtonTypeSwitch
 #define ScoreMakerStateOn NSControlStateValueOn
@@ -3632,10 +3645,12 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
         [timeline addObject:@{
         @"time" : @0,
         @"pitch" : [NSNumber numberWithInteger:[note pitch]],
+        @"frequency" : @([note playbackFrequency]),
+        @"track" : @([note track]),
         @"velocity" : [NSNumber numberWithUnsignedInteger:ScoreMakerMixedVelocity (note, part, [self scoreDocument])],
         @"on" : @YES,
         @"voice" : [NSNumber numberWithInteger:[note voice]],
-        @"pan" : @([part pan])
+        @"pan" : @(ScoreMakerNotePan (note, part))
         }];
       }
   for (ScoreScheduledEvent *event in [scheduler eventsFromTick:tick
@@ -3646,10 +3661,12 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [timeline addObject:@{
         @"time" : [NSNumber numberWithDouble:MAX (0.0, [event time] - origin)],
         @"pitch" : [NSNumber numberWithInteger:[note pitch]],
+        @"frequency" : @([note playbackFrequency]),
+        @"track" : @([note track]),
         @"velocity" : [NSNumber numberWithUnsignedInteger:ScoreMakerMixedVelocity (note, part, [self scoreDocument])],
         @"on" : [NSNumber numberWithBool:![event noteOff]],
         @"voice" : [NSNumber numberWithInteger:[note voice]],
-        @"pan" : @([part pan])
+        @"pan" : @(ScoreMakerNotePan (note, part))
       }];
     }
   return [_realtimeDSP scheduleEvents:timeline error:error];
@@ -3790,6 +3807,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       NSUInteger clippedStart = MAX ([note startTick], tick);
       ScoreNote *copy = [[[ScoreNote alloc] init] autorelease];
       [copy setPitch:[note pitch]];
+      [copy setPlaybackFrequency:[note playbackFrequency]];
       [copy setAccidental:[note accidental]];
       [copy setRest:[note isRest]];
       [copy setChannel:[note channel]];
@@ -6086,6 +6104,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [timeline addObject:@{
         @"time" : [NSNumber numberWithDouble:[event time]],
         @"pitch" : [NSNumber numberWithInteger:[note pitch]],
+        @"frequency" : @([note playbackFrequency]),
+        @"track" : @([note track]),
         @"velocity" : [NSNumber numberWithUnsignedInteger:
                          ScoreMakerMixedVelocity (note, ScoreMakerPartForTrack (document,
                                                                                [note track]),
