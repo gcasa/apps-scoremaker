@@ -883,7 +883,8 @@ main (void)
   ScoreNote *advancedSecond = [[advanced notes] objectAtIndex:1];
   Require ([advancedFirst playbackFrequency] > 0.0 && [advancedFirst velocity] == 64 &&
            [advancedSecond velocity] == 95 &&
-           [[[advancedFirst performanceParameters] objectForKey:@"bright"] isEqual:@"0.8"] &&
+           fabs ([[[advancedFirst performanceParameters] objectForKey:@"bright"] doubleValue]
+                 - .8) < .000001 &&
            [[advanced scorefileCompatibility] objectForKey:@"envelopes"] != nil,
            @"tuning, synthesis parameters, envelopes, or update inheritance failed");
   NSData *advancedData = [ScorefileParser dataForDocument:advanced error:&validationError];
@@ -894,6 +895,47 @@ main (void)
            [[[advanced scorefileCompatibility] objectForKey:@"originalSource"]
              isEqual:advancedScore],
            @"advanced Scorefile constructs were not preserved during export");
+
+  NSString *scriptedScore = @"part aPart; aPart synthPatch:\"Fm1i\" synthPatchCount:4;\n"
+                             "envelope ampFn = [(0,1)(.1,.7)|(1,0)]; BEGIN; t 0;\n"
+                             "aPart (noteUpdate) bright:.6 ampEnv:ampFn;\n"
+                             "int i = 0; double level = .4;\n"
+                             "while (i < 3) {\n"
+                             " if (i == 1) { level = .8; } else { level = .4; }\n"
+                             " aPart (.25) freq:c4 * (i + 1) amp:level bearing:45 * i - 45;\n"
+                             " t + .25; i = i + 1;\n"
+                             "}\nEND;";
+  ScoreDocument *scripted = [ScorefileParser parseString:scriptedScore
+                                          suggestedTitle:@"Scripted" error:&validationError];
+  Require (scripted && [[scripted notes] count] == 3,
+           [NSString stringWithFormat:@"ScoreFile control flow failed: %@", validationError]);
+  Require ([[[scripted notes] objectAtIndex:0] velocity] == 51 &&
+           [[[scripted notes] objectAtIndex:1] velocity] == 102 &&
+           fabs ([[[[[scripted notes] objectAtIndex:2] performanceParameters]
+                     objectForKey:@"bright"] doubleValue] - .6) < .000001 &&
+           [[[[scripted scorefileCompatibility] objectForKey:@"envelopesObjects"]
+              objectForKey:@"ampFn"] objectForKey:@"hasSustainPoint"] != nil,
+           @"conditionals, part defaults, or executable envelope metadata failed");
+
+  NSString *algorithmicPath = @"examples/algorithmic-cycle-of-fifths.score";
+  NSString *algorithmicSource = [NSString stringWithContentsOfFile:algorithmicPath
+                                                           encoding:NSUTF8StringEncoding
+                                                              error:&validationError];
+  NSArray *algorithmicRanges = nil;
+  ScoreDocument *algorithmic = [ScorefileParser parseString:algorithmicSource
+                                             suggestedTitle:@"Algorithmic Trace"
+                                           noteSourceRanges:&algorithmicRanges
+                                                      error:&validationError];
+  Require (algorithmic && [algorithmicRanges count] == [[algorithmic notes] count],
+           @"algorithmic notes did not retain source-trace mappings");
+  for (NSDictionary *mapping in algorithmicRanges)
+    {
+      NSRange range = [[mapping objectForKey:@"range"] rangeValue];
+      NSString *origin = [algorithmicSource substringWithRange:range];
+      Require ([origin rangeOfString:@"Harmony"].location != NSNotFound ||
+               [origin rangeOfString:@"Sparkle"].location != NSNotFound,
+               @"generated note mapped to the wrong algorithmic source statement");
+    }
 
   Require ([MidiParser parseFileAtPath:@"/path/that/does/not/exist.mid" error:&validationError]
              == nil

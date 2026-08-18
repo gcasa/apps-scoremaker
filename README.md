@@ -194,7 +194,7 @@ build/macos/ScoreMaker.app/Contents/MacOS/ScoreMaker path/to/song.score
 
 ## Limitations
 
-ScoreMaker maps common MusicKit-style instrument declarations to General MIDI programs for playback. Its internal patch editor supplies its own oscillator, envelope, and LFO model, but does not emulate arbitrary MusicKit synthesis engines, wave tables, or source DSP patches. When saving `.score` files, it writes the renderable note data and track program mappings from the current document rather than preserving every original source statement or comment; internal patch settings are stored in ScoreMaker project files.
+ScoreMaker maps common MusicKit-style instrument declarations to General MIDI programs for playback. Its ScoreFile interpreter supports typed numeric variables, assignments, expressions, conditionals, bounded loops, relative timing, tagged and untagged note updates, mute events, includes, and structured envelope/wavetable/tuning declarations. Original source and parameters without a native realization are retained in compatibility metadata and restored on export. The internal patch editor supplies its own oscillator, envelope, and LFO model, but cannot execute arbitrary Objective-C MusicKit SynthPatch classes or DSP56001 programs; those declarations are preserved and mapped to an available instrument when possible.
 
 ScoreMaker keeps `.score` note statements compatible with MusicKit-style readers. Voice assignments and explicit measure structure are stored in an additional `ScoreMaker Structure V2` JSON metadata comment; older readers can ignore that comment and continue reading pitches, timing, parts, and programs. Files without V2 structure metadata open as voice 1 with measures derived from their time signature.
 
