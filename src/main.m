@@ -24,8 +24,6 @@
 int
 main (int argc, const char *argv[])
 {
-  (void)argc;
-  (void)argv;
   NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 
   [ScoreMakerDocumentController sharedDocumentController];
