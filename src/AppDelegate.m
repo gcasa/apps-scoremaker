@@ -20,6 +20,12 @@
 #import "AppDelegate.h"
 #import "ScoreMakerDocument.h"
 
+#if defined(__APPLE__)
+#define ScoreMakerPanelStyle (NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)
+#else
+#define ScoreMakerPanelStyle (NSTitledWindowMask | NSClosableWindowMask)
+#endif
+
 @interface ScoreMakerInfoView : NSView
 @end
 
@@ -166,14 +172,26 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
 {
   if ([path length] == 0)
     return NO;
-  NSError *error = nil;
   NSDocumentController *controller = [NSDocumentController sharedDocumentController];
+#if defined(__APPLE__)
+  [controller openDocumentWithContentsOfURL:[NSURL fileURLWithPath:path]
+                                    display:YES
+                          completionHandler:^(NSDocument *document, BOOL alreadyOpen, NSError *error) {
+    (void)document;
+    (void)alreadyOpen;
+    if (error)
+      [controller presentError:error];
+  }];
+  return YES;
+#else
+  NSError *error = nil;
   NSDocument *document = [controller openDocumentWithContentsOfURL:[NSURL fileURLWithPath:path]
                                                            display:YES
                                                              error:&error];
   if (!document && error)
     [controller presentError:error];
   return document != nil;
+#endif
 }
 
 - (BOOL)application:(NSApplication *)sender openFile:(NSString *)filename
@@ -231,7 +249,7 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
     {
       NSRect frame = NSMakeRect (0.0, 0.0, 620.0, 540.0);
       _infoPanel = [[NSPanel alloc] initWithContentRect:frame
-                                             styleMask:(NSTitledWindowMask | NSClosableWindowMask)
+                                             styleMask:ScoreMakerPanelStyle
                                                backing:NSBackingStoreBuffered
                                                  defer:NO];
       [_infoPanel setTitle:@"About ScoreMaker"];
@@ -387,10 +405,10 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
   [mainMenu addItem:editItem];
   NSMenu *editMenu = [[[NSMenu alloc] initWithTitle:@"Edit"] autorelease];
   [editMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Undo"
-                                                action:@selector (undo:)
+                                                action:NSSelectorFromString (@"undo:")
                                          keyEquivalent:@"z"] autorelease]];
   [editMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Redo"
-                                                action:@selector (redo:)
+                                                action:NSSelectorFromString (@"redo:")
                                          keyEquivalent:@"Z"] autorelease]];
   [editMenu addItem:[NSMenuItem separatorItem]];
   [editMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Cut"
@@ -404,21 +422,90 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
                                          keyEquivalent:@"v"] autorelease]];
   [editItem setSubmenu:editMenu];
 
+  NSMenuItem *viewItem = [[[NSMenuItem alloc] initWithTitle:@"View" action:NULL
+                                               keyEquivalent:@""] autorelease];
+  [mainMenu addItem:viewItem];
+  NSMenu *viewMenu = [[[NSMenu alloc] initWithTitle:@"View"] autorelease];
+  for (NSNumber *percent in @[ @50, @75, @100, @125, @150, @200 ])
+    {
+      NSMenuItem *zoom = [[[NSMenuItem alloc]
+        initWithTitle:[NSString stringWithFormat:@"%@%%", percent]
+               action:@selector (setScoreZoom:) keyEquivalent:@""] autorelease];
+      [zoom setTag:[percent integerValue]];
+      [viewMenu addItem:zoom];
+    }
+  [viewMenu addItem:[NSMenuItem separatorItem]];
+  [viewMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Fit Width"
+                                                  action:@selector (fitScoreWidth:)
+                                           keyEquivalent:@"0"] autorelease]];
+  [viewMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Fit Page"
+                                                  action:@selector (fitScorePage:)
+                                           keyEquivalent:@"9"] autorelease]];
+  [viewItem setSubmenu:viewMenu];
+
   NSMenuItem *scoreItem = [[[NSMenuItem alloc] initWithTitle:@"Score" action:NULL
                                                keyEquivalent:@""] autorelease];
   [mainMenu addItem:scoreItem];
   NSMenu *scoreMenu = [[[NSMenu alloc] initWithTitle:@"Score"] autorelease];
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Play"
                                                  action:@selector (playScore:)
-                                          keyEquivalent:@""] autorelease]];
+                                          keyEquivalent:@" "] autorelease]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Play from Selection"
+                                                 action:@selector (playFromSelection:)
+                                          keyEquivalent:@"return"] autorelease]];
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Stop"
                                                  action:@selector (stopPlayback:)
-                                          keyEquivalent:@""] autorelease]];
+                                          keyEquivalent:@"."] autorelease]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Rewind"
+                                                 action:@selector (rewindScore:)
+                                          keyEquivalent:@"["] autorelease]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Go to Measure..."
+                                                 action:@selector (goToMeasure:)
+                                          keyEquivalent:@"g"] autorelease]];
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Loop Selection"
                                                  action:@selector (toggleLoopSelection:)
                                           keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Metronome"
+                                                 action:@selector (toggleMetronome:)
+                                          keyEquivalent:@""] autorelease]];
   [scoreMenu addItem:[NSMenuItem separatorItem]];
-  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"MIDI Output..."
+  NSMenuItem *templateItem = [[[NSMenuItem alloc] initWithTitle:@"Templates"
+                                                         action:NULL keyEquivalent:@""] autorelease];
+  NSMenu *templateMenu = [[[NSMenu alloc] initWithTitle:@"Templates"] autorelease];
+  for (NSString *name in @[ @"Piano", @"Choir (SATB)", @"String Quartet",
+                             @"Concert Band", @"Orchestra" ])
+    {
+      NSMenuItem *item = [[[NSMenuItem alloc] initWithTitle:name
+                                                     action:@selector (applyScoreTemplate:)
+                                              keyEquivalent:@""] autorelease];
+      [item setRepresentedObject:name];
+      [templateMenu addItem:item];
+    }
+  [templateItem setSubmenu:templateMenu];
+  [scoreMenu addItem:templateItem];
+  [scoreMenu addItem:[NSMenuItem separatorItem]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Voices to Parts"
+                                                 action:@selector (convertVoicesToParts:)
+                                          keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Parts to Voices"
+                                                 action:@selector (convertPartsToVoices:)
+                                          keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[NSMenuItem separatorItem]];
+  NSMenuItem *transposeUp = [[[NSMenuItem alloc] initWithTitle:@"Transpose Up Semitone"
+                                                        action:@selector (transposeSelection:)
+                                                 keyEquivalent:@""] autorelease];
+  [transposeUp setTag:1];
+  [scoreMenu addItem:transposeUp];
+  NSMenuItem *transposeDown = [[[NSMenuItem alloc] initWithTitle:@"Transpose Down Semitone"
+                                                          action:@selector (transposeSelection:)
+                                                   keyEquivalent:@""] autorelease];
+  [transposeDown setTag:-1];
+  [scoreMenu addItem:transposeDown];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Quantize Selection"
+                                                 action:@selector (quantizeSelection:)
+                                          keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[NSMenuItem separatorItem]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Routing Matrix..."
                                                  action:@selector (chooseMIDIOutput:)
                                           keyEquivalent:@""] autorelease]];
   NSMenuItem *dspItem = [[[NSMenuItem alloc] initWithTitle:@"Use Real-Time DSP"
@@ -449,6 +536,16 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
                                           keyEquivalent:@""] autorelease]];
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Render Internal DSP Audio..."
                                                  action:@selector (renderOfflineAudio:)
+                                          keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[NSMenuItem separatorItem]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Page Layout..."
+                                                 action:@selector (editPageLayout:)
+                                          keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Export PDF..."
+                                                 action:@selector (exportPDF:)
+                                          keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Export Compatibility Report..."
+                                                 action:@selector (showExportCompatibilityReport:)
                                           keyEquivalent:@""] autorelease]];
   [scoreMenu addItem:[NSMenuItem separatorItem]];
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Edit Score Source..."

@@ -37,8 +37,86 @@
 static CGFloat const InspectorWidth = 320.0;
 static CGFloat const InspectorPadding = 18.0;
 static CGFloat const PlaybackMonitorHeight = 150.0;
-static CGFloat const InspectorContentHeight = 1060.0;
+static CGFloat const InspectorContentHeight = 1260.0;
 static NSString *const ScoreMakerInternalPatchPresetsKey = @"ScoreMakerInternalPatchPresets";
+
+static ScorePartDefinition *
+ScoreMakerPartForTrack (ScoreDocument *document, NSInteger track)
+{
+  for (ScorePartDefinition *part in [document parts])
+    if ([part legacyTrack] == track)
+      return part;
+  return nil;
+}
+
+static NSUInteger
+ScoreMakerMixedVelocity (ScoreNote *note, ScorePartDefinition *part, ScoreDocument *document)
+{
+  CGFloat gain = part ? [part gain] : 1.0;
+  NSDictionary *dynamicScale = @{ @"ppp" : @0.38, @"pp" : @0.48, @"p" : @0.60,
+                                   @"mp" : @0.74, @"mf" : @0.88, @"f" : @1.0,
+                                   @"ff" : @1.14, @"fff" : @1.25, @"sfz" : @1.22 };
+  NSNumber *expression = [dynamicScale objectForKey:[[note dynamic] lowercaseString]];
+  if (expression) gain *= [expression doubleValue];
+  if ([[note articulation] isEqualToString:@"accent"]
+      || [[note articulation] isEqualToString:@"strong-accent"])
+    gain *= 1.12;
+  ScoreNote *hairpinStart = nil, *hairpinEnd = nil;
+  for (ScoreNote *candidate in [document notes])
+    {
+      if ([candidate track] != [note track] || [candidate voice] != [note voice]) continue;
+      if ([[candidate hairpinStart] length] && [candidate startTick] <= [note startTick]
+          && (!hairpinStart || [candidate startTick] > [hairpinStart startTick]))
+        hairpinStart = candidate;
+    }
+  if (hairpinStart)
+    for (ScoreNote *candidate in [document notes])
+      if ([candidate track] == [note track] && [candidate voice] == [note voice]
+          && [candidate hairpinEnd] && [candidate startTick] > [hairpinStart startTick]
+          && (!hairpinEnd || [candidate startTick] < [hairpinEnd startTick]))
+        hairpinEnd = candidate;
+  if (hairpinStart && hairpinEnd && [note startTick] <= [hairpinEnd startTick])
+    {
+      CGFloat fraction = (CGFloat)([note startTick] - [hairpinStart startTick])
+                         / MAX ((CGFloat)1.0, (CGFloat)([hairpinEnd startTick]
+                                                       - [hairpinStart startTick]));
+      gain *= [[hairpinStart hairpinStart] isEqualToString:@"crescendo"]
+                ? 0.78 + 0.42 * fraction : 1.20 - 0.42 * fraction;
+    }
+  return MIN ((NSUInteger)127,
+              (NSUInteger)llround ((double)[note velocity] * MAX ((CGFloat)0.0, gain)));
+}
+
+static CGFloat
+ScoreMakerNotePan (ScoreNote *note, ScorePartDefinition *part)
+{
+  CGFloat pan = part ? [part pan] : 0.0;
+  NSString *bearing = [[note performanceParameters] objectForKey:@"bearing"];
+  if ([bearing length])
+    {
+      CGFloat value = [bearing doubleValue];
+      pan = fabs (value) <= 1.0 ? value : value / 45.0;
+    }
+  return MIN (1.0, MAX (-1.0, pan));
+}
+
+#if defined(__APPLE__)
+#define ScoreMakerSwitchButton NSButtonTypeSwitch
+#define ScoreMakerStateOn NSControlStateValueOn
+#define ScoreMakerStateOff NSControlStateValueOff
+#define ScoreMakerWindowTitled NSWindowStyleMaskTitled
+#define ScoreMakerWindowClosable NSWindowStyleMaskClosable
+#define ScoreMakerWindowMiniaturizable NSWindowStyleMaskMiniaturizable
+#define ScoreMakerWindowResizable NSWindowStyleMaskResizable
+#else
+#define ScoreMakerSwitchButton NSSwitchButton
+#define ScoreMakerStateOn NSOnState
+#define ScoreMakerStateOff NSOffState
+#define ScoreMakerWindowTitled NSTitledWindowMask
+#define ScoreMakerWindowClosable NSClosableWindowMask
+#define ScoreMakerWindowMiniaturizable NSMiniaturizableWindowMask
+#define ScoreMakerWindowResizable NSResizableWindowMask
+#endif
 
 static NSRange
 ScoreMakerSourceLineRangeForRange (NSString *source, NSRange range)
@@ -68,6 +146,7 @@ ScoreMakerSourceLineRangeForRange (NSString *source, NSRange range)
   return [source lineRangeForRange:range];
 }
 
+#if !defined(__APPLE__)
 static NSRange
 ScoreMakerSourceRangeCoveringRanges (NSArray *ranges)
 {
@@ -101,6 +180,7 @@ ScoreMakerSourceRangeWithLookahead (NSString *source, NSRange range, NSUInteger 
   range.length = end - range.location;
   return range;
 }
+#endif
 
 static void
 ScoreMakerSetAccessibilityLabel (id control, NSString *label)
@@ -139,6 +219,12 @@ ScoreMakerTransportImage (NSString *kind)
     {
       NSRectFill (NSMakeRect (3.0, 2.0, 4.0, 12.0));
       NSRectFill (NSMakeRect (9.0, 2.0, 4.0, 12.0));
+    }
+  else if ([kind isEqualToString:@"record"])
+    {
+      NSBezierPath *path = [NSBezierPath bezierPathWithOvalInRect:NSMakeRect (3.0, 3.0,
+                                                                              10.0, 10.0)];
+      [path fill];
     }
   else
     NSRectFill (NSMakeRect (3.0, 3.0, 10.0, 10.0));
@@ -195,7 +281,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 
 @class ScoreMakerDocument;
 
-@interface ScorePaletteItemView : NSView
+@interface ScorePaletteItemView : NSView <NSDraggingSource>
 {
   ScoreMakerDocument *_document;
   NSString *_item;
@@ -213,6 +299,16 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (NSString *)palettePayloadForItem:(NSString *)item denominator:(NSUInteger)denominator;
 @end
 
+@interface ScoreRoutingRowsView : NSView
+@end
+
+@implementation ScoreRoutingRowsView
+- (BOOL)isFlipped
+{
+  return YES;
+}
+@end
+
 @interface ScoreMakerDocument (Playback)
 - (BOOL)restartPlaybackAtTick:(NSUInteger)tick;
 - (void)startPlaybackHighlightAtTick:(NSUInteger)tick;
@@ -223,6 +319,13 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (void)stopMIDIRecording;
 - (void)handleMIDIInputEvent:(NSDictionary *)event;
 - (void)midiDevicesChanged:(id)sender;
+- (void)midiRangeDisplayDidChange:(id)sender;
+- (void)practiceMetronomeTick:(NSTimer *)timer;
+- (void)stopPracticeMetronome;
+- (void)restartPracticeMetronomeForCurrentTempo;
+- (void)midiOctaveDidChange:(id)sender;
+- (void)updateMIDIControllerRangeDisplay;
+- (void)refreshRoutingMatrix;
 - (void)registerUndoSnapshotWithName:(NSString *)name;
 - (void)restoreScoreSnapshot:(ScoreDocument *)snapshot;
 - (void)commitUndoBaseline;
@@ -235,6 +338,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (ScoreNote *)scoreNoteForSourceLocation:(NSUInteger)location;
 - (NSValue *)sourceRangeForScoreNote:(ScoreNote *)note;
 - (void)updateScoreSourcePlaybackHighlightAtTick:(NSUInteger)tick;
+- (void)updateScoreSourceMIDIInputHighlight;
 - (void)clearScoreSourcePlaybackHighlight;
 #if !defined(__APPLE__)
 - (void)setScoreSourceSelectedRange:(NSRange)range
@@ -669,6 +773,16 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     {
       return;
     }
+#if defined(__APPLE__)
+  NSPasteboardItem *pasteboardItem = [[[NSPasteboardItem alloc] init] autorelease];
+  [pasteboardItem setString:payload forType:ScorePalettePasteboardType];
+  NSDraggingItem *draggingItem = [[[NSDraggingItem alloc]
+    initWithPasteboardWriter:pasteboardItem] autorelease];
+  NSImage *image = [self dragImage];
+  [draggingItem setDraggingFrame:NSMakeRect (4.0, 4.0, [image size].width, [image size].height)
+                        contents:image];
+  [self beginDraggingSessionWithItems:@[ draggingItem ] event:event source:self];
+#else
   NSPasteboard *pasteboard = [NSPasteboard pasteboardWithName:NSDragPboard];
   [pasteboard declareTypes:[NSArray arrayWithObject:ScorePalettePasteboardType] owner:nil];
   [pasteboard setString:payload forType:ScorePalettePasteboardType];
@@ -679,6 +793,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
        pasteboard:pasteboard
            source:self
         slideBack:YES];
+#endif
 }
 
 - (NSDragOperation)draggingSourceOperationMaskForLocal:(BOOL)isLocal
@@ -686,6 +801,16 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   (void)isLocal;
   return NSDragOperationCopy;
 }
+
+#if defined(__APPLE__)
+- (NSDragOperation)draggingSession:(NSDraggingSession *)session
+  sourceOperationMaskForDraggingContext:(NSDraggingContext)context
+{
+  (void)session;
+  (void)context;
+  return NSDragOperationCopy;
+}
+#endif
 
 @end
 
@@ -709,7 +834,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [document setTitle:@"Untitled"];
       [self setScoreDocument:document];
 #if defined(__APPLE__)
-      _useBuiltInMIDIOutput = NO;
+      _externalMIDIPlaybacks = [[NSMutableArray alloc] init];
 #endif
     }
   return self;
@@ -811,6 +936,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [self restoreAudioUnitInstrument];
   if (_patchEditorWindow)
     [self loadPatchEditorControls];
+  if (_routingMatrixWindow && [_routingMatrixWindow isVisible])
+    [self refreshRoutingMatrix];
   [self commitUndoBaseline];
 }
 
@@ -862,6 +989,11 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_patchBrowserTable release];
   [_patchBrowserCategoryPopUp release];
   [_patchBrowserRows release];
+  [_routingMatrixWindow release];
+  [_routingMatrixRowsView release];
+  [_routingMatrixSummaryLabel release];
+  [_routingMatrixSelection release];
+  [_routingBulkDevicePopUp release];
   [_scrollView release];
   [_scoreView release];
   [_inspectorScrollView release];
@@ -890,6 +1022,17 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_tupletPopUp release];
   [_dynamicPopUp release];
   [_articulationPopUp release];
+  [_lyricField release];
+  [_ornamentPopUp release];
+  [_graceButton release];
+  [_cueButton release];
+  [_tremoloPopUp release];
+  [_rehearsalMarkField release];
+  [_endingTextField release];
+  [_systemBreakButton release];
+  [_pageBreakButton release];
+  [_staffAssignmentPopUp release];
+  [_directionTextField release];
   [_playButton release];
   [_pauseButton release];
   [_stopButton release];
@@ -897,11 +1040,18 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_midiQuantizePopUp release];
   [_midiRoutingPopUp release];
   [_recordButton release];
+  [_midiRangeShadeButton release];
+  [_midiOctavePopUp release];
   [_midiInputManager release];
   [_midiActiveNotes release];
   [_midiHeldStepNotes release];
+  [_midiHeldStepScoreNotes release];
   [_midiSustainedNotes release];
+  [_midiAuditionPitches release];
   [_midiMetronomeSound release];
+  [_practiceMetronomeTimer invalidate];
+  [_practiceMetronomeTimer release];
+  [_practiceMetronomeSound release];
   [_undoBaseline release];
   [_midiRecordingUndoSnapshot release];
   [_annotationTextView release];
@@ -915,6 +1065,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_scoreSourcePlaybackSignature release];
   [_scoreSourceErrorRange release];
   [_scoreSourceActivePlaybackNotes release];
+#if defined(__APPLE__)
+  [_externalMIDIPlaybacks release];
+#endif
 
   [super dealloc];
 }
@@ -926,6 +1079,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [self stopCurrentPlayback];
   [self stopAudition];
   [self stopMIDIRecording];
+  [self stopPracticeMetronome];
   [_midiInputManager disconnect];
   [_midiInputManager setTarget:nil];
   [super close];
@@ -940,6 +1094,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     [patchParent removeChildWindow:_patchEditorWindow];
   [_patchEditorWindow close];
   [_patchBrowserWindow close];
+  [_routingMatrixWindow close];
   NSWindow *sourceParent = [_scoreSourceEditorWindow parentWindow];
   if (sourceParent)
     [sourceParent removeChildWindow:_scoreSourceEditorWindow];
@@ -952,6 +1107,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [self stopCurrentPlayback];
   [self stopAudition];
   [self stopMIDIRecording];
+  [self stopPracticeMetronome];
   [_midiInputManager disconnect];
   [_midiInputManager setTarget:nil];
   [self closeAuxiliaryWindows];
@@ -964,8 +1120,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #endif
-  NSUInteger style = NSTitledWindowMask | NSClosableWindowMask | NSMiniaturizableWindowMask
-                     | NSResizableWindowMask;
+  NSUInteger style = ScoreMakerWindowTitled | ScoreMakerWindowClosable | ScoreMakerWindowMiniaturizable
+                     | ScoreMakerWindowResizable;
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
@@ -999,6 +1155,11 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [[self scrollView] setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
   [[self scrollView] setHasVerticalScroller:YES];
   [[self scrollView] setHasHorizontalScroller:YES];
+#if defined(__APPLE__)
+  [[self scrollView] setAllowsMagnification:YES];
+  [[self scrollView] setMinMagnification:0.25];
+  [[self scrollView] setMaxMagnification:4.0];
+#endif
   [[self scrollView] setDocumentView:[self scoreView]];
 
   [[[self window] contentView] addSubview:[self scrollView]];
@@ -1008,7 +1169,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_midiInputManager setChangeAction:@selector (midiDevicesChanged:)];
   _midiActiveNotes = [[NSMutableDictionary alloc] init];
   _midiHeldStepNotes = [[NSMutableSet alloc] init];
+  _midiHeldStepScoreNotes = [[NSMutableDictionary alloc] init];
   _midiSustainedNotes = [[NSMutableSet alloc] init];
+  _midiAuditionPitches = [[NSMutableDictionary alloc] init];
 
   CGFloat inspectorContentHeight = MAX (InspectorContentHeight, inspectorFrame.size.height);
   [self buildInspectorWithFrame:NSMakeRect (0.0, 0.0, InspectorWidth, inspectorContentHeight)];
@@ -1283,6 +1446,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     initWithFrame:NSMakeRect (InspectorPadding + 230.0, frame.size.height - 332.0, 32.0, 26.0)];
   [_addPartButton setTitle:@"+"];
   [_addPartButton setToolTip:@"Add Part"];
+  ScoreMakerSetAccessibilityLabel (_addPartButton, @"Add part");
   [_addPartButton setTarget:self];
   [_addPartButton setAction:@selector (addPart:)];
   [_addPartButton setAutoresizingMask:NSViewMinYMargin];
@@ -1332,8 +1496,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _separatePartsButton = [[NSButton alloc]
     initWithFrame:NSMakeRect (InspectorPadding + 132.0, frame.size.height - 364.0, 132.0, 20.0)];
   [_separatePartsButton setTitle:@"Separate Part Staves"];
-  [_separatePartsButton setButtonType:NSSwitchButton];
-  [_separatePartsButton setState:NSOnState];
+  [_separatePartsButton setButtonType:ScoreMakerSwitchButton];
+  [_separatePartsButton setState:ScoreMakerStateOn];
   [_separatePartsButton setTarget:self];
   [_separatePartsButton setAction:@selector (scoreDisplayModeDidChange:)];
   [_separatePartsButton setAutoresizingMask:NSViewMinYMargin];
@@ -1365,12 +1529,44 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [[self inspectorView] addSubview:_midiQuantizePopUp];
   _recordButton = [[NSButton alloc]
     initWithFrame:NSMakeRect (InspectorPadding + 224.0, frame.size.height - 452.0, 60.0, 26.0)];
-  [_recordButton setTitle:@"Record"];
+  [_recordButton setTitle:@""];
+  [_recordButton setImage:ScoreMakerTransportImage (@"record")];
+  [_recordButton setImagePosition:NSImageOnly];
+  [_recordButton setToolTip:@"Record"];
+  ScoreMakerSetAccessibilityLabel (_recordButton, @"Record");
   [_recordButton setTarget:self];
   [_recordButton setAction:@selector (toggleMIDIRecording:)];
   [_recordButton setAutoresizingMask:NSViewMinYMargin];
   [[self inspectorView] addSubview:_recordButton];
   [self reloadMIDIInputs];
+
+  _midiRangeShadeButton = [[NSButton alloc]
+    initWithFrame:NSMakeRect (InspectorPadding + 112.0, frame.size.height - 482.0, 108.0, 20.0)];
+  [_midiRangeShadeButton setTitle:@"Shade Keys"];
+  [_midiRangeShadeButton setButtonType:ScoreMakerSwitchButton];
+  [_midiRangeShadeButton setState:ScoreMakerStateOn];
+  [_midiRangeShadeButton setToolTip:@"Shade the virtual keys covered by the selected MIDI input"];
+  [_midiRangeShadeButton setTarget:self];
+  [_midiRangeShadeButton setAction:@selector (midiRangeDisplayDidChange:)];
+  [_midiRangeShadeButton setAutoresizingMask:NSViewMinYMargin];
+  [[self inspectorView] addSubview:_midiRangeShadeButton];
+
+  _midiOctavePopUp = [[NSPopUpButton alloc]
+    initWithFrame:NSMakeRect (InspectorPadding + 192.0, frame.size.height - 510.0, 92.0, 26.0)
+        pullsDown:NO];
+  for (NSInteger octave = -4; octave <= 4; octave++)
+    {
+      NSString *title = octave == 0 ? @"Oct 0"
+                                    : [NSString stringWithFormat:@"%+ld oct", (long)octave];
+      [_midiOctavePopUp addItemWithTitle:title];
+      [[_midiOctavePopUp lastItem] setRepresentedObject:@(octave)];
+    }
+  [_midiOctavePopUp selectItemAtIndex:4];
+  [_midiOctavePopUp setToolTip:@"Shift incoming MIDI notes by octaves in software"];
+  [_midiOctavePopUp setTarget:self];
+  [_midiOctavePopUp setAction:@selector (midiOctaveDidChange:)];
+  [_midiOctavePopUp setAutoresizingMask:NSViewMinYMargin];
+  [[self inspectorView] addSubview:_midiOctavePopUp];
 
   NSTextField *routingLabel =
     [self labelWithString:@"Input Routing"
@@ -1378,7 +1574,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [routingLabel setAutoresizingMask:NSViewMinYMargin];
   [[self inspectorView] addSubview:routingLabel];
   _midiRoutingPopUp = [[NSPopUpButton alloc]
-    initWithFrame:NSMakeRect (InspectorPadding, frame.size.height - 510.0, 218.0, 26.0)
+    initWithFrame:NSMakeRect (InspectorPadding, frame.size.height - 510.0, 186.0, 26.0)
         pullsDown:NO];
   [_midiRoutingPopUp addItemWithTitle:@"Selected Part"];
   [[_midiRoutingPopUp lastItem] setRepresentedObject:@"selected"];
@@ -1419,7 +1615,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _repeatStartButton = [[NSButton alloc]
     initWithFrame:NSMakeRect (InspectorPadding + 138.0, frame.size.height - 578.0, 72.0, 24.0)];
   [_repeatStartButton setTitle:@"Start |:"];
-  [_repeatStartButton setButtonType:NSSwitchButton];
+  [_repeatStartButton setButtonType:ScoreMakerSwitchButton];
   [_repeatStartButton setTarget:self];
   [_repeatStartButton setAction:@selector (notationDidChange:)];
   [_repeatStartButton setAutoresizingMask:NSViewMinYMargin];
@@ -1427,7 +1623,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _repeatEndButton = [[NSButton alloc]
     initWithFrame:NSMakeRect (InspectorPadding + 210.0, frame.size.height - 578.0, 72.0, 24.0)];
   [_repeatEndButton setTitle:@"End :|"];
-  [_repeatEndButton setButtonType:NSSwitchButton];
+  [_repeatEndButton setButtonType:ScoreMakerSwitchButton];
   [_repeatEndButton setTarget:self];
   [_repeatEndButton setAction:@selector (notationDidChange:)];
   [_repeatEndButton setAutoresizingMask:NSViewMinYMargin];
@@ -1436,7 +1632,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _tieStartButton = [[NSButton alloc]
     initWithFrame:NSMakeRect (InspectorPadding, frame.size.height - 606.0, 72.0, 24.0)];
   [_tieStartButton setTitle:@"Tie start"];
-  [_tieStartButton setButtonType:NSSwitchButton];
+  [_tieStartButton setButtonType:ScoreMakerSwitchButton];
   [_tieStartButton setTarget:self];
   [_tieStartButton setAction:@selector (notationDidChange:)];
   [_tieStartButton setAutoresizingMask:NSViewMinYMargin];
@@ -1444,7 +1640,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _tieEndButton = [[NSButton alloc]
     initWithFrame:NSMakeRect (InspectorPadding + 76.0, frame.size.height - 606.0, 70.0, 24.0)];
   [_tieEndButton setTitle:@"Tie end"];
-  [_tieEndButton setButtonType:NSSwitchButton];
+  [_tieEndButton setButtonType:ScoreMakerSwitchButton];
   [_tieEndButton setTarget:self];
   [_tieEndButton setAction:@selector (notationDidChange:)];
   [_tieEndButton setAutoresizingMask:NSViewMinYMargin];
@@ -1479,22 +1675,97 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_articulationPopUp setAutoresizingMask:NSViewMinYMargin];
   [[self inspectorView] addSubview:_articulationPopUp];
 
+  _lyricField = [[NSTextField alloc]
+    initWithFrame:NSMakeRect (InspectorPadding, frame.size.height - 670.0, 116.0, 24.0)];
+  [_lyricField setPlaceholderString:@"Lyric syllable"];
+  [_lyricField setTarget:self];
+  [_lyricField setAction:@selector (notationDidChange:)];
+  [[self inspectorView] addSubview:_lyricField];
+  _ornamentPopUp = [[NSPopUpButton alloc]
+    initWithFrame:NSMakeRect (InspectorPadding + 122.0, frame.size.height - 672.0, 96.0, 26.0)
+        pullsDown:NO];
+  [_ornamentPopUp addItemsWithTitles:@[ @"No ornament", @"Trill", @"Turn", @"Mordent" ]];
+  [_ornamentPopUp setTarget:self];
+  [_ornamentPopUp setAction:@selector (notationDidChange:)];
+  [[self inspectorView] addSubview:_ornamentPopUp];
+  _tremoloPopUp = [[NSPopUpButton alloc]
+    initWithFrame:NSMakeRect (InspectorPadding + 224.0, frame.size.height - 672.0, 68.0, 26.0)
+        pullsDown:NO];
+  [_tremoloPopUp addItemsWithTitles:@[ @"No trem.", @"1 stroke", @"2 strokes", @"3 strokes", @"4 strokes" ]];
+  [_tremoloPopUp setTarget:self];
+  [_tremoloPopUp setAction:@selector (notationDidChange:)];
+  [[self inspectorView] addSubview:_tremoloPopUp];
+  _graceButton = [[NSButton alloc]
+    initWithFrame:NSMakeRect (InspectorPadding, frame.size.height - 700.0, 72.0, 22.0)];
+  [_graceButton setButtonType:ScoreMakerSwitchButton]; [_graceButton setTitle:@"Grace"];
+  [_graceButton setTarget:self]; [_graceButton setAction:@selector (notationDidChange:)];
+  [[self inspectorView] addSubview:_graceButton];
+  _cueButton = [[NSButton alloc]
+    initWithFrame:NSMakeRect (InspectorPadding + 76.0, frame.size.height - 700.0, 60.0, 22.0)];
+  [_cueButton setButtonType:ScoreMakerSwitchButton]; [_cueButton setTitle:@"Cue"];
+  [_cueButton setTarget:self]; [_cueButton setAction:@selector (notationDidChange:)];
+  [[self inspectorView] addSubview:_cueButton];
+  _rehearsalMarkField = [[NSTextField alloc]
+    initWithFrame:NSMakeRect (InspectorPadding + 142.0, frame.size.height - 702.0, 68.0, 24.0)];
+  [_rehearsalMarkField setPlaceholderString:@"Reh."];
+  [_rehearsalMarkField setTarget:self]; [_rehearsalMarkField setAction:@selector (notationDidChange:)];
+  [[self inspectorView] addSubview:_rehearsalMarkField];
+  _endingTextField = [[NSTextField alloc]
+    initWithFrame:NSMakeRect (InspectorPadding + 216.0, frame.size.height - 702.0, 76.0, 24.0)];
+  [_endingTextField setPlaceholderString:@"Ending"];
+  [_endingTextField setTarget:self]; [_endingTextField setAction:@selector (notationDidChange:)];
+  [[self inspectorView] addSubview:_endingTextField];
+  _directionTextField = [[NSTextField alloc]
+    initWithFrame:NSMakeRect (InspectorPadding, frame.size.height - 732.0, 98.0, 24.0)];
+  [_directionTextField setPlaceholderString:@"Expression or score text (dolce, con moto…)"];
+  [_directionTextField setTarget:self];
+  [_directionTextField setAction:@selector (notationDidChange:)];
+  [[self inspectorView] addSubview:_directionTextField];
+  _staffAssignmentPopUp = [[NSPopUpButton alloc]
+    initWithFrame:NSMakeRect (InspectorPadding + 100.0, frame.size.height - 734.0, 76.0, 27.0)
+        pullsDown:NO];
+  [_staffAssignmentPopUp addItemsWithTitles:@[ @"Auto", @"Upper", @"Lower" ]];
+  [_staffAssignmentPopUp setToolTip:@"Staff placement for cross-staff notation"];
+  ScoreMakerSetAccessibilityLabel (_staffAssignmentPopUp, @"Staff placement");
+  [_staffAssignmentPopUp setTarget:self];
+  [_staffAssignmentPopUp setAction:@selector (notationDidChange:)];
+  [[self inspectorView] addSubview:_staffAssignmentPopUp];
+  _systemBreakButton = [[NSButton alloc]
+    initWithFrame:NSMakeRect (InspectorPadding + 178.0, frame.size.height - 732.0, 54.0, 24.0)];
+  [_systemBreakButton setTitle:@"System"];
+  [_systemBreakButton setToolTip:@"Start the selected measure on a new system"];
+  ScoreMakerSetAccessibilityLabel (_systemBreakButton, @"Start measure on new system");
+  [_systemBreakButton setButtonType:ScoreMakerSwitchButton];
+  [_systemBreakButton setTarget:self]; [_systemBreakButton setAction:@selector (notationDidChange:)];
+  [[self inspectorView] addSubview:_systemBreakButton];
+  _pageBreakButton = [[NSButton alloc]
+    initWithFrame:NSMakeRect (InspectorPadding + 234.0, frame.size.height - 732.0, 50.0, 24.0)];
+  [_pageBreakButton setTitle:@"Page"];
+  [_pageBreakButton setToolTip:@"Start the selected measure on a new page"];
+  ScoreMakerSetAccessibilityLabel (_pageBreakButton, @"Start measure on new page");
+  [_pageBreakButton setButtonType:ScoreMakerSwitchButton];
+  [_pageBreakButton setTarget:self]; [_pageBreakButton setAction:@selector (notationDidChange:)];
+  [[self inspectorView] addSubview:_pageBreakButton];
+
   NSTextField *paletteLabel =
     [self labelWithString:@"Palette"
-                    frame:NSMakeRect (InspectorPadding, frame.size.height - 674.0, 120.0, 18.0)];
+                    frame:NSMakeRect (InspectorPadding, frame.size.height - 768.0, 120.0, 18.0)];
   [paletteLabel setAutoresizingMask:NSViewMinYMargin];
   [[self inspectorView] addSubview:paletteLabel];
 
   NSArray *toolItems =
     [NSArray arrayWithObjects:@"sharp", @"flat", @"natural", @"slur", @"tie", @"triplet", @"mf",
-                              @"staccato", @"accent", @"tenuto", nil];
+                              @"staccato", @"accent", @"tenuto", @"grace", @"cue", @"trill",
+                              @"tremolo", @"crescendo", @"diminuendo", @"pedal", @"8va", @"8vb", nil];
   NSArray *toolLabels = [NSArray
-    arrayWithObjects:@"♯", @"♭", @"♮", @"Slur", @"Tie", @"3", @"mf", @"Stacc.", @">", @"Ten.", nil];
+    arrayWithObjects:@"♯", @"♭", @"♮", @"Slur", @"Tie", @"3", @"mf", @"Stacc.", @">", @"Ten.",
+                     @"Grace", @"Cue", @"Trill", @"Trem.", nil];
+  toolLabels = [toolLabels arrayByAddingObjectsFromArray:@[ @"<", @">", @"Ped.", @"8va", @"8vb" ]];
   for (NSUInteger i = 0; i < [toolItems count]; i++)
     {
       ScorePaletteItemView *toolPalette = [[[ScorePaletteItemView alloc]
         initWithFrame:NSMakeRect (InspectorPadding + (CGFloat)(i % 5) * 53.0,
-                                  frame.size.height - 702.0 - (CGFloat)(i / 5) * 29.0, 50.0, 27.0)
+                                  frame.size.height - 796.0 - (CGFloat)(i / 5) * 29.0, 50.0, 27.0)
              document:self
                  item:[toolItems objectAtIndex:i]
                 label:[toolLabels objectAtIndex:i]
@@ -1518,7 +1789,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
                                 : [NSString stringWithFormat:@"1/%lu", (unsigned long)denominator]);
       NSString *noteLabel = [NSString stringWithFormat:@"%@ Note", valueLabel];
       ScorePaletteItemView *notePalette = [[[ScorePaletteItemView alloc]
-        initWithFrame:NSMakeRect (InspectorPadding, frame.size.height - 766.0 - (CGFloat)i * 27.0,
+        initWithFrame:NSMakeRect (InspectorPadding, frame.size.height - 914.0 - (CGFloat)i * 27.0,
                                   110.0, 24.0)
              document:self
                  item:@"note"
@@ -1530,7 +1801,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       NSString *restLabel = [NSString stringWithFormat:@"%@ Rest", valueLabel];
       ScorePaletteItemView *restPalette = [[[ScorePaletteItemView alloc]
         initWithFrame:NSMakeRect (InspectorPadding + 122.0,
-                                  frame.size.height - 766.0 - (CGFloat)i * 27.0, 110.0, 24.0)
+                                  frame.size.height - 914.0 - (CGFloat)i * 27.0, 110.0, 24.0)
              document:self
                  item:@"rest"
                 label:restLabel
@@ -1541,14 +1812,14 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 
   NSTextField *notesLabel =
     [self labelWithString:@"Score Notes"
-                    frame:NSMakeRect (InspectorPadding, frame.size.height - 944.0, 120.0, 18.0)];
+                    frame:NSMakeRect (InspectorPadding, frame.size.height - 1092.0, 120.0, 18.0)];
   [notesLabel setAutoresizingMask:NSViewMinYMargin];
   [[self inspectorView] addSubview:notesLabel];
 
   NSScrollView *notesScroll =
     [[[NSScrollView alloc] initWithFrame:NSMakeRect (InspectorPadding, InspectorPadding,
                                                      frame.size.width - 2.0 * InspectorPadding,
-                                                     frame.size.height - 978.0)] autorelease];
+                                                     frame.size.height - 1126.0)] autorelease];
   [notesScroll setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
   [notesScroll setHasVerticalScroller:YES];
   [notesScroll setBorderType:NSBezelBorder];
@@ -1595,6 +1866,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_stopButton setEnabled:hasDocument];
   [_recordButton setEnabled:hasDocument && [_midiInputPopUp indexOfSelectedItem] > 0];
   [_midiQuantizePopUp setEnabled:hasDocument];
+  [_midiRangeShadeButton setEnabled:[_midiInputPopUp indexOfSelectedItem] > 0];
+  [_midiOctavePopUp setEnabled:[_midiInputPopUp indexOfSelectedItem] > 0];
   [_annotationTextView setEditable:hasDocument];
 
   if (!hasDocument)
@@ -1630,6 +1903,17 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_tupletPopUp setEnabled:selectedNote != nil];
   [_dynamicPopUp setEnabled:selectedNote != nil];
   [_articulationPopUp setEnabled:selectedNote != nil && ![selectedNote isRest]];
+  [_lyricField setEnabled:selectedNote != nil && ![selectedNote isRest]];
+  [_ornamentPopUp setEnabled:selectedNote != nil && ![selectedNote isRest]];
+  [_graceButton setEnabled:selectedNote != nil && ![selectedNote isRest]];
+  [_cueButton setEnabled:selectedNote != nil && ![selectedNote isRest]];
+  [_tremoloPopUp setEnabled:selectedNote != nil && ![selectedNote isRest]];
+  [_rehearsalMarkField setEnabled:selectedMeasure != nil];
+  [_endingTextField setEnabled:selectedMeasure != nil];
+  [_systemBreakButton setEnabled:selectedMeasure != nil];
+  [_pageBreakButton setEnabled:selectedMeasure != nil];
+  [_directionTextField setEnabled:selectedNote != nil && ![selectedNote isRest]];
+  [_staffAssignmentPopUp setEnabled:selectedNote != nil && ![selectedNote isRest]];
   if (selectedMeasure)
     {
       for (NSMenuItem *item in [_keySignaturePopUp itemArray])
@@ -1640,11 +1924,16 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
             [_keySignaturePopUp selectItem:item];
             break;
           }
-      [_repeatStartButton setState:[selectedMeasure repeatStart] ? NSOnState : NSOffState];
-      [_repeatEndButton setState:[selectedMeasure repeatEnd] ? NSOnState : NSOffState];
+      [_repeatStartButton setState:[selectedMeasure repeatStart] ? ScoreMakerStateOn : ScoreMakerStateOff];
+      [_repeatEndButton setState:[selectedMeasure repeatEnd] ? ScoreMakerStateOn : ScoreMakerStateOff];
+      [_rehearsalMarkField setStringValue:[selectedMeasure rehearsalMark] ?: @""];
+      [_endingTextField setStringValue:[selectedMeasure endingText] ?: @""];
+      [_systemBreakButton setState:[selectedMeasure systemBreak] ? ScoreMakerStateOn : ScoreMakerStateOff];
+      [_pageBreakButton setState:[selectedMeasure pageBreak] ? ScoreMakerStateOn : ScoreMakerStateOff];
     }
-  [_tieStartButton setState:selectedNote && [selectedNote tieStart] ? NSOnState : NSOffState];
-  [_tieEndButton setState:selectedNote && [selectedNote tieEnd] ? NSOnState : NSOffState];
+  [_tieStartButton setState:selectedNote && [selectedNote tieStart] ? ScoreMakerStateOn : ScoreMakerStateOff];
+  [_staffAssignmentPopUp selectItemAtIndex:selectedNote ? [selectedNote staffAssignment] : 0];
+  [_tieEndButton setState:selectedNote && [selectedNote tieEnd] ? ScoreMakerStateOn : ScoreMakerStateOff];
   NSString *tuplet
     = selectedNote && [selectedNote tupletActual]
         ? [NSString stringWithFormat:@"%lu:%lu", (unsigned long)[selectedNote tupletActual],
@@ -1661,6 +1950,20 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     selectItemWithTitle:selectedNote && [[selectedNote articulation] length]
                           ? [articulationTitles objectForKey:[selectedNote articulation]]
                           : @"No articulation"];
+  [_lyricField setStringValue:selectedNote && [[selectedNote lyric] length]
+                                ? [selectedNote lyric] : @""];
+  NSDictionary *ornamentTitles = @{ @"trill-mark" : @"Trill", @"turn" : @"Turn",
+                                     @"mordent" : @"Mordent" };
+  [_ornamentPopUp selectItemWithTitle:selectedNote && [[selectedNote ornament] length]
+                                         ? [ornamentTitles objectForKey:[selectedNote ornament]]
+                                         : @"No ornament"];
+  [_graceButton setState:selectedNote && [selectedNote isGrace]
+                           ? ScoreMakerStateOn : ScoreMakerStateOff];
+  [_cueButton setState:selectedNote && [selectedNote isCue]
+                         ? ScoreMakerStateOn : ScoreMakerStateOff];
+  [_tremoloPopUp selectItemAtIndex:selectedNote ? (NSInteger)[selectedNote tremoloStrokes] : 0];
+  [_directionTextField setStringValue:selectedNote && [[selectedNote directionText] length]
+                                         ? [selectedNote directionText] : @""];
   NSNumber *viewedPart = [[_partPopUp selectedItem] representedObject];
   NSMutableSet *partSet = [NSMutableSet set];
   NSMutableSet *noteTrackSet = [NSMutableSet set];
@@ -1813,6 +2116,142 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [self commitUndoBaseline];
 }
 
+- (void)convertVoicesToParts:(id)sender
+{
+  (void)sender;
+  ScoreDocument *document = [self scoreDocument];
+  if (!document)
+    return;
+  NSMutableSet *voices = [NSMutableSet set];
+  NSInteger selectedTrack = [self selectedPartNumber];
+  for (ScoreNote *note in [document notes])
+    if ([note track] == selectedTrack)
+      [voices addObject:[NSNumber numberWithInteger:[note voice]]];
+  if ([voices count] < 2)
+    {
+      NSBeep ();
+      return;
+    }
+  [self registerUndoSnapshotWithName:@"Voices to Parts"];
+  [document convertVoicesToPartsForTrack:selectedTrack];
+  [self updateChangeCount:NSChangeDone];
+  [[self scoreView] reloadDocument];
+  [self refreshInspector];
+  [self commitUndoBaseline];
+}
+
+- (void)convertPartsToVoices:(id)sender
+{
+  (void)sender;
+  ScoreDocument *document = [self scoreDocument];
+  if (!document)
+    return;
+  NSMutableSet *tracks = [NSMutableSet set];
+  for (ScoreNote *note in [document notes])
+    [tracks addObject:[NSNumber numberWithInteger:[note track]]];
+  if ([tracks count] < 2)
+    {
+      NSBeep ();
+      return;
+    }
+  [self registerUndoSnapshotWithName:@"Parts to Voices"];
+  [document convertPartsToVoices];
+  [self updateChangeCount:NSChangeDone];
+  [[self scoreView] reloadDocument];
+  [self refreshInspector];
+  [self commitUndoBaseline];
+}
+
+- (void)applyScoreTemplate:(id)sender
+{
+  NSString *name = [sender representedObject] ?: [sender title];
+  NSDictionary *templates = @{
+    @"Piano" : @[ @[ @"Piano", @0 ] ],
+    @"Choir (SATB)" : @[ @[ @"Soprano", @52 ], @[ @"Alto", @52 ],
+                           @[ @"Tenor", @52 ], @[ @"Bass", @52 ] ],
+    @"String Quartet" : @[ @[ @"Violin I", @40 ], @[ @"Violin II", @40 ],
+                              @[ @"Viola", @41 ], @[ @"Cello", @42 ] ],
+    @"Concert Band" : @[ @[ @"Flute", @73 ], @[ @"Clarinet", @71 ], @[ @"Alto Sax", @65 ],
+                            @[ @"Trumpet", @56 ], @[ @"Horn", @60 ], @[ @"Trombone", @57 ],
+                            @[ @"Tuba", @58 ], @[ @"Percussion", @0 ] ],
+    @"Orchestra" : @[ @[ @"Flute", @73 ], @[ @"Oboe", @68 ], @[ @"Clarinet", @71 ],
+                         @[ @"Bassoon", @70 ], @[ @"Horn", @60 ], @[ @"Trumpet", @56 ],
+                         @[ @"Trombone", @57 ], @[ @"Timpani", @47 ], @[ @"Violin I", @40 ],
+                         @[ @"Violin II", @40 ], @[ @"Viola", @41 ], @[ @"Cello", @42 ],
+                         @[ @"Double Bass", @43 ] ]
+  };
+  NSArray *definition = [templates objectForKey:name];
+  if (![definition count])
+    return;
+  ScoreDocument *document = [self scoreDocument];
+  if ([[document notes] count] || [[document partNames] count] > 1)
+    {
+      NSAlert *confirm = [[[NSAlert alloc] init] autorelease];
+      [confirm setMessageText:@"Replace the current score?"];
+      [confirm setInformativeText:@"Applying a template replaces its parts and notes. You can Undo this change."];
+      [confirm addButtonWithTitle:@"Replace"];
+      [confirm addButtonWithTitle:@"Cancel"];
+      if ([confirm runModal] != NSAlertFirstButtonReturn)
+        return;
+    }
+  [self registerUndoSnapshotWithName:@"Apply Score Template"];
+  [[document notes] removeAllObjects];
+  [[document partNames] removeAllObjects];
+  [[document trackPrograms] removeAllObjects];
+  [document setTitle:name];
+  [document setTotalTicks:[document ticksPerQuarter] * 16];
+  [document buildDefaultMeasures];
+  for (NSUInteger track = 0; track < [definition count]; track++)
+    {
+      NSArray *part = [definition objectAtIndex:track];
+      [document setName:[part objectAtIndex:0] forTrack:(NSInteger)track];
+      [document setProgram:[part objectAtIndex:1] forTrack:(NSInteger)track];
+    }
+  [document rebuildStructuredPartsFromLegacyTracks];
+  [[self scoreView] setDocument:document];
+  [[self scoreView] reloadDocument];
+  [self refreshInspector];
+  [self updateChangeCount:NSChangeDone];
+  [self commitUndoBaseline];
+}
+
+- (void)transposeSelection:(id)sender
+{
+  NSArray *notes = [[self scoreView] selectedNotes];
+  NSInteger semitones = [sender respondsToSelector:@selector (tag)] ? [sender tag] : 0;
+  if (![notes count] || semitones == 0) { NSBeep (); return; }
+  [self registerUndoSnapshotWithName:@"Transpose"];
+  for (ScoreNote *note in notes)
+    if (![note isRest])
+      [note setPitch:MIN ((NSInteger)127, MAX ((NSInteger)0, [note pitch] + semitones))];
+  [[self scoreView] reloadDocument];
+  [self updateChangeCount:NSChangeDone];
+  [self refreshInspector];
+  [self commitUndoBaseline];
+}
+
+- (void)quantizeSelection:(id)sender
+{
+  (void)sender;
+  NSArray *notes = [[self scoreView] selectedNotes];
+  if (![notes count]) { NSBeep (); return; }
+  NSUInteger quantum = [self durationTicksForNoteValueDenominator:
+                                [self denominatorForSelectedNoteValue]];
+  quantum = MAX ((NSUInteger)1, quantum);
+  [self registerUndoSnapshotWithName:@"Quantize"];
+  for (ScoreNote *note in notes)
+    {
+      [note setStartTick:(([note startTick] + quantum / 2) / quantum) * quantum];
+      [note setDurationTicks:MAX (quantum,
+        (([note durationTicks] + quantum / 2) / quantum) * quantum)];
+    }
+  [[[self scoreDocument] notes] sortUsingSelector:@selector (compareScoreNote:)];
+  [[self scoreView] reloadDocument];
+  [self updateChangeCount:NSChangeDone];
+  [self refreshInspector];
+  [self commitUndoBaseline];
+}
+
 - (void)partDidChange:(id)sender
 {
   (void)sender;
@@ -1842,7 +2281,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (void)scoreDisplayModeDidChange:(id)sender
 {
   (void)sender;
-  [[self scoreView] setSeparateParts:[_separatePartsButton state] == NSOnState];
+  [[self scoreView] setSeparateParts:[_separatePartsButton state] == ScoreMakerStateOn];
 }
 
 - (void)instrumentDidChange:(id)sender
@@ -1865,7 +2304,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   ScorePartDefinition *part = [self selectedStructuredPartCreatingIfNeeded:YES];
   if ([kind isEqualToString:@"gm"])
     {
-      [document setProgram:[selection objectForKey:@"program"] forTrack:[self selectedPartNumber]];
+      NSNumber *program = [selection objectForKey:@"program"];
+      [document setProgram:program forTrack:[self selectedPartNumber]];
+      [[part instrument] setProgram:[program integerValue]];
       [[part instrument] setBackendIdentifier:@"general-midi"];
     }
   else if ([kind isEqualToString:@"synth"])
@@ -1984,6 +2425,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     {
       [self restartPlaybackAtTick:playbackTick];
     }
+  if (_practiceMetronomeActive && tempoChanged)
+    [self restartPracticeMetronomeForCurrentTempo];
   if (markChange)
     [self commitUndoBaseline];
 }
@@ -2084,6 +2527,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     return;
   ScoreDocument *document = [self scoreDocument];
   ScoreNote *note = [[self scoreView] selectedNote];
+  NSArray *selectedNotes = [[self scoreView] selectedNotes];
   ScoreMeasure *measure
     = note ? [document measureContainingTick:[note startTick]]
            : ([[document measures] count] ? [[document measures] objectAtIndex:0] : nil);
@@ -2095,23 +2539,49 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       NSDictionary *key = [[_keySignaturePopUp selectedItem] representedObject];
       [measure setKeySignatureFifths:[[key objectForKey:@"fifths"] integerValue]];
       [measure setKeyMode:[key objectForKey:@"mode"]];
-      [measure setRepeatStart:[_repeatStartButton state] == NSOnState];
-      [measure setRepeatEnd:[_repeatEndButton state] == NSOnState];
+      [measure setRepeatStart:[_repeatStartButton state] == ScoreMakerStateOn];
+      [measure setRepeatEnd:[_repeatEndButton state] == ScoreMakerStateOn];
+      [measure setRehearsalMark:[[_rehearsalMarkField stringValue] length]
+                                    ? [_rehearsalMarkField stringValue] : nil];
+      [measure setEndingText:[[_endingTextField stringValue] length]
+                                 ? [_endingTextField stringValue] : nil];
+      [measure setSystemBreak:[_systemBreakButton state] == ScoreMakerStateOn];
+      [measure setPageBreak:[_pageBreakButton state] == ScoreMakerStateOn];
     }
-  if (note)
+  if ([selectedNotes count])
     {
-      [note setTieStart:[_tieStartButton state] == NSOnState];
-      [note setTieEnd:[_tieEndButton state] == NSOnState];
       NSString *tuplet = [_tupletPopUp titleOfSelectedItem];
       NSArray *ratio = [tuplet componentsSeparatedByString:@":"];
-      [note setTupletActual:[ratio count] == 2 ? [[ratio objectAtIndex:0] integerValue] : 0];
-      [note setTupletNormal:[ratio count] == 2 ? [[ratio objectAtIndex:1] integerValue] : 0];
       NSString *dynamic = [_dynamicPopUp titleOfSelectedItem];
-      [note setDynamic:[dynamic isEqualToString:@"No dynamic"] ? nil : dynamic];
       NSDictionary *articulations = [NSDictionary
         dictionaryWithObjectsAndKeys:@"staccato", @"Staccato", @"accent", @"Accent", @"tenuto",
                                      @"Tenuto", @"strong-accent", @"Strong accent", nil];
-      [note setArticulation:[articulations objectForKey:[_articulationPopUp titleOfSelectedItem]]];
+      for (ScoreNote *selected in selectedNotes)
+        {
+          if (![selected isRest])
+            {
+              [selected setTieStart:[_tieStartButton state] == ScoreMakerStateOn];
+              [selected setTieEnd:[_tieEndButton state] == ScoreMakerStateOn];
+              [selected setArticulation:
+                [articulations objectForKey:[_articulationPopUp titleOfSelectedItem]]];
+              [selected setLyric:[[_lyricField stringValue] length]
+                                     ? [_lyricField stringValue] : nil];
+              NSDictionary *ornaments = @{ @"Trill" : @"trill-mark", @"Turn" : @"turn",
+                                            @"Mordent" : @"mordent" };
+              [selected setOrnament:[ornaments objectForKey:[_ornamentPopUp titleOfSelectedItem]]];
+              [selected setGrace:[_graceButton state] == ScoreMakerStateOn];
+              [selected setCue:[_cueButton state] == ScoreMakerStateOn];
+              [selected setTremoloStrokes:(NSUInteger)[_tremoloPopUp indexOfSelectedItem]];
+              [selected setDirectionText:[[_directionTextField stringValue] length]
+                                             ? [_directionTextField stringValue] : nil];
+              [selected setStaffAssignment:[_staffAssignmentPopUp indexOfSelectedItem]];
+            }
+          [selected setTupletActual:[ratio count] == 2
+                                      ? [[ratio objectAtIndex:0] integerValue] : 0];
+          [selected setTupletNormal:[ratio count] == 2
+                                      ? [[ratio objectAtIndex:1] integerValue] : 0];
+          [selected setDynamic:[dynamic isEqualToString:@"No dynamic"] ? nil : dynamic];
+        }
     }
   [[self scoreView] reloadDocument];
   [self updateChangeCount:NSChangeDone];
@@ -2187,78 +2657,150 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       MIDIEndpointRef endpoint = MIDIGetDestination (index);
       if (!endpoint)
         continue;
+      SInt32 uniqueID = 0;
+      MIDIObjectGetIntegerProperty (endpoint, kMIDIPropertyUniqueID, &uniqueID);
       [outputs
         addObject:[NSDictionary
                     dictionaryWithObjectsAndKeys:ScoreMakerMIDIEndpointName (endpoint), @"name",
                                                  [NSNumber numberWithUnsignedInt:endpoint],
-                                                 @"endpoint", nil]];
+                                                 @"endpoint",
+                                                 [NSNumber numberWithInt:uniqueID], @"uniqueID", nil]];
     }
   return outputs;
 }
 
-- (MIDIEndpointRef)resolvedMIDIOutputEndpoint
+- (MIDIEndpointRef)resolvedMIDIEndpointWithUniqueID:(NSInteger)uniqueID name:(NSString *)name
 {
-  if (_useBuiltInMIDIOutput)
+  if (uniqueID == 0)
     return 0;
-
   NSArray *outputs = [self availableMIDIOutputs];
   for (NSDictionary *output in outputs)
-    {
-      MIDIEndpointRef endpoint = [[output objectForKey:@"endpoint"] unsignedIntValue];
-      if (_midiOutputEndpoint == endpoint
-          || (_midiOutputName && [[output objectForKey:@"name"] isEqualToString:_midiOutputName]))
-        {
-          _midiOutputEndpoint = endpoint;
-          return endpoint;
-        }
-    }
-
-  NSDictionary *firstOutput = [outputs count] ? [outputs objectAtIndex:0] : nil;
-  _midiOutputEndpoint = [[firstOutput objectForKey:@"endpoint"] unsignedIntValue];
-  [_midiOutputName release];
-  _midiOutputName = [[firstOutput objectForKey:@"name"] copy];
-  return _midiOutputEndpoint;
+    if ([[output objectForKey:@"uniqueID"] integerValue] == uniqueID)
+      return [[output objectForKey:@"endpoint"] unsignedIntValue];
+  for (NSDictionary *output in outputs)
+    if ([name length] && [[output objectForKey:@"name"] isEqualToString:name])
+      return [[output objectForKey:@"endpoint"] unsignedIntValue];
+  return 0;
 }
 
-- (void)chooseMIDIOutput:(id)sender
+- (MIDIEndpointRef)resolvedPrimaryMIDIOutputForPart:(ScorePartDefinition *)part
 {
-  (void)sender;
-  NSArray *outputs = [self availableMIDIOutputs];
-  NSPopUpButton *outputPopUp =
-    [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (0.0, 0.0, 360.0, 26.0)
-                                pullsDown:NO] autorelease];
-  [outputPopUp addItemWithTitle:@"Built-in Synthesizer"];
-  [[outputPopUp lastItem] setRepresentedObject:[NSNumber numberWithUnsignedInt:0]];
-  for (NSDictionary *output in outputs)
-    {
-      [outputPopUp addItemWithTitle:[output objectForKey:@"name"]];
-      [[outputPopUp lastItem] setRepresentedObject:[output objectForKey:@"endpoint"]];
-      if (!_useBuiltInMIDIOutput &&
-          [[output objectForKey:@"endpoint"] unsignedIntValue] == [self resolvedMIDIOutputEndpoint])
-        {
-          [outputPopUp selectItem:[outputPopUp lastItem]];
-        }
-    }
-  if (_useBuiltInMIDIOutput)
-    [outputPopUp selectItemAtIndex:0];
+  return part ? [self resolvedMIDIEndpointWithUniqueID:[part midiOutputUniqueID]
+                                                  name:[part midiOutputName]] : 0;
+}
 
-  NSAlert *alert = [[[NSAlert alloc] init] autorelease];
-  [alert setMessageText:@"MIDI Output"];
-  [alert setInformativeText:
-           [outputs count]
-             ? @"Choose a connected MIDI instrument or the built-in synthesizer."
-             : @"No external MIDI instruments were detected. Connect one and reopen this chooser."];
-  [alert setAccessoryView:outputPopUp];
-  [alert addButtonWithTitle:@"Use Output"];
-  [alert addButtonWithTitle:@"Cancel"];
-  if ([alert runModal] != NSAlertFirstButtonReturn)
+- (BOOL)routingPrimaryIsAvailableForPart:(ScorePartDefinition *)part
+{
+  return part && ([part midiOutputUniqueID] == 0
+                  || [self resolvedPrimaryMIDIOutputForPart:part] != 0);
+}
+
+- (BOOL)routingShouldMutePart:(ScorePartDefinition *)part
+{
+  if ([part muted])
+    return YES;
+  BOOL hasSolo = NO;
+  for (ScorePartDefinition *candidate in [[self scoreDocument] parts])
+    if ([candidate soloed])
+      { hasSolo = YES; break; }
+  if (hasSolo && ![part soloed])
+    return YES;
+  if ([self routingPrimaryIsAvailableForPart:part])
+    return NO;
+  if ([[part midiFallbackMode] isEqualToString:@"silent"])
+    return YES;
+  return [[part midiFallbackMode] isEqualToString:@"device"]
+         && [self resolvedMIDIEndpointWithUniqueID:[part midiFallbackUniqueID]
+                                              name:[part midiFallbackName]] == 0;
+}
+
+- (void)routingMixerToggleChanged:(NSButton *)sender
+{
+  NSInteger row = [sender tag] / 10, kind = [sender tag] % 10;
+  NSArray *parts = [[self scoreDocument] parts];
+  if (row < 0 || row >= (NSInteger)[parts count])
     return;
+  [self registerUndoSnapshotWithName:@"Change Part Mixer"];
+  ScorePartDefinition *part = [parts objectAtIndex:(NSUInteger)row];
+  BOOL enabled = [sender state] == ScoreMakerStateOn;
+  if (kind == 0) [part setMuted:enabled];
+  else if (kind == 1) [part setSoloed:enabled];
+  else if (kind == 2) [part setVisible:enabled];
+  [self updateChangeCount:NSChangeDone];
+  [self commitUndoBaseline];
+  [[self scoreView] reloadDocument];
+  [self refreshRoutingMatrix];
+  [self restartPlaybackAfterRoutingChange];
+}
 
-  MIDIEndpointRef endpoint = [[[outputPopUp selectedItem] representedObject] unsignedIntValue];
-  _useBuiltInMIDIOutput = (endpoint == 0);
-  _midiOutputEndpoint = endpoint;
-  [_midiOutputName release];
-  _midiOutputName = _useBuiltInMIDIOutput ? nil : [[[outputPopUp selectedItem] title] copy];
+- (void)routingMixerSliderChanged:(NSSlider *)sender
+{
+  NSInteger row = [sender tag] / 10, kind = [sender tag] % 10;
+  NSArray *parts = [[self scoreDocument] parts];
+  if (row < 0 || row >= (NSInteger)[parts count])
+    return;
+  [self registerUndoSnapshotWithName:@"Change Part Mixer"];
+  ScorePartDefinition *part = [parts objectAtIndex:(NSUInteger)row];
+  if (kind == 3) [part setGain:[sender doubleValue]];
+  else if (kind == 4) [part setPan:[sender doubleValue]];
+  [self updateChangeCount:NSChangeDone];
+  [self commitUndoBaseline];
+  [self restartPlaybackAfterRoutingChange];
+}
+
+- (void)routingGroupChanged:(NSTextField *)sender
+{
+  NSInteger row = [sender tag];
+  NSArray *parts = [[self scoreDocument] parts];
+  if (row < 0 || row >= (NSInteger)[parts count])
+    return;
+  [self registerUndoSnapshotWithName:@"Group Part"];
+  [[parts objectAtIndex:(NSUInteger)row] setGroupName:[sender stringValue]];
+  [self updateChangeCount:NSChangeDone];
+  [self commitUndoBaseline];
+}
+
+- (void)routingPartNameChanged:(NSTextField *)sender
+{
+  NSInteger row = [sender tag];
+  NSArray *parts = [[self scoreDocument] parts];
+  NSString *name = [[sender stringValue]
+    stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+  if (row < 0 || row >= (NSInteger)[parts count] || ![name length])
+    return;
+  [self registerUndoSnapshotWithName:@"Rename Part"];
+  ScorePartDefinition *part = [parts objectAtIndex:(NSUInteger)row];
+  [part setName:name];
+  [[self scoreDocument] setName:name forTrack:[part legacyTrack]];
+  [self updateChangeCount:NSChangeDone];
+  [self commitUndoBaseline];
+  [[self scoreView] reloadDocument];
+  [self refreshInspector];
+}
+
+- (MIDIEndpointRef)resolvedMIDIOutputForPart:(ScorePartDefinition *)part
+{
+  if (!part || [part midiOutputUniqueID] == 0)
+    return 0;
+  MIDIEndpointRef primary = [self resolvedPrimaryMIDIOutputForPart:part];
+  if (primary || [self routingPrimaryIsAvailableForPart:part])
+    return primary;
+  if ([[part midiFallbackMode] isEqualToString:@"device"])
+    return [self resolvedMIDIEndpointWithUniqueID:[part midiFallbackUniqueID]
+                                             name:[part midiFallbackName]];
+  return 0;
+}
+
+- (NSInteger)routingChannelForPart:(ScorePartDefinition *)part
+{
+  for (ScoreNote *note in [[self scoreDocument] notes])
+    if ([note track] == [part legacyTrack])
+      return MIN ((NSInteger)15, MAX ((NSInteger)0, [note channel]));
+  return MIN ((NSInteger)15, MAX ((NSInteger)0, [part legacyTrack] % 16));
+}
+
+- (void)restartPlaybackAfterRoutingChange
+{
   if (_playbackTimer || _playbackPaused)
     {
       NSTimeInterval elapsed = _playbackPaused
@@ -2266,46 +2808,781 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
                                  : ([NSDate timeIntervalSinceReferenceDate] - _playbackStartTime);
       ScoreScheduler *scheduler =
         [[[ScoreScheduler alloc] initWithDocument:[self scoreDocument]] autorelease];
-      NSUInteger tick = [scheduler tickForTime:elapsed];
-      [self restartPlaybackAtTick:tick];
+      [self restartPlaybackAtTick:[scheduler tickForTime:elapsed]];
     }
+}
+
+- (void)routingDeviceChanged:(NSPopUpButton *)sender
+{
+  NSInteger row = [sender tag];
+  if (row < 0 || row >= (NSInteger)[[[self scoreDocument] parts] count])
+    return;
+  ScorePartDefinition *part = [[[self scoreDocument] parts] objectAtIndex:(NSUInteger)row];
+  NSDictionary *selection = [[sender selectedItem] representedObject];
+  NSInteger uniqueID = [[selection objectForKey:@"uniqueID"] integerValue];
+  NSString *name = [selection objectForKey:@"name"];
+  if ([part midiOutputUniqueID] == uniqueID
+      && ((![[part midiOutputName] length] && ![name length])
+          || [[part midiOutputName] isEqualToString:name]))
+    return;
+  [self registerUndoSnapshotWithName:@"Change MIDI Routing"];
+  [part setMidiOutputUniqueID:uniqueID];
+  [part setMidiOutputName:[name length] ? name : nil];
+  [self updateChangeCount:NSChangeDone];
+  [self commitUndoBaseline];
+  [self refreshRoutingMatrix];
+  [self restartPlaybackAfterRoutingChange];
+}
+
+- (void)routingChannelChanged:(NSPopUpButton *)sender
+{
+  NSInteger row = [sender tag];
+  if (row < 0 || row >= (NSInteger)[[[self scoreDocument] parts] count])
+    return;
+  ScorePartDefinition *part = [[[self scoreDocument] parts] objectAtIndex:(NSUInteger)row];
+  NSInteger channel = [sender indexOfSelectedItem];
+  if ([self routingChannelForPart:part] == channel)
+    return;
+  [self registerUndoSnapshotWithName:@"Change MIDI Channel"];
+  for (ScoreNote *note in [[self scoreDocument] notes])
+    if ([note track] == [part legacyTrack])
+      [note setChannel:channel];
+  for (ScoreMIDIRoute *route in [[self scoreDocument] midiRoutes])
+    if ([[route destinationPartIdentifier] isEqualToString:[part identifier]])
+      [route setDestinationChannel:channel];
+  [self updateChangeCount:NSChangeDone];
+  [self commitUndoBaseline];
+  [[self scoreView] reloadDocument];
+  [self restartPlaybackAfterRoutingChange];
+}
+
+- (void)routingProgramChanged:(NSPopUpButton *)sender
+{
+  NSInteger row = [sender tag];
+  if (row < 0 || row >= (NSInteger)[[[self scoreDocument] parts] count])
+    return;
+  ScorePartDefinition *part = [[[self scoreDocument] parts] objectAtIndex:(NSUInteger)row];
+  NSInteger program = [sender indexOfSelectedItem];
+  if ([[[self scoreDocument] programForTrack:[part legacyTrack]] integerValue] == program)
+    return;
+  [self registerUndoSnapshotWithName:@"Change MIDI Program"];
+  [[self scoreDocument] setProgram:[NSNumber numberWithInteger:program]
+                          forTrack:[part legacyTrack]];
+  [[part instrument] setProgram:program];
+  [self updateChangeCount:NSChangeDone];
+  [self commitUndoBaseline];
+  [self refreshInspector];
+  [self restartPlaybackAfterRoutingChange];
+}
+
+- (void)routingFallbackChanged:(NSPopUpButton *)sender
+{
+  NSInteger row = [sender tag];
+  if (row < 0 || row >= (NSInteger)[[[self scoreDocument] parts] count])
+    return;
+  ScorePartDefinition *part = [[[self scoreDocument] parts] objectAtIndex:(NSUInteger)row];
+  NSDictionary *selection = [[sender selectedItem] representedObject];
+  [self registerUndoSnapshotWithName:@"Change MIDI Fallback"];
+  [part setMidiFallbackMode:[selection objectForKey:@"mode"] ?: @"builtin"];
+  [part setMidiFallbackUniqueID:[[selection objectForKey:@"uniqueID"] integerValue]];
+  NSString *name = [selection objectForKey:@"name"];
+  [part setMidiFallbackName:[name length] ? name : nil];
+  [self updateChangeCount:NSChangeDone];
+  [self commitUndoBaseline];
+  [self refreshRoutingMatrix];
+  [self restartPlaybackAfterRoutingChange];
+}
+
+- (void)routingSelectionChanged:(NSButton *)sender
+{
+  if (!_routingMatrixSelection)
+    _routingMatrixSelection = [[NSMutableIndexSet alloc] init];
+  if ([sender state] == NSControlStateValueOn)
+    [_routingMatrixSelection addIndex:(NSUInteger)[sender tag]];
+  else
+    [_routingMatrixSelection removeIndex:(NSUInteger)[sender tag]];
+}
+
+- (void)routingSelectAll:(id)sender
+{
+  (void)sender;
+  if (!_routingMatrixSelection)
+    _routingMatrixSelection = [[NSMutableIndexSet alloc] init];
+  NSUInteger count = [[[self scoreDocument] parts] count];
+  if ([_routingMatrixSelection count] == count)
+    [_routingMatrixSelection removeAllIndexes];
+  else
+    {
+      [_routingMatrixSelection removeAllIndexes];
+      if (count)
+        [_routingMatrixSelection addIndexesInRange:NSMakeRange (0, count)];
+    }
+  [self refreshRoutingMatrix];
+}
+
+- (void)routingMoveSelected:(NSButton *)sender
+{
+  if (![_routingMatrixSelection count])
+    return;
+  NSMutableArray *parts = [[self scoreDocument] parts];
+  BOOL moveUp = [sender tag] < 0;
+  [self registerUndoSnapshotWithName:@"Reorder Parts"];
+  if (moveUp)
+    {
+      for (NSUInteger index = [_routingMatrixSelection firstIndex]; index != NSNotFound;
+           index = [_routingMatrixSelection indexGreaterThanIndex:index])
+        if (index > 0 && ![_routingMatrixSelection containsIndex:index - 1])
+          {
+            [parts exchangeObjectAtIndex:index withObjectAtIndex:index - 1];
+            [_routingMatrixSelection removeIndex:index];
+            [_routingMatrixSelection addIndex:index - 1];
+          }
+    }
+  else
+    {
+      NSUInteger index = [_routingMatrixSelection lastIndex];
+      while (index != NSNotFound)
+        {
+          if (index + 1 < [parts count] && ![_routingMatrixSelection containsIndex:index + 1])
+            {
+              [parts exchangeObjectAtIndex:index withObjectAtIndex:index + 1];
+              [_routingMatrixSelection removeIndex:index];
+              [_routingMatrixSelection addIndex:index + 1];
+            }
+          index = [_routingMatrixSelection indexLessThanIndex:index];
+        }
+    }
+  [self updateChangeCount:NSChangeDone];
+  [self commitUndoBaseline];
+  [[self scoreView] reloadDocument];
+  [self refreshRoutingMatrix];
+}
+
+- (void)routingDuplicateSelected:(id)sender
+{
+  (void)sender;
+  if (![_routingMatrixSelection count]) return;
+  ScoreDocument *document = [self scoreDocument];
+  NSMutableArray *parts = [document parts];
+  NSInteger nextTrack = -1;
+  for (ScorePartDefinition *part in parts) nextTrack = MAX (nextTrack, [part legacyTrack]);
+  [self registerUndoSnapshotWithName:@"Duplicate Parts"];
+  NSMutableIndexSet *newSelection = [NSMutableIndexSet indexSet];
+  NSArray *sourceParts = [[parts copy] autorelease];
+  for (NSUInteger index = [_routingMatrixSelection firstIndex]; index != NSNotFound;
+       index = [_routingMatrixSelection indexGreaterThanIndex:index])
+    {
+      ScorePartDefinition *source = [sourceParts objectAtIndex:index];
+      NSInteger track = ++nextTrack;
+      ScorePartDefinition *copy = [[source copy] autorelease];
+      [copy setIdentifier:[[NSProcessInfo processInfo] globallyUniqueString]];
+      [copy setLegacyTrack:track];
+      [copy setName:[NSString stringWithFormat:@"%@ Copy", [source name] ?: @"Part"]];
+      [copy setSoloed:NO];
+      [parts addObject:copy];
+      [newSelection addIndex:[parts count] - 1];
+      [document setName:[copy name] forTrack:track];
+      [document setProgram:[document programForTrack:[source legacyTrack]] ?: @0 forTrack:track];
+      for (ScoreNote *sourceNote in [[[document notes] copy] autorelease])
+        if ([sourceNote track] == [source legacyTrack])
+          {
+            ScoreNote *note = [[sourceNote copy] autorelease];
+            [note setTrack:track];
+            [[document notes] addObject:note];
+          }
+      ScoreMIDIRoute *route = [[[ScoreMIDIRoute alloc] init] autorelease];
+      [route setSourceIdentifier:@"default-midi-input"];
+      [route setSourceChannel:track % 16];
+      [route setDestinationPartIdentifier:[copy identifier]];
+      [route setDestinationChannel:track % 16];
+      [[document midiRoutes] addObject:route];
+    }
+  [[document notes] sortUsingSelector:@selector (compareScoreNote:)];
+  [_routingMatrixSelection removeAllIndexes];
+  [_routingMatrixSelection addIndexes:newSelection];
+  [self updateChangeCount:NSChangeDone]; [self commitUndoBaseline];
+  [[self scoreView] reloadDocument]; [self refreshInspector]; [self refreshRoutingMatrix];
+}
+
+- (void)routingRemoveSelected:(id)sender
+{
+  (void)sender;
+  NSMutableArray *parts = [[self scoreDocument] parts];
+  if (![_routingMatrixSelection count] || [_routingMatrixSelection count] >= [parts count])
+    { NSBeep (); return; }
+  [self registerUndoSnapshotWithName:@"Remove Parts"];
+  NSMutableSet *tracks = [NSMutableSet set], *identifiers = [NSMutableSet set];
+  for (NSUInteger index = [_routingMatrixSelection firstIndex]; index != NSNotFound;
+       index = [_routingMatrixSelection indexGreaterThanIndex:index])
+    {
+      ScorePartDefinition *part = [parts objectAtIndex:index];
+      [tracks addObject:@([part legacyTrack])];
+      if ([part identifier]) [identifiers addObject:[part identifier]];
+    }
+  NSIndexSet *noteIndexes = [[[self scoreDocument] notes]
+    indexesOfObjectsPassingTest:^BOOL (ScoreNote *note, NSUInteger index, BOOL *stop) {
+      (void)index; (void)stop; return [tracks containsObject:@([note track])];
+    }];
+  [[[self scoreDocument] notes] removeObjectsAtIndexes:noteIndexes];
+  NSIndexSet *routeIndexes = [[[self scoreDocument] midiRoutes]
+    indexesOfObjectsPassingTest:^BOOL (ScoreMIDIRoute *route, NSUInteger index, BOOL *stop) {
+      (void)index; (void)stop;
+      return [identifiers containsObject:[route destinationPartIdentifier] ?: @""];
+    }];
+  [[[self scoreDocument] midiRoutes] removeObjectsAtIndexes:routeIndexes];
+  for (NSNumber *track in tracks)
+    {
+      [[[self scoreDocument] partNames] removeObjectForKey:track];
+      [[[self scoreDocument] trackPrograms] removeObjectForKey:track];
+    }
+  [parts removeObjectsAtIndexes:_routingMatrixSelection];
+  [_routingMatrixSelection removeAllIndexes];
+  [self updateChangeCount:NSChangeDone]; [self commitUndoBaseline];
+  [[self scoreView] reloadDocument]; [self refreshInspector]; [self refreshRoutingMatrix];
+}
+
+- (BOOL)routingRequireBulkSelection
+{
+  if ([_routingMatrixSelection count])
+    return YES;
+  NSBeep ();
+  [_routingMatrixSummaryLabel setStringValue:@"Select one or more parts for bulk actions."];
+  return NO;
+}
+
+- (void)routingApplyBulkDevice:(id)sender
+{
+  (void)sender;
+  if (![self routingRequireBulkSelection])
+    return;
+  NSDictionary *selection = [[_routingBulkDevicePopUp selectedItem] representedObject];
+  [self registerUndoSnapshotWithName:@"Route Selected Parts"];
+  NSArray *parts = [[self scoreDocument] parts];
+  NSUInteger row = [_routingMatrixSelection firstIndex];
+  while (row != NSNotFound)
+    {
+      ScorePartDefinition *part = [parts objectAtIndex:row];
+      [part setMidiOutputUniqueID:[[selection objectForKey:@"uniqueID"] integerValue]];
+      NSString *name = [selection objectForKey:@"name"];
+      [part setMidiOutputName:[name length] ? name : nil];
+      row = [_routingMatrixSelection indexGreaterThanIndex:row];
+    }
+  [self updateChangeCount:NSChangeDone];
+  [self commitUndoBaseline];
+  [self refreshRoutingMatrix];
+  [self restartPlaybackAfterRoutingChange];
+}
+
+- (void)setRoutingChannel:(NSInteger)channel forPart:(ScorePartDefinition *)part
+{
+  for (ScoreNote *note in [[self scoreDocument] notes])
+    if ([note track] == [part legacyTrack])
+      [note setChannel:channel];
+  for (ScoreMIDIRoute *route in [[self scoreDocument] midiRoutes])
+    if ([[route destinationPartIdentifier] isEqualToString:[part identifier]])
+      [route setDestinationChannel:channel];
+}
+
+- (void)routingAssignSequentialChannels:(id)sender
+{
+  (void)sender;
+  if (![self routingRequireBulkSelection])
+    return;
+  [self registerUndoSnapshotWithName:@"Assign Sequential MIDI Channels"];
+  NSArray *parts = [[self scoreDocument] parts];
+  NSUInteger sequence = 0;
+  NSUInteger row = [_routingMatrixSelection firstIndex];
+  while (row != NSNotFound)
+    {
+      [self setRoutingChannel:(NSInteger)(sequence % 16) forPart:[parts objectAtIndex:row]];
+      sequence++;
+      row = [_routingMatrixSelection indexGreaterThanIndex:row];
+    }
+  [self updateChangeCount:NSChangeDone];
+  [self commitUndoBaseline];
+  [[self scoreView] reloadDocument];
+  [self refreshRoutingMatrix];
+  [self restartPlaybackAfterRoutingChange];
+}
+
+- (void)routingResetSelected:(id)sender
+{
+  (void)sender;
+  if (![self routingRequireBulkSelection])
+    return;
+  [self registerUndoSnapshotWithName:@"Reset MIDI Routing"];
+  NSArray *parts = [[self scoreDocument] parts];
+  NSUInteger row = [_routingMatrixSelection firstIndex];
+  while (row != NSNotFound)
+    {
+      ScorePartDefinition *part = [parts objectAtIndex:row];
+      [part setMidiOutputUniqueID:0];
+      [part setMidiOutputName:nil];
+      [part setMidiFallbackMode:@"builtin"];
+      [part setMidiFallbackUniqueID:0];
+      [part setMidiFallbackName:nil];
+      [self setRoutingChannel:[part legacyTrack] % 16 forPart:part];
+      row = [_routingMatrixSelection indexGreaterThanIndex:row];
+    }
+  [self updateChangeCount:NSChangeDone];
+  [self commitUndoBaseline];
+  [[self scoreView] reloadDocument];
+  [self refreshRoutingMatrix];
+  [self restartPlaybackAfterRoutingChange];
+}
+
+- (NSTextField *)routingLabelWithFrame:(NSRect)frame
+                                  text:(NSString *)text
+                                  font:(NSFont *)font
+                                 color:(NSColor *)color
+{
+  NSTextField *label = [[[NSTextField alloc] initWithFrame:frame] autorelease];
+  [label setStringValue:text ?: @""];
+  [label setEditable:NO];
+  [label setSelectable:NO];
+  [label setBordered:NO];
+  [label setDrawsBackground:NO];
+  [label setFont:font];
+  [label setTextColor:color ?: [NSColor labelColor]];
+  return label;
+}
+
+- (void)refreshRoutingMatrix
+{
+  if (!_routingMatrixRowsView)
+    return;
+  for (NSView *view in [[[_routingMatrixRowsView subviews] copy] autorelease])
+    [view removeFromSuperview];
+
+  NSArray *parts = [[self scoreDocument] parts];
+  NSArray *outputs = [self availableMIDIOutputs];
+  NSArray *programNames = [MidiParser generalMidiProgramNames];
+  CGFloat rowHeight = 48.0;
+  CGFloat headerHeight = 30.0;
+  CGFloat width = 1450.0;
+  [_routingMatrixRowsView
+    setFrameSize:NSMakeSize (width, headerHeight + MAX (rowHeight, rowHeight * [parts count]))];
+  if (!_routingMatrixSelection)
+    _routingMatrixSelection = [[NSMutableIndexSet alloc] init];
+  [_routingMatrixSelection removeIndexesInRange:NSMakeRange ([parts count],
+                                                              NSUIntegerMax - [parts count])];
+  NSMutableDictionary *routeCounts = [NSMutableDictionary dictionary];
+  for (ScorePartDefinition *part in parts)
+    {
+      if ([self routingShouldMutePart:part])
+        continue;
+      NSInteger effectiveDevice = [part midiOutputUniqueID];
+      if (![self routingPrimaryIsAvailableForPart:part])
+        effectiveDevice = ([[part midiFallbackMode] isEqualToString:@"device"]
+                           && [self resolvedMIDIOutputForPart:part] != 0)
+                            ? [part midiFallbackUniqueID] : 0;
+      NSString *key = [NSString stringWithFormat:@"%ld:%ld", (long)effectiveDevice,
+                                                       (long)[self routingChannelForPart:part]];
+      [routeCounts setObject:@([[routeCounts objectForKey:key] unsignedIntegerValue] + 1)
+                     forKey:key];
+    }
+  NSUInteger connectedCount = 0;
+  NSUInteger conflictCount = 0;
+  NSArray *headers = @[ @[ @"PART", @12, @172 ], @[ @"DEVICE", @184, @250 ],
+                         @[ @"CHANNEL", @446, @88 ], @[ @"PROGRAM", @546, @216 ],
+                         @[ @"CONNECTION", @778, @126 ], @[ @"FALLBACK", @914, @154 ],
+                         @[ @"MIX", @1080, @282 ], @[ @"GROUP", @1370, @72 ] ];
+  for (NSArray *header in headers)
+    {
+      NSTextField *label = [self routingLabelWithFrame:
+        NSMakeRect ([[header objectAtIndex:1] doubleValue], 7.0,
+                    [[header objectAtIndex:2] doubleValue], 18.0)
+                                                   text:[header objectAtIndex:0]
+                                                   font:[NSFont boldSystemFontOfSize:10.0]
+                                                  color:[NSColor secondaryLabelColor]];
+      [_routingMatrixRowsView addSubview:label];
+    }
+  NSBox *headerRule = [[[NSBox alloc]
+    initWithFrame:NSMakeRect (0.0, headerHeight - 1.0, width, 1.0)] autorelease];
+  [headerRule setBoxType:NSBoxSeparator];
+  [_routingMatrixRowsView addSubview:headerRule];
+  for (NSUInteger row = 0; row < [parts count]; row++)
+    {
+      ScorePartDefinition *part = [parts objectAtIndex:row];
+      CGFloat y = headerHeight + row * rowHeight;
+      if (row % 2)
+        {
+          NSBox *stripe = [[[NSBox alloc] initWithFrame:NSMakeRect (0, y, width, rowHeight)] autorelease];
+          [stripe setBoxType:NSBoxCustom];
+          [stripe setBorderWidth:0.0];
+          NSArray *alternatingColors = [NSColor alternatingContentBackgroundColors];
+          [stripe setFillColor:[alternatingColors count] > 1
+                                 ? [alternatingColors objectAtIndex:1]
+                                 : [NSColor controlBackgroundColor]];
+          [stripe setTitlePosition:NSNoTitle];
+          [_routingMatrixRowsView addSubview:stripe];
+        }
+      NSString *partName = [[part name] length] ? [part name]
+                                                 : [NSString stringWithFormat:@"Part %lu", (unsigned long)row + 1];
+      NSButton *selected = [[[NSButton alloc] initWithFrame:NSMakeRect (8, y + 11, 22, 24)] autorelease];
+      [selected setButtonType:ScoreMakerSwitchButton];
+      [selected setTitle:@""];
+      [selected setState:[_routingMatrixSelection containsIndex:row] ? NSControlStateValueOn
+                                                                     : NSControlStateValueOff];
+      [selected setTag:(NSInteger)row];
+      [selected setTarget:self];
+      [selected setAction:@selector (routingSelectionChanged:)];
+      ScoreMakerSetAccessibilityLabel (selected,
+        [NSString stringWithFormat:@"Select %@ for bulk routing", partName]);
+      [_routingMatrixRowsView addSubview:selected];
+      NSTextField *partNameField = [[[NSTextField alloc]
+        initWithFrame:NSMakeRect (36, y + 10, 142, 24)] autorelease];
+      [partNameField setStringValue:partName];
+      [partNameField setTag:(NSInteger)row];
+      [partNameField setTarget:self];
+      [partNameField setAction:@selector (routingPartNameChanged:)];
+      [partNameField setToolTip:@"Rename part"];
+      ScoreMakerSetAccessibilityLabel (partNameField,
+        [NSString stringWithFormat:@"Part name for %@", partName]);
+      [_routingMatrixRowsView addSubview:partNameField];
+
+      NSPopUpButton *device = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (184, y + 9, 250, 28)
+                                                          pullsDown:NO] autorelease];
+      [device addItemWithTitle:@"Built-in Synthesizer"];
+      [[device lastItem] setRepresentedObject:@{ @"uniqueID" : @0, @"name" : @"" }];
+      BOOL found = ([part midiOutputUniqueID] == 0);
+      for (NSDictionary *output in outputs)
+        {
+          [device addItemWithTitle:[output objectForKey:@"name"]];
+          [[device lastItem] setRepresentedObject:output];
+          if ([[output objectForKey:@"uniqueID"] integerValue] == [part midiOutputUniqueID])
+            {
+              found = YES;
+              [device selectItem:[device lastItem]];
+            }
+        }
+      if (!found)
+        {
+          NSString *name = [[part midiOutputName] length] ? [part midiOutputName] : @"Unknown device";
+          [device addItemWithTitle:[NSString stringWithFormat:@"Missing — %@", name]];
+          [[device lastItem] setRepresentedObject:@{ @"uniqueID" : @([part midiOutputUniqueID]),
+                                                      @"name" : name }];
+          [device selectItem:[device lastItem]];
+        }
+      else if ([part midiOutputUniqueID] == 0)
+        [device selectItemAtIndex:0];
+      [device setTag:(NSInteger)row];
+      [device setTarget:self];
+      [device setAction:@selector (routingDeviceChanged:)];
+      ScoreMakerSetAccessibilityLabel (device,
+        [NSString stringWithFormat:@"MIDI output for %@", partName]);
+      [_routingMatrixRowsView addSubview:device];
+
+      NSPopUpButton *channel = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (446, y + 9, 88, 28)
+                                                           pullsDown:NO] autorelease];
+      for (NSInteger index = 1; index <= 16; index++)
+        [channel addItemWithTitle:[NSString stringWithFormat:@"Ch %ld", (long)index]];
+      [channel selectItemAtIndex:[self routingChannelForPart:part]];
+      [channel setTag:(NSInteger)row];
+      [channel setTarget:self];
+      [channel setAction:@selector (routingChannelChanged:)];
+      ScoreMakerSetAccessibilityLabel (channel,
+        [NSString stringWithFormat:@"MIDI channel for %@", partName]);
+      [_routingMatrixRowsView addSubview:channel];
+
+      NSPopUpButton *program = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (546, y + 9, 216, 28)
+                                                           pullsDown:NO] autorelease];
+      for (NSUInteger index = 0; index < [programNames count]; index++)
+        [program addItemWithTitle:[NSString stringWithFormat:@"%lu · %@", (unsigned long)index + 1,
+                                                            [programNames objectAtIndex:index]]];
+      NSInteger selectedProgram = [[[self scoreDocument] programForTrack:[part legacyTrack]] integerValue];
+      [program selectItemAtIndex:MIN ((NSInteger)127, MAX ((NSInteger)0, selectedProgram))];
+      [program setTag:(NSInteger)row];
+      [program setTarget:self];
+      [program setAction:@selector (routingProgramChanged:)];
+      ScoreMakerSetAccessibilityLabel (program,
+        [NSString stringWithFormat:@"Instrument program for %@", partName]);
+      [_routingMatrixRowsView addSubview:program];
+
+      BOOL internal = [part midiOutputUniqueID] == 0;
+      BOOL primaryAvailable = [self routingPrimaryIsAvailableForPart:part];
+      BOOL connected = primaryAvailable || [self resolvedMIDIOutputForPart:part] != 0
+                       || (![[part midiFallbackMode] isEqualToString:@"silent"]
+                           && ![[part midiFallbackMode] isEqualToString:@"device"]);
+      if (connected)
+        connectedCount++;
+      NSInteger effectiveDevice = [part midiOutputUniqueID];
+      if (!primaryAvailable)
+        effectiveDevice = ([[part midiFallbackMode] isEqualToString:@"device"]
+                           && [self resolvedMIDIOutputForPart:part] != 0)
+                            ? [part midiFallbackUniqueID] : 0;
+      NSString *routeKey = [NSString stringWithFormat:@"%ld:%ld", (long)effectiveDevice,
+                                                            (long)[self routingChannelForPart:part]];
+      BOOL conflict = ![self routingShouldMutePart:part]
+                      && [[routeCounts objectForKey:routeKey] unsignedIntegerValue] > 1;
+      if (conflict)
+        conflictCount++;
+      NSString *status = conflict
+                           ? [NSString stringWithFormat:@"⚠ Ch %ld conflict",
+                                                        (long)[self routingChannelForPart:part] + 1]
+                           : (internal ? @"●  Internal"
+                                       : (primaryAvailable ? @"●  Connected"
+                                                           : ([self routingShouldMutePart:part]
+                                                                ? @"●  Muted" : @"●  Fallback")));
+      NSColor *statusColor = conflict ? [NSColor systemOrangeColor]
+                                      : (connected ? [NSColor systemGreenColor]
+                                                   : [NSColor systemRedColor]);
+      [_routingMatrixRowsView addSubview:[self routingLabelWithFrame:NSMakeRect (778, y + 14, 126, 20)
+                                                               text:status
+                                                               font:[NSFont systemFontOfSize:12.0]
+                                                              color:statusColor]];
+      NSPopUpButton *fallback = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (914, y + 9, 154, 28)
+                                                            pullsDown:NO] autorelease];
+      [fallback addItemWithTitle:@"Built-in Synth"];
+      [[fallback lastItem] setRepresentedObject:@{ @"mode" : @"builtin", @"uniqueID" : @0,
+                                                    @"name" : @"" }];
+      [fallback addItemWithTitle:@"Mute Part"];
+      [[fallback lastItem] setRepresentedObject:@{ @"mode" : @"silent", @"uniqueID" : @0,
+                                                    @"name" : @"" }];
+      for (NSDictionary *output in outputs)
+        {
+          [fallback addItemWithTitle:[output objectForKey:@"name"]];
+          [[fallback lastItem] setRepresentedObject:@{ @"mode" : @"device",
+                                                        @"uniqueID" : [output objectForKey:@"uniqueID"],
+                                                        @"name" : [output objectForKey:@"name"] }];
+          if ([[part midiFallbackMode] isEqualToString:@"device"]
+              && [[output objectForKey:@"uniqueID"] integerValue] == [part midiFallbackUniqueID])
+            [fallback selectItem:[fallback lastItem]];
+        }
+      if ([[part midiFallbackMode] isEqualToString:@"silent"])
+        [fallback selectItemAtIndex:1];
+      else if (![[part midiFallbackMode] isEqualToString:@"device"])
+        [fallback selectItemAtIndex:0];
+      else if ([part midiFallbackUniqueID] != 0
+               && [self resolvedMIDIEndpointWithUniqueID:[part midiFallbackUniqueID]
+                                                    name:[part midiFallbackName]] == 0)
+        {
+          NSString *name = [[part midiFallbackName] length] ? [part midiFallbackName] : @"Unknown device";
+          [fallback addItemWithTitle:[NSString stringWithFormat:@"Missing — %@", name]];
+          [[fallback lastItem] setRepresentedObject:@{ @"mode" : @"device",
+                                                        @"uniqueID" : @([part midiFallbackUniqueID]),
+                                                        @"name" : name }];
+          [fallback selectItem:[fallback lastItem]];
+        }
+      [fallback setEnabled:!internal];
+      [fallback setTag:(NSInteger)row];
+      [fallback setTarget:self];
+      [fallback setAction:@selector (routingFallbackChanged:)];
+      ScoreMakerSetAccessibilityLabel (fallback,
+        [NSString stringWithFormat:@"Fallback output for %@", partName]);
+      [_routingMatrixRowsView addSubview:fallback];
+
+      NSArray *toggleSpecs = @[ @[ @"M", @0, @1080 ], @[ @"S", @1, @1114 ],
+                                 @[ @"Show", @2, @1148 ] ];
+      for (NSArray *spec in toggleSpecs)
+        {
+          NSInteger kind = [[spec objectAtIndex:1] integerValue];
+          NSButton *toggle = [[[NSButton alloc]
+            initWithFrame:NSMakeRect ([[spec objectAtIndex:2] doubleValue], y + 11,
+                                      kind == 2 ? 52 : 30, 24)] autorelease];
+          [toggle setButtonType:ScoreMakerSwitchButton];
+          [toggle setTitle:[spec objectAtIndex:0]];
+          BOOL state = kind == 0 ? [part muted] : (kind == 1 ? [part soloed] : [part visible]);
+          [toggle setState:state ? ScoreMakerStateOn : ScoreMakerStateOff];
+          [toggle setTag:(NSInteger)row * 10 + kind];
+          [toggle setTarget:self];
+          [toggle setAction:@selector (routingMixerToggleChanged:)];
+          NSString *toggleName = kind == 0 ? @"Mute" : (kind == 1 ? @"Solo" : @"Show");
+          ScoreMakerSetAccessibilityLabel (toggle,
+            [NSString stringWithFormat:@"%@ %@", toggleName, partName]);
+          [_routingMatrixRowsView addSubview:toggle];
+        }
+      NSSlider *gain = [[[NSSlider alloc] initWithFrame:NSMakeRect (1204, y + 10, 80, 24)] autorelease];
+      [gain setMinValue:0.0]; [gain setMaxValue:2.0]; [gain setDoubleValue:[part gain]];
+      [gain setContinuous:NO]; [gain setTag:(NSInteger)row * 10 + 3]; [gain setTarget:self];
+      [gain setAction:@selector (routingMixerSliderChanged:)];
+      [gain setToolTip:@"Part volume"];
+      ScoreMakerSetAccessibilityLabel (gain,
+        [NSString stringWithFormat:@"Volume for %@", partName]);
+      [_routingMatrixRowsView addSubview:gain];
+      NSSlider *pan = [[[NSSlider alloc] initWithFrame:NSMakeRect (1292, y + 10, 70, 24)] autorelease];
+      [pan setMinValue:-1.0]; [pan setMaxValue:1.0]; [pan setDoubleValue:[part pan]];
+      [pan setContinuous:NO]; [pan setTag:(NSInteger)row * 10 + 4]; [pan setTarget:self];
+      [pan setAction:@selector (routingMixerSliderChanged:)];
+      [pan setToolTip:@"Stereo pan"];
+      ScoreMakerSetAccessibilityLabel (pan,
+        [NSString stringWithFormat:@"Stereo pan for %@", partName]);
+      [_routingMatrixRowsView addSubview:pan];
+      NSTextField *group = [[[NSTextField alloc]
+        initWithFrame:NSMakeRect (1370, y + 10, 72, 24)] autorelease];
+      [group setStringValue:[part groupName] ?: @""];
+      [group setPlaceholderString:@"Group"];
+      [group setTag:(NSInteger)row]; [group setTarget:self];
+      [group setAction:@selector (routingGroupChanged:)];
+      ScoreMakerSetAccessibilityLabel (group,
+        [NSString stringWithFormat:@"Group for %@", partName]);
+      [_routingMatrixRowsView addSubview:group];
+    }
+  if (_routingBulkDevicePopUp)
+    {
+      NSInteger previousID = [[[_routingBulkDevicePopUp selectedItem] representedObject][@"uniqueID"] integerValue];
+      [_routingBulkDevicePopUp removeAllItems];
+      [_routingBulkDevicePopUp addItemWithTitle:@"Built-in Synthesizer"];
+      [[_routingBulkDevicePopUp lastItem] setRepresentedObject:@{ @"uniqueID" : @0, @"name" : @"" }];
+      for (NSDictionary *output in outputs)
+        {
+          [_routingBulkDevicePopUp addItemWithTitle:[output objectForKey:@"name"]];
+          [[_routingBulkDevicePopUp lastItem] setRepresentedObject:output];
+          if ([[output objectForKey:@"uniqueID"] integerValue] == previousID)
+            [_routingBulkDevicePopUp selectItem:[_routingBulkDevicePopUp lastItem]];
+        }
+    }
+  [_routingMatrixSummaryLabel
+    setStringValue:[NSString stringWithFormat:@"%lu parts · %lu active · %lu conflicts · %lu devices",
+                                              (unsigned long)[parts count], (unsigned long)connectedCount,
+                                              (unsigned long)conflictCount, (unsigned long)[outputs count]]];
+}
+
+- (void)chooseMIDIOutput:(id)sender
+{
+  (void)sender;
+  if (!_routingMatrixWindow)
+    {
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+      NSUInteger style = ScoreMakerWindowTitled | ScoreMakerWindowClosable | ScoreMakerWindowResizable;
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+      _routingMatrixWindow = [[NSWindow alloc] initWithContentRect:NSMakeRect (120, 120, 1180, 640)
+                                                         styleMask:style
+                                                           backing:NSBackingStoreBuffered
+                                                             defer:NO];
+      [_routingMatrixWindow setReleasedWhenClosed:NO];
+      [_routingMatrixWindow setMinSize:NSMakeSize (1040, 480)];
+      [_routingMatrixWindow setTitle:@"Parts, Mixer & Routing"];
+      NSView *content = [_routingMatrixWindow contentView];
+      NSTextField *title = [self routingLabelWithFrame:NSMakeRect (20, 596, 500, 28)
+                                                  text:@"Parts, mixer and routing"
+                                                  font:[NSFont boldSystemFontOfSize:20.0]
+                                                 color:nil];
+      [title setAutoresizingMask:NSViewMinYMargin];
+      [content addSubview:title];
+      NSTextField *subtitle = [self routingLabelWithFrame:NSMakeRect (20, 572, 900, 20)
+                                                     text:@"Manage visibility, groups, mix, instruments, channels, and resilient MIDI routing."
+                                                     font:[NSFont systemFontOfSize:12.0]
+                                                    color:[NSColor secondaryLabelColor]];
+      [subtitle setAutoresizingMask:NSViewMinYMargin];
+      [content addSubview:subtitle];
+      NSScrollView *scroll = [[[NSScrollView alloc]
+        initWithFrame:NSMakeRect (16, 106, 1148, 458)] autorelease];
+      [scroll setAutoresizingMask:NSViewWidthSizable | NSViewHeightSizable];
+      [scroll setHasVerticalScroller:YES];
+      [scroll setHasHorizontalScroller:YES];
+      [scroll setBorderType:NSBezelBorder];
+      _routingMatrixRowsView = [[ScoreRoutingRowsView alloc]
+        initWithFrame:NSMakeRect (0, 0, 1450, 430)];
+      [scroll setDocumentView:_routingMatrixRowsView];
+      [content addSubview:scroll];
+      _routingMatrixSummaryLabel = [[self routingLabelWithFrame:NSMakeRect (20, 18, 280, 20)
+                                                           text:@""
+                                                           font:[NSFont systemFontOfSize:12.0]
+                                                          color:[NSColor secondaryLabelColor]] retain];
+      [_routingMatrixSummaryLabel setAutoresizingMask:NSViewMaxYMargin];
+      [content addSubview:_routingMatrixSummaryLabel];
+      NSButton *selectAll = [[[NSButton alloc] initWithFrame:NSMakeRect (20, 58, 82, 30)] autorelease];
+      [selectAll setTitle:@"Select All"];
+      [selectAll setTarget:self];
+      [selectAll setAction:@selector (routingSelectAll:)];
+      [selectAll setAutoresizingMask:NSViewMaxYMargin];
+      [content addSubview:selectAll];
+      NSButton *moveUp = [[[NSButton alloc] initWithFrame:NSMakeRect (108, 58, 78, 30)] autorelease];
+      [moveUp setTitle:@"Move Up"];
+      [moveUp setTag:-1]; [moveUp setTarget:self];
+      [moveUp setAction:@selector (routingMoveSelected:)];
+      [moveUp setAutoresizingMask:NSViewMaxYMargin];
+      [content addSubview:moveUp];
+      NSButton *moveDown = [[[NSButton alloc] initWithFrame:NSMakeRect (192, 58, 92, 30)] autorelease];
+      [moveDown setTitle:@"Move Down"];
+      [moveDown setTag:1]; [moveDown setTarget:self];
+      [moveDown setAction:@selector (routingMoveSelected:)];
+      [moveDown setAutoresizingMask:NSViewMaxYMargin];
+      [content addSubview:moveDown];
+      NSButton *duplicate = [[[NSButton alloc] initWithFrame:NSMakeRect (290, 58, 88, 30)] autorelease];
+      [duplicate setTitle:@"Duplicate"];
+      [duplicate setTarget:self]; [duplicate setAction:@selector (routingDuplicateSelected:)];
+      [duplicate setAutoresizingMask:NSViewMaxYMargin]; [content addSubview:duplicate];
+      NSButton *remove = [[[NSButton alloc] initWithFrame:NSMakeRect (384, 58, 78, 30)] autorelease];
+      [remove setTitle:@"Remove"];
+      [remove setTarget:self]; [remove setAction:@selector (routingRemoveSelected:)];
+      [remove setAutoresizingMask:NSViewMaxYMargin]; [content addSubview:remove];
+      _routingBulkDevicePopUp = [[NSPopUpButton alloc] initWithFrame:NSMakeRect (310, 13, 190, 28)
+                                                              pullsDown:NO];
+      [_routingBulkDevicePopUp setAutoresizingMask:NSViewMaxYMargin];
+      [content addSubview:_routingBulkDevicePopUp];
+      NSButton *apply = [[[NSButton alloc] initWithFrame:NSMakeRect (506, 12, 70, 30)] autorelease];
+      [apply setTitle:@"Apply"];
+      [apply setToolTip:@"Route every selected part to this device"];
+      [apply setTarget:self];
+      [apply setAction:@selector (routingApplyBulkDevice:)];
+      [apply setAutoresizingMask:NSViewMaxYMargin];
+      [content addSubview:apply];
+      NSButton *channels = [[[NSButton alloc] initWithFrame:NSMakeRect (582, 12, 140, 30)] autorelease];
+      [channels setTitle:@"Sequential Channels"];
+      [channels setTarget:self];
+      [channels setAction:@selector (routingAssignSequentialChannels:)];
+      [channels setAutoresizingMask:NSViewMaxYMargin];
+      [content addSubview:channels];
+      NSButton *reset = [[[NSButton alloc] initWithFrame:NSMakeRect (728, 12, 100, 30)] autorelease];
+      [reset setTitle:@"Reset Routes"];
+      [reset setTarget:self];
+      [reset setAction:@selector (routingResetSelected:)];
+      [reset setAutoresizingMask:NSViewMaxYMargin];
+      [content addSubview:reset];
+      NSButton *refresh = [[[NSButton alloc] initWithFrame:NSMakeRect (834, 12, 130, 30)] autorelease];
+      [refresh setTitle:@"Refresh Devices"];
+      [refresh setTarget:self];
+      [refresh setAction:@selector (chooseMIDIOutput:)];
+      [refresh setAutoresizingMask:NSViewMinXMargin | NSViewMaxYMargin];
+      [content addSubview:refresh];
+    }
+  [self refreshRoutingMatrix];
+  [_routingMatrixWindow makeKeyAndOrderFront:self];
 }
 
 - (BOOL)playMIDIData:(NSData *)midiData toOutput:(MIDIEndpointRef)endpoint error:(NSError **)error
 {
-  OSStatus status = NewMusicSequence (&_externalMusicSequence);
+  MusicSequence sequence = NULL;
+  MusicPlayer player = NULL;
+  OSStatus status = NewMusicSequence (&sequence);
   if (status == noErr)
     {
-      status = MusicSequenceFileLoadData (_externalMusicSequence, (CFDataRef)midiData,
+      status = MusicSequenceFileLoadData (sequence, (CFDataRef)midiData,
                                           kMusicSequenceFile_MIDIType,
                                           kMusicSequenceLoadSMF_ChannelsToTracks);
     }
   if (status == noErr)
-    status = MusicSequenceSetMIDIEndpoint (_externalMusicSequence, endpoint);
+    status = MusicSequenceSetMIDIEndpoint (sequence, endpoint);
   if (status == noErr)
-    status = NewMusicPlayer (&_externalMusicPlayer);
+    status = NewMusicPlayer (&player);
   if (status == noErr)
-    status = MusicPlayerSetSequence (_externalMusicPlayer, _externalMusicSequence);
+    status = MusicPlayerSetSequence (player, sequence);
   if (status == noErr)
-    status = MusicPlayerPreroll (_externalMusicPlayer);
+    status = MusicPlayerPreroll (player);
   if (status == noErr)
-    status = MusicPlayerStart (_externalMusicPlayer);
+    status = MusicPlayerStart (player);
   if (status == noErr)
     {
+      [_externalMIDIPlaybacks addObject:@{
+        @"player" : [NSValue valueWithPointer:player],
+        @"sequence" : [NSValue valueWithPointer:sequence],
+        @"endpoint" : [NSNumber numberWithUnsignedInt:endpoint]
+      }];
       _externalPlaybackTime = 0;
       return YES;
     }
 
-  if (_externalMusicPlayer)
-    {
-      DisposeMusicPlayer (_externalMusicPlayer);
-      _externalMusicPlayer = NULL;
-    }
-  if (_externalMusicSequence)
-    {
-      DisposeMusicSequence (_externalMusicSequence);
-      _externalMusicSequence = NULL;
-    }
+  if (player)
+    DisposeMusicPlayer (player);
+  if (sequence)
+    DisposeMusicSequence (sequence);
   if (error)
     {
       NSString *message = [NSString
@@ -2319,23 +3596,36 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     }
   return NO;
 }
+#else
+- (void)chooseMIDIOutput:(id)sender
+{
+  (void)sender;
+  NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+  [alert setMessageText:@"Physical MIDI output is unavailable"];
+  [alert setInformativeText:@"This GNUstep build continues to use its configured system MIDI player."];
+  [alert runModal];
+}
 #endif
 
 - (void)stopPlaybackAudioOnly
 {
 #if defined(__APPLE__)
-  if (_externalMusicPlayer)
+  for (NSDictionary *playback in [[_externalMIDIPlaybacks copy] autorelease])
     {
-      MusicPlayerStop (_externalMusicPlayer);
-      ScoreMakerSendAllNotesOff (_midiOutputEndpoint);
-      DisposeMusicPlayer (_externalMusicPlayer);
-      _externalMusicPlayer = NULL;
+      MusicPlayer player = (MusicPlayer)[[playback objectForKey:@"player"] pointerValue];
+      MusicSequence sequence =
+        (MusicSequence)[[playback objectForKey:@"sequence"] pointerValue];
+      MIDIEndpointRef endpoint = [[playback objectForKey:@"endpoint"] unsignedIntValue];
+      if (player)
+        {
+          MusicPlayerStop (player);
+          DisposeMusicPlayer (player);
+        }
+      ScoreMakerSendAllNotesOff (endpoint);
+      if (sequence)
+        DisposeMusicSequence (sequence);
     }
-  if (_externalMusicSequence)
-    {
-      DisposeMusicSequence (_externalMusicSequence);
-      _externalMusicSequence = NULL;
-    }
+  [_externalMIDIPlaybacks removeAllObjects];
   _externalPlaybackTime = 0;
 #endif
   [_playbackSound stop];
@@ -2345,8 +3635,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_midiPlayer release];
   _midiPlayer = nil;
   [_realtimeDSP allNotesOff];
-  if (_useRealtimeDSP)
+  if (_playbackUsesRealtimeDSP)
     [_realtimeDSP stop];
+  _playbackUsesRealtimeDSP = NO;
 }
 
 - (BOOL)prepareDSPPlaybackAtTick:(NSUInteger)tick error:(NSError **)error
@@ -2357,27 +3648,144 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   NSMutableArray *timeline = [NSMutableArray array];
   for (ScoreNote *note in [[self scoreDocument] notes])
     if (![note isRest] && [note startTick]<tick && [note startTick] + [note durationTicks]> tick)
-      [timeline addObject:@{
+      {
+        ScorePartDefinition *part = ScoreMakerPartForTrack ([self scoreDocument], [note track]);
+        if ([self routingShouldMutePart:part])
+          continue;
+        [timeline addObject:@{
         @"time" : @0,
         @"pitch" : [NSNumber numberWithInteger:[note pitch]],
-        @"velocity" : [NSNumber numberWithUnsignedInteger:[note velocity]],
+        @"frequency" : @([note playbackFrequency]),
+        @"track" : @([note track]),
+        @"velocity" : [NSNumber numberWithUnsignedInteger:ScoreMakerMixedVelocity (note, part, [self scoreDocument])],
         @"on" : @YES,
-        @"voice" : [NSNumber numberWithInteger:[note voice]]
-      }];
+        @"voice" : [NSNumber numberWithInteger:[note voice]],
+        @"pan" : @(ScoreMakerNotePan (note, part))
+        }];
+      }
   for (ScoreScheduledEvent *event in [scheduler eventsFromTick:tick
                                                    throughTick:[[self scoreDocument] totalTicks]])
     {
       ScoreNote *note = [event note];
+      ScorePartDefinition *part = ScoreMakerPartForTrack ([self scoreDocument], [note track]);
       [timeline addObject:@{
         @"time" : [NSNumber numberWithDouble:MAX (0.0, [event time] - origin)],
         @"pitch" : [NSNumber numberWithInteger:[note pitch]],
-        @"velocity" : [NSNumber numberWithUnsignedInteger:[note velocity]],
+        @"frequency" : @([note playbackFrequency]),
+        @"track" : @([note track]),
+        @"velocity" : [NSNumber numberWithUnsignedInteger:ScoreMakerMixedVelocity (note, part, [self scoreDocument])],
         @"on" : [NSNumber numberWithBool:![event noteOff]],
-        @"voice" : [NSNumber numberWithInteger:[note voice]]
+        @"voice" : [NSNumber numberWithInteger:[note voice]],
+        @"pan" : @(ScoreMakerNotePan (note, part))
       }];
     }
   return [_realtimeDSP scheduleEvents:timeline error:error];
 }
+
+#if defined(__APPLE__)
+- (BOOL)documentHasPhysicalMIDIRouting:(ScoreDocument *)document
+{
+  for (ScorePartDefinition *part in [document parts])
+    if ([part midiOutputUniqueID] != 0
+        || [[part midiFallbackMode] isEqualToString:@"device"])
+      return YES;
+  return NO;
+}
+
+- (ScoreDocument *)documentFromDocument:(ScoreDocument *)source keepingTracks:(NSSet *)tracks
+{
+  ScoreDocument *filtered = [[source copy] autorelease];
+  NSMutableArray *notes = [NSMutableArray array];
+  for (ScoreNote *note in [filtered notes])
+    if ([tracks containsObject:[NSNumber numberWithInteger:[note track]]])
+      [notes addObject:note];
+  [filtered setNotes:notes];
+
+  NSMutableDictionary *names = [NSMutableDictionary dictionary];
+  NSMutableDictionary *programs = [NSMutableDictionary dictionary];
+  for (NSNumber *track in tracks)
+    {
+      NSString *name = [source nameForTrack:[track integerValue]];
+      NSNumber *program = [source programForTrack:[track integerValue]];
+      if (name)
+        [names setObject:name forKey:track];
+      if (program)
+        [programs setObject:program forKey:track];
+    }
+  [filtered setPartNames:names];
+  [filtered setTrackPrograms:programs];
+  NSMutableArray *parts = [NSMutableArray array];
+  for (ScorePartDefinition *part in [source parts])
+    if ([tracks containsObject:[NSNumber numberWithInteger:[part legacyTrack]]])
+      [parts addObject:[[part copy] autorelease]];
+  [filtered setParts:parts];
+  for (ScoreNote *note in [filtered notes])
+    {
+      ScorePartDefinition *part = ScoreMakerPartForTrack (source, [note track]);
+      [note setVelocity:ScoreMakerMixedVelocity (note, part, source)];
+    }
+  return filtered;
+}
+
+- (BOOL)playDocumentWithMIDIRouting:(ScoreDocument *)document error:(NSError **)error
+{
+  NSMutableDictionary *partByTrack = [NSMutableDictionary dictionary];
+  for (ScorePartDefinition *part in [document parts])
+    [partByTrack setObject:part
+                    forKey:[NSNumber numberWithInteger:[part legacyTrack]]];
+
+  NSMutableDictionary *tracksByEndpoint = [NSMutableDictionary dictionary];
+  for (ScoreNote *note in [document notes])
+    {
+      if ([note isRest])
+        continue;
+      NSNumber *track = [NSNumber numberWithInteger:[note track]];
+      ScorePartDefinition *part = [partByTrack objectForKey:track];
+      if ([self routingShouldMutePart:part])
+        continue;
+      MIDIEndpointRef endpoint = [self resolvedMIDIOutputForPart:part];
+      NSNumber *endpointKey = [NSNumber numberWithUnsignedInt:endpoint];
+      NSMutableSet *tracks = [tracksByEndpoint objectForKey:endpointKey];
+      if (!tracks)
+        {
+          tracks = [NSMutableSet set];
+          [tracksByEndpoint setObject:tracks forKey:endpointKey];
+        }
+      [tracks addObject:track];
+    }
+
+  NSMutableArray *payloads = [NSMutableArray array];
+  for (NSNumber *endpointKey in tracksByEndpoint)
+    {
+      ScoreDocument *filtered =
+        [self documentFromDocument:document
+                    keepingTracks:[tracksByEndpoint objectForKey:endpointKey]];
+      NSData *midiData = [MidiParser dataForDocument:filtered error:error];
+      if (!midiData)
+        return NO;
+      [payloads addObject:@{ @"endpoint" : endpointKey, @"data" : midiData }];
+    }
+
+  /* Build every endpoint's MIDI data before starting any player. This keeps large scores from
+     making the first device audibly lead later devices while their filtered files are encoded. */
+  [payloads sortUsingComparator:^NSComparisonResult (NSDictionary *left, NSDictionary *right) {
+    return [[left objectForKey:@"endpoint"] compare:[right objectForKey:@"endpoint"]];
+  }];
+  for (NSDictionary *payload in payloads)
+    {
+      NSData *midiData = [payload objectForKey:@"data"];
+      NSNumber *endpointKey = [payload objectForKey:@"endpoint"];
+      MIDIEndpointRef endpoint = [endpointKey unsignedIntValue];
+      BOOL started = endpoint ? [self playMIDIData:midiData toOutput:endpoint error:error]
+                              : [self playMIDIDataDirectly:midiData error:error];
+      if (!started)
+        return NO;
+    }
+  /* A score whose unavailable routes explicitly fall back to Mute is still a valid playback.
+     The document timer and visual playhead should continue even when there is no MIDI payload. */
+  return YES;
+}
+#endif
 
 - (BOOL)restartPlaybackAtTick:(NSUInteger)tick
 {
@@ -2398,6 +3806,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [remainder setPartNames:[[[source partNames] mutableCopy] autorelease]];
   [remainder setTrackPrograms:[[[source trackPrograms] mutableCopy] autorelease]];
   [remainder setMeasures:[[[source measures] mutableCopy] autorelease]];
+  [remainder setParts:[[[NSMutableArray alloc] initWithArray:[source parts] copyItems:YES]
+                         autorelease]];
 
   for (ScoreNote *note in [source notes])
     {
@@ -2407,6 +3817,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       NSUInteger clippedStart = MAX ([note startTick], tick);
       ScoreNote *copy = [[[ScoreNote alloc] init] autorelease];
       [copy setPitch:[note pitch]];
+      [copy setPlaybackFrequency:[note playbackFrequency]];
       [copy setAccidental:[note accidental]];
       [copy setRest:[note isRest]];
       [copy setChannel:[note channel]];
@@ -2424,9 +3835,15 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     }
 
   NSError *error = nil;
-  if (_useRealtimeDSP)
+  BOOL useRealtimeDSPForPlayback = _useRealtimeDSP;
+#if defined(__APPLE__)
+  if ([self documentHasPhysicalMIDIRouting:source])
+    useRealtimeDSPForPlayback = NO;
+#endif
+  if (useRealtimeDSPForPlayback)
     {
       [self stopPlaybackAudioOnly];
+      _playbackUsesRealtimeDSP = YES;
       if (![self prepareDSPPlaybackAtTick:tick error:&error])
         {
           [[NSDocumentController sharedDocumentController] presentError:error];
@@ -2439,6 +3856,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       _playbackPausedElapsed = adjustedElapsed;
       return YES;
     }
+#if !defined(__APPLE__)
   NSData *midiData = [MidiParser dataForDocument:remainder error:&error];
   if (!midiData)
     {
@@ -2446,9 +3864,14 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [self stopCurrentPlayback];
       return NO;
     }
+#endif
 
   [self stopPlaybackAudioOnly];
+#if defined(__APPLE__)
+  if (![self playDocumentWithMIDIRouting:remainder error:&error])
+#else
   if (![self playMIDIDataDirectly:midiData error:&error])
+#endif
     {
       [[NSDocumentController sharedDocumentController] presentError:error];
       [self stopCurrentPlayback];
@@ -2468,6 +3891,18 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
           [(AVMIDIPlayer *)_midiPlayer stop];
           [(AVMIDIPlayer *)_midiPlayer setCurrentPosition:0.0];
         }
+#if defined(__APPLE__)
+      for (NSDictionary *playback in _externalMIDIPlaybacks)
+        {
+          MusicPlayer player = (MusicPlayer)[[playback objectForKey:@"player"] pointerValue];
+          if (player)
+            {
+              MusicPlayerStop (player);
+              MusicPlayerSetTime (player, 0);
+            }
+          ScoreMakerSendAllNotesOff ([[playback objectForKey:@"endpoint"] unsignedIntValue]);
+        }
+#endif
       [_playbackSound pause];
       _playbackPaused = YES;
       [self updatePauseButtonForPaused:YES];
@@ -2612,7 +4047,16 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
           [(AVMIDIPlayer *)_midiPlayer setCurrentPosition:position];
         }
       [_playbackSound pause];
-      if (_useRealtimeDSP)
+#if defined(__APPLE__)
+      for (NSDictionary *playback in _externalMIDIPlaybacks)
+        {
+          MusicPlayer player = (MusicPlayer)[[playback objectForKey:@"player"] pointerValue];
+          if (player)
+            MusicPlayerStop (player);
+          ScoreMakerSendAllNotesOff ([[playback objectForKey:@"endpoint"] unsignedIntValue]);
+        }
+#endif
+      if (_playbackUsesRealtimeDSP)
         {
           [_realtimeDSP allNotesOff];
           [_realtimeDSP stop];
@@ -2625,7 +4069,15 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       if (_midiPlayer)
         [(AVMIDIPlayer *)_midiPlayer play:nil];
       [_playbackSound resume];
-      if (_useRealtimeDSP)
+#if defined(__APPLE__)
+      for (NSDictionary *playback in _externalMIDIPlaybacks)
+        {
+          MusicPlayer player = (MusicPlayer)[[playback objectForKey:@"player"] pointerValue];
+          if (player)
+            MusicPlayerStart (player);
+        }
+#endif
+      if (_playbackUsesRealtimeDSP)
         {
           ScoreScheduler *scheduler =
             [[[ScoreScheduler alloc] initWithDocument:[self scoreDocument]] autorelease];
@@ -2649,6 +4101,84 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 {
   (void)sender;
   [self stopCurrentPlayback];
+}
+
+- (void)playFromSelection:(id)sender
+{
+  (void)sender;
+  ScoreNote *note = [[self scoreView] selectedNote];
+  if (note)
+    [self restartPlaybackAtTick:[note startTick]];
+  else
+    [self playScore:nil];
+}
+
+- (void)rewindScore:(id)sender
+{
+  (void)sender;
+  [self stopPlayback:nil];
+  [[self scoreView] scrollPlaybackTickToVisible:0];
+}
+
+- (void)goToMeasure:(id)sender
+{
+  (void)sender;
+  if ([[[self scoreDocument] measures] count] == 0)
+    [[self scoreDocument] buildDefaultMeasures];
+  NSTextField *field = [[[NSTextField alloc] initWithFrame:NSMakeRect (0, 0, 180, 24)] autorelease];
+  [field setIntegerValue:1];
+  NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+  [alert setMessageText:@"Go to Measure"];
+  [alert setInformativeText:@"Enter the printed measure number."];
+  [alert setAccessoryView:field];
+  [alert addButtonWithTitle:@"Go"];
+  [alert addButtonWithTitle:@"Cancel"];
+  if ([alert runModal] != NSAlertFirstButtonReturn)
+    return;
+  NSInteger requested = [field integerValue];
+  ScoreMeasure *destination = nil;
+  for (ScoreMeasure *measure in [[self scoreDocument] measures])
+    if ([measure number] == requested)
+      { destination = measure; break; }
+  if (!destination)
+    {
+      NSBeep ();
+      return;
+    }
+  [[self scoreView] scrollPlaybackTickToVisible:[destination startTick]];
+}
+
+- (void)setScoreZoom:(id)sender
+{
+#if defined(__APPLE__)
+  CGFloat zoom = MAX (25.0, MIN (400.0, (CGFloat)[sender tag])) / 100.0;
+  [[self scrollView] setMagnification:zoom centeredAtPoint:NSMakePoint (NSMidX ([[self scoreView] bounds]),
+                                                                       NSMinY ([[self scrollView] documentVisibleRect]))];
+#else
+  (void)sender;
+#endif
+}
+
+- (void)fitScoreWidth:(id)sender
+{
+  (void)sender;
+#if defined(__APPLE__)
+  CGFloat width = NSWidth ([[[self scrollView] contentView] bounds]);
+  CGFloat scoreWidth = MAX ((CGFloat)1.0, NSWidth ([[self scoreView] bounds]));
+  [[self scrollView] setMagnification:MIN ((CGFloat)4.0, MAX ((CGFloat)0.25, width / scoreWidth))];
+#endif
+}
+
+- (void)fitScorePage:(id)sender
+{
+  (void)sender;
+#if defined(__APPLE__)
+  NSRect viewport = [[[self scrollView] contentView] bounds];
+  NSSize page = [[self scoreView] printedPageContentSize];
+  CGFloat zoom = MIN (NSWidth (viewport) / MAX ((CGFloat)1.0, page.width),
+                      NSHeight (viewport) / MAX ((CGFloat)1.0, page.height));
+  [[self scrollView] setMagnification:MIN ((CGFloat)4.0, MAX ((CGFloat)0.25, zoom))];
+#endif
 }
 
 - (BOOL)playMIDIDataDirectly:(NSData *)midiData error:(NSError **)error
@@ -2744,7 +4274,13 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     }
 
   NSError *error = nil;
-  if (_useRealtimeDSP)
+  BOOL useRealtimeDSPForPlayback = _useRealtimeDSP;
+#if defined(__APPLE__)
+  if ([self documentHasPhysicalMIDIRouting:document])
+    useRealtimeDSPForPlayback = NO;
+#endif
+  _playbackUsesRealtimeDSP = useRealtimeDSPForPlayback;
+  if (useRealtimeDSPForPlayback)
     {
       if (![self prepareDSPPlaybackAtTick:0 error:&error])
         {
@@ -2754,14 +4290,20 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [self startPlaybackHighlight];
       return;
     }
+#if !defined(__APPLE__)
   NSData *midiData = [MidiParser dataForDocument:document error:&error];
   if (!midiData)
     {
       [[NSDocumentController sharedDocumentController] presentError:error];
       return;
     }
+#endif
 
+#if defined(__APPLE__)
+  if (![self playDocumentWithMIDIRouting:document error:&error])
+#else
   if (![self playMIDIDataDirectly:midiData error:&error])
+#endif
     {
       [[NSDocumentController sharedDocumentController] presentError:error];
       return;
@@ -2781,7 +4323,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       _loopSelectionEnabled = !_loopSelectionEnabled;
     }
   if ([sender respondsToSelector:@selector (setState:)])
-    [sender setState:_loopSelectionEnabled ? NSOnState : NSOffState];
+    [sender setState:_loopSelectionEnabled ? ScoreMakerStateOn : ScoreMakerStateOff];
 }
 
 - (BOOL)pitchString:(NSString *)string toMidiPitch:(NSInteger *)pitch
@@ -2934,8 +4476,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [note setTrack:trackNumber - 1];
   [note setStartTick:startTick];
   [note setDurationTicks:durationTicks];
-  [note setTieStart:[_tieStartButton state] == NSOnState];
-  [note setTieEnd:[_tieEndButton state] == NSOnState];
+  [note setTieStart:[_tieStartButton state] == ScoreMakerStateOn];
+  [note setTieEnd:[_tieEndButton state] == ScoreMakerStateOn];
   NSArray *tupletRatio = [[_tupletPopUp titleOfSelectedItem] componentsSeparatedByString:@":"];
   if ([tupletRatio count] == 2)
     {
@@ -2960,8 +4502,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   ScoreMeasure *measure = [document ensureMeasureContainingTick:startTick];
   [measure
     setKeySignatureFifths:[[[_keySignaturePopUp selectedItem] representedObject] integerValue]];
-  [measure setRepeatStart:[_repeatStartButton state] == NSOnState];
-  [measure setRepeatEnd:[_repeatEndButton state] == NSOnState];
+  [measure setRepeatStart:[_repeatStartButton state] == ScoreMakerStateOn];
+  [measure setRepeatEnd:[_repeatEndButton state] == ScoreMakerStateOn];
   [note setMeasureIndex:(NSInteger)[[document measures] indexOfObjectIdenticalTo:measure]];
   if (![document nameForTrack:trackNumber - 1])
     {
@@ -3054,20 +4596,82 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       _useRealtimeDSP = NO;
     }
   if ([sender respondsToSelector:@selector (setState:)])
-    [sender setState:_useRealtimeDSP ? NSOnState : NSOffState];
+    [sender setState:_useRealtimeDSP ? ScoreMakerStateOn : ScoreMakerStateOff];
 }
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem
 {
   if ([menuItem action] == @selector (toggleRealtimeDSP:))
-    [menuItem setState:_useRealtimeDSP ? NSOnState : NSOffState];
+    [menuItem setState:_useRealtimeDSP ? ScoreMakerStateOn : ScoreMakerStateOff];
   if ([menuItem action] == @selector (toggleLoopSelection:))
     {
       BOOL hasSelection = [[self scoreView] hasLoopSelection];
-      [menuItem setState:_loopSelectionEnabled && hasSelection ? NSOnState : NSOffState];
+      [menuItem setState:_loopSelectionEnabled && hasSelection ? ScoreMakerStateOn : ScoreMakerStateOff];
       return hasSelection;
     }
+  if ([menuItem action] == @selector (toggleMetronome:))
+    {
+      [menuItem setState:_practiceMetronomeActive ? ScoreMakerStateOn : ScoreMakerStateOff];
+      return [self scoreDocument] != nil && !_midiRecording;
+    }
   return YES;
+}
+
+- (void)practiceMetronomeTick:(NSTimer *)timer
+{
+  (void)timer;
+  if (_practiceMetronomeSound)
+    [_practiceMetronomeSound play];
+  else
+    NSBeep ();
+  NSUInteger beats = MAX ((NSUInteger)1, [[self scoreDocument] timeSignatureNumerator]);
+  [_playbackMonitorView pulseMetronomeBeat:_practiceMetronomeBeat % beats];
+  _practiceMetronomeBeat = (_practiceMetronomeBeat + 1) % beats;
+}
+
+- (void)stopPracticeMetronome
+{
+  [_practiceMetronomeTimer invalidate];
+  [_practiceMetronomeTimer release];
+  _practiceMetronomeTimer = nil;
+  [_practiceMetronomeSound stop];
+  [_practiceMetronomeSound release];
+  _practiceMetronomeSound = nil;
+  _practiceMetronomeActive = NO;
+  [_playbackMonitorView setMetronomeActive:NO bpm:120 beatsPerMeasure:4];
+}
+
+- (void)restartPracticeMetronomeForCurrentTempo
+{
+  [_practiceMetronomeTimer invalidate];
+  [_practiceMetronomeTimer release];
+  _practiceMetronomeTimer = nil;
+  ScoreDocument *document = [self scoreDocument];
+  NSUInteger tempo = [document tempoMicrosecondsPerQuarter];
+  NSUInteger bpm = tempo > 0 ? MAX ((NSUInteger)1, 60000000 / tempo) : 120;
+  NSUInteger beats = MAX ((NSUInteger)1, [document timeSignatureNumerator]);
+  NSTimeInterval duration = 60.0 / (double)bpm;
+  _practiceMetronomeBeat = 0;
+  [_playbackMonitorView setMetronomeActive:YES bpm:bpm beatsPerMeasure:beats];
+  _practiceMetronomeTimer = [[NSTimer scheduledTimerWithTimeInterval:duration
+                                                              target:self
+                                                            selector:@selector (practiceMetronomeTick:)
+                                                            userInfo:nil
+                                                             repeats:YES] retain];
+  [self practiceMetronomeTick:_practiceMetronomeTimer];
+}
+
+- (void)toggleMetronome:(id)sender
+{
+  (void)sender;
+  if (_practiceMetronomeActive)
+    [self stopPracticeMetronome];
+  else if ([self scoreDocument] && !_midiRecording)
+    {
+      _practiceMetronomeActive = YES;
+      _practiceMetronomeSound = [[NSSound soundNamed:@"Tink"] retain];
+      [self restartPracticeMetronomeForCurrentTempo];
+    }
 }
 
 - (ScorePartDefinition *)selectedStructuredPartCreatingIfNeeded:(BOOL)create
@@ -3079,7 +4683,34 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   for (ScorePartDefinition *part in [document parts])
     if ([part legacyTrack] == track)
       return part;
-  return [[document parts] count] ? [[document parts] objectAtIndex:0] : nil;
+  if (!create)
+    return nil;
+
+  /* addPart: establishes the legacy name/program immediately, while the richer
+     structured part list may already contain other parts.  Create only the
+     missing definition here; returning part zero caused instrument changes for
+     a new part to be stored on the first part instead. */
+  NSString *name = [document nameForTrack:track];
+  if (![name length])
+    name = [NSString stringWithFormat:@"Part %ld", (long)(track + 1)];
+  ScorePartDefinition *part = [[[ScorePartDefinition alloc] init] autorelease];
+  [part setLegacyTrack:track];
+  [part setName:name];
+  [part setAbbreviatedName:name];
+
+  ScoreInstrumentDefinition *instrument =
+    [[[ScoreInstrumentDefinition alloc] init] autorelease];
+  [instrument setName:name];
+  [instrument setProgram:[[document programForTrack:track] integerValue]];
+  [part setInstrument:instrument];
+
+  ScoreStaffDefinition *staff = [[[ScoreStaffDefinition alloc] init] autorelease];
+  ScoreVoiceDefinition *voice = [[[ScoreVoiceDefinition alloc] init] autorelease];
+  [voice setNumber:1];
+  [[staff voices] addObject:voice];
+  [[part staves] addObject:staff];
+  [[document parts] addObject:part];
+  return part;
 }
 
 - (NSDictionary *)patchForPart:(ScorePartDefinition *)part
@@ -3245,7 +4876,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   (void)sender;
   if (!_patchEditorWindow)
     {
-      NSUInteger style = NSTitledWindowMask | NSClosableWindowMask | NSMiniaturizableWindowMask;
+      NSUInteger style = ScoreMakerWindowTitled | ScoreMakerWindowClosable | ScoreMakerWindowMiniaturizable;
       _patchEditorWindow = [[NSWindow alloc] initWithContentRect:NSMakeRect (0, 0, 650, 530)
                                                        styleMask:style
                                                          backing:NSBackingStoreBuffered
@@ -3789,7 +5420,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       NSDictionary *effect = [existing objectForKey:[specification objectForKey:@"type"]];
       CGFloat y = 190.0 - index * 42.0;
       NSButton *enabled = [[[NSButton alloc] initWithFrame:NSMakeRect (0, y, 135, 24)] autorelease];
-      [enabled setButtonType:NSSwitchButton];
+      [enabled setButtonType:ScoreMakerSwitchButton];
       [enabled setTitle:[specification objectForKey:@"name"]];
       [enabled setState:effect ? NSControlStateValueOn : NSControlStateValueOff];
       [accessory addSubview:enabled];
@@ -4334,7 +5965,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       ScoreSynthesisNode *node = [existing objectForKey:[specification objectForKey:@"type"]];
       CGFloat y = 190.0 - index * 42.0;
       NSButton *enabled = [[[NSButton alloc] initWithFrame:NSMakeRect (0, y, 135, 24)] autorelease];
-      [enabled setButtonType:NSSwitchButton];
+      [enabled setButtonType:ScoreMakerSwitchButton];
       [enabled setTitle:[specification objectForKey:@"name"]];
       [enabled setState:node ? NSControlStateValueOn : NSControlStateValueOff];
       [accessory addSubview:enabled];
@@ -4521,13 +6152,13 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
         break;
       }
   NSSavePanel *panel = [NSSavePanel savePanel];
-  [panel setNameFieldStringValue:renderCurrentPart ? @"ScoreMaker Part Stem.caf"
-                                                   : @"ScoreMaker Render.caf"];
+  [panel setNameFieldStringValue:renderCurrentPart ? @"ScoreMaker Part Stem.wav"
+                                                   : @"ScoreMaker Render.wav"];
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #endif
-  [panel setAllowedFileTypes:[NSArray arrayWithObject:@"caf"]];
+  [panel setAllowedFileTypes:@[ @"wav", @"aiff", @"aif", @"caf" ]];
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
@@ -4539,14 +6170,21 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   for (ScoreScheduledEvent *event in [scheduler eventsFromTick:0 throughTick:[document totalTicks]])
     {
       ScoreNote *note = [event note];
+      ScorePartDefinition *renderPart = ScoreMakerPartForTrack (document, [note track]);
       if (renderCurrentPart && [note track] != renderedTrack)
         continue;
       [timeline addObject:@{
         @"time" : [NSNumber numberWithDouble:[event time]],
         @"pitch" : [NSNumber numberWithInteger:[note pitch]],
-        @"velocity" : [NSNumber numberWithUnsignedInteger:[note velocity]],
+        @"frequency" : @([note playbackFrequency]),
+        @"track" : @([note track]),
+        @"velocity" : [NSNumber numberWithUnsignedInteger:
+                         ScoreMakerMixedVelocity (note, ScoreMakerPartForTrack (document,
+                                                                               [note track]),
+                                                  document)],
         @"on" : [NSNumber numberWithBool:![event noteOff]],
-        @"voice" : [NSNumber numberWithInteger:[note voice]]
+        @"voice" : [NSNumber numberWithInteger:[note voice]],
+        @"pan" : @([renderPart pan])
       }];
     }
   NSError *error = nil;
@@ -4647,6 +6285,48 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     }
 }
 
+- (void)updateMIDIControllerRangeDisplay
+{
+  BOOL selected = _midiInputPopUp && [_midiInputPopUp indexOfSelectedItem] > 0;
+  BOOL visible = selected && (!_midiRangeShadeButton
+                              || [_midiRangeShadeButton state] == ScoreMakerStateOn);
+  NSString *name = selected ? [[_midiInputPopUp selectedItem] title] : @"";
+  NSString *lower = [name lowercaseString];
+  NSInteger first = 21;
+  NSInteger last = 108;
+  if ([lower rangeOfString:@"mini 32"].location != NSNotFound)
+    {
+      first = 41;  // F2
+      last = 72;   // C5
+    }
+  else if ([lower rangeOfString:@"49"].location != NSNotFound)
+    {
+      first = 36;  // C2
+      last = 84;   // C6
+    }
+  else if ([lower rangeOfString:@"61"].location != NSNotFound)
+    {
+      first = 48;  // C3
+      last = 108;  // C8
+    }
+  NSInteger octave = [[[_midiOctavePopUp selectedItem] representedObject] integerValue];
+  first += octave * 12;
+  last += octave * 12;
+  [_playbackMonitorView setControllerRangeFirstPitch:first lastPitch:last visible:visible];
+}
+
+- (void)midiRangeDisplayDidChange:(id)sender
+{
+  (void)sender;
+  [self updateMIDIControllerRangeDisplay];
+}
+
+- (void)midiOctaveDidChange:(id)sender
+{
+  (void)sender;
+  [self updateMIDIControllerRangeDisplay];
+}
+
 - (void)midiDevicesChanged:(id)sender
 {
   (void)sender;
@@ -4655,6 +6335,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   unsigned int selectedEndpoint =
     [[[_midiInputPopUp selectedItem] representedObject] unsignedIntValue];
   [self reloadMIDIInputs];
+  if (_routingMatrixWindow && [_routingMatrixWindow isVisible])
+    [self refreshRoutingMatrix];
   NSMenuItem *matchingItem = nil;
   for (NSMenuItem *item in [_midiInputPopUp itemArray])
     {
@@ -4675,6 +6357,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [_midiInputManager connectToSource:0];
       [_midiInputPopUp selectItemAtIndex:0];
     }
+  [self updateMIDIControllerRangeDisplay];
   [self refreshInspector];
 }
 
@@ -4698,6 +6381,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       if (![_realtimeDSP startWithError:&error])
         NSLog (@"Could not prepare MIDI input audition: %@", error);
     }
+  [self updateMIDIControllerRangeDisplay];
   [self refreshInspector];
 }
 
@@ -4776,6 +6460,13 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_midiActiveNotes removeObjectForKey:key];
   [_midiSustainedNotes removeObject:key];
   _midiRecordedNotes = YES;
+
+  /* Keep notation and a clean source editor in step with the take.  Previously
+     both views were refreshed only when Record was stopped, which made a live
+     recording appear to have captured nothing. */
+  [[[self scoreDocument] notes] sortUsingSelector:@selector (compareScoreNote:)];
+  [[self scoreView] reloadDocument];
+  [self refreshScoreSourceEditorFromScoreIfClean];
 }
 
 - (void)handleMIDIInputEvent:(NSDictionary *)event
@@ -4809,10 +6500,12 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   if (!noteOn && !noteOff)
     return;
   NSString *key = [NSString stringWithFormat:@"%ld:%ld", (long)channel, (long)data1];
+  NSInteger octave = [[[_midiOctavePopUp selectedItem] representedObject] integerValue];
+  NSInteger shiftedPitch = MAX ((NSInteger)0, MIN ((NSInteger)127, data1 + octave * 12));
 
   if (noteOn)
     {
-      [_playbackMonitorView liveNoteOn:data1 voice:voice velocity:data2];
+      [_playbackMonitorView liveNoteOn:shiftedPitch voice:voice velocity:data2];
       if (_midiRecording)
         {
           if (!_midiCountingIn)
@@ -4822,7 +6515,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
               [_midiActiveNotes
                 setObject:[NSDictionary
                             dictionaryWithObjectsAndKeys:[NSNumber numberWithDouble:time], @"time",
-                                                         [NSNumber numberWithInteger:data1],
+                                                         [NSNumber numberWithInteger:shiftedPitch],
                                                          @"pitch",
                                                          [NSNumber numberWithInteger:data2],
                                                          @"velocity",
@@ -4832,15 +6525,36 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
                    forKey:key];
             }
         }
-      else if (![_midiHeldStepNotes containsObject:key])
+      if (![_midiHeldStepNotes containsObject:key])
         {
           /*
            * MIDI input is already delivered on the main thread.  Do not use
            * auditionPitch: here: it serializes a MIDI file and constructs and
            * prepares a new AVMIDIPlayer for every key press, blocking delivery
            * of the following MIDI events.  The realtime engine is persistent
-           * and accepts polyphonic note events without that setup cost.
+          * and accepts polyphonic note events without that setup cost.
            */
+          ScorePartDefinition *inputPart = nil;
+          for (ScorePartDefinition *part in [[self scoreDocument] parts])
+            if ([part legacyTrack] == destinationTrack)
+              {
+                inputPart = part;
+                break;
+              }
+          NSString *backend = [[inputPart instrument] backendIdentifier];
+          if (!backend || [backend isEqualToString:@"general-midi"])
+            {
+              NSNumber *program = [[self scoreDocument] programForTrack:destinationTrack];
+              NSError *programError = nil;
+              if (![_realtimeDSP useGeneralMIDIProgram:[program integerValue]
+                                                 error:&programError])
+                NSLog (@"Could not load MIDI input program: %@", programError);
+            }
+          else if ([backend isEqualToString:@"scoremaker-internal-synth"])
+            {
+              [_realtimeDSP useInternalSynthesizer];
+              [self configureVoicePatchesForPart:inputPart];
+            }
           if (![_realtimeDSP isRunning])
             {
               NSError *error = nil;
@@ -4848,27 +6562,16 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
                 NSLog (@"Could not start MIDI input audition: %@", error);
             }
           if ([_realtimeDSP isRunning])
-            [_realtimeDSP noteOn:data1 velocity:(NSUInteger)data2];
-          if ([_midiHeldStepNotes count] == 0)
-            {
-              [self registerUndoSnapshotWithName:@"MIDI Step Entry"];
-              _midiStepStartTick = (NSUInteger)llround (MAX (0.0, [_noteStartField doubleValue]) *
-                                                        [[self scoreDocument] ticksPerQuarter]);
-            }
-          [self appendMIDINotePitch:data1
-                           velocity:data2
-                              track:destinationTrack
-                          startTick:_midiStepStartTick
-                      durationTicks:[self durationTicksForNoteValueDenominator:
-                                            [self denominatorForSelectedNoteValue]]];
+            [_realtimeDSP noteOn:shiftedPitch velocity:(NSUInteger)data2];
           [_midiHeldStepNotes addObject:key];
-          [[[self scoreDocument] notes] sortUsingSelector:@selector (compareScoreNote:)];
-          [self updateChangeCount:NSChangeDone];
+          [_midiAuditionPitches setObject:@(shiftedPitch) forKey:key];
         }
       return;
     }
 
-  [_playbackMonitorView liveNoteOff:data1];
+  NSNumber *auditionPitch = [_midiAuditionPitches objectForKey:key];
+  NSInteger releasedPitch = auditionPitch ? [auditionPitch integerValue] : shiftedPitch;
+  [_playbackMonitorView liveNoteOff:releasedPitch];
   if (_midiRecording)
     {
       if (!_midiCountingIn)
@@ -4879,23 +6582,10 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
             [self finishRecordedMIDIKey:key atTime:time];
         }
     }
-  else
-    {
-      if ([_realtimeDSP isRunning])
-        [_realtimeDSP noteOff:data1];
-      [_midiHeldStepNotes removeObject:key];
-      if ([_midiHeldStepNotes count] == 0)
-        {
-          double durationBeats =
-            [self beatsForNoteValueDenominator:[self denominatorForSelectedNoteValue]];
-          [_noteStartField
-            setDoubleValue:(double)_midiStepStartTick / [[self scoreDocument] ticksPerQuarter] +
-                           durationBeats];
-          /* Re-engrave once for the completed note or chord, not per key. */
-          [[self scoreView] reloadDocument];
-          [self commitUndoBaseline];
-        }
-    }
+  if ([_realtimeDSP isRunning])
+    [_realtimeDSP noteOff:releasedPitch];
+  [_midiHeldStepNotes removeObject:key];
+  [_midiAuditionPitches removeObjectForKey:key];
 }
 
 - (void)midiMetronomeTick:(NSTimer *)timer
@@ -4905,6 +6595,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     [_midiMetronomeSound play];
   else
     NSBeep ();
+  NSUInteger beats = MAX ((NSUInteger)1, [[self scoreDocument] timeSignatureNumerator]);
+  NSUInteger remaining = MIN (_midiCountInBeatsRemaining, beats);
+  [_playbackMonitorView pulseMetronomeBeat:(beats - remaining) % beats];
   if (_midiCountingIn)
     {
       NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
@@ -4912,11 +6605,16 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
         {
           _midiCountingIn = NO;
           _midiCountInBeatsRemaining = 0;
-          [_recordButton setTitle:@"Stop"];
+          [_recordButton setTitle:@""];
+          [_recordButton setImage:ScoreMakerTransportImage (@"stop")];
+          [_recordButton setImagePosition:NSImageOnly];
+          [_recordButton setToolTip:@"Stop Recording"];
+          ScoreMakerSetAccessibilityLabel (_recordButton, @"Stop Recording");
         }
       else if (_midiCountInBeatsRemaining > 0)
         {
           _midiCountInBeatsRemaining--;
+          [_recordButton setImage:nil];
           [_recordButton
             setTitle:[NSString stringWithFormat:@"%lu", (unsigned long)_midiCountInBeatsRemaining]];
         }
@@ -4933,6 +6631,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     }
   if (![self scoreDocument] || [_midiInputPopUp indexOfSelectedItem] <= 0)
     return;
+  [self stopPracticeMetronome];
   [self stopCurrentPlayback];
   [_midiActiveNotes removeAllObjects];
   [_midiSustainedNotes removeAllObjects];
@@ -4950,8 +6649,13 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     = (double)[[self scoreDocument] tempoMicrosecondsPerQuarter] / 1000000.0;
   if (beatDuration <= 0.0)
     beatDuration = 0.5;
+  NSUInteger bpm = (NSUInteger)MAX (1.0, llround (60.0 / beatDuration));
+  [_playbackMonitorView setMetronomeActive:YES bpm:bpm beatsPerMeasure:beats];
   _midiRecordStartTime = [NSDate timeIntervalSinceReferenceDate] + beatDuration * beats;
+  [_recordButton setImage:nil];
   [_recordButton setTitle:[NSString stringWithFormat:@"%lu", (unsigned long)beats]];
+  [_recordButton setToolTip:@"Stop Recording"];
+  ScoreMakerSetAccessibilityLabel (_recordButton, @"Stop Recording");
   _midiMetronomeSound = [[NSSound soundNamed:@"Tink"] retain];
   _midiMetronomeTimer = [[NSTimer scheduledTimerWithTimeInterval:beatDuration
                                                           target:self
@@ -4966,6 +6670,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   if (!_midiRecording && !_midiMetronomeTimer)
     {
       [_midiHeldStepNotes removeAllObjects];
+      [_midiHeldStepScoreNotes removeAllObjects];
+      [_midiAuditionPitches removeAllObjects];
+      [self updateScoreSourceMIDIInputHighlight];
       [_playbackMonitorView clearLiveNotes];
       return;
     }
@@ -4983,14 +6690,22 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_midiMetronomeSound stop];
   [_midiMetronomeSound release];
   _midiMetronomeSound = nil;
+  [_playbackMonitorView setMetronomeActive:NO bpm:120 beatsPerMeasure:4];
   _midiRecording = NO;
   _midiCountingIn = NO;
   _midiSustainDown = NO;
   [_midiActiveNotes removeAllObjects];
   [_midiSustainedNotes removeAllObjects];
   [_midiHeldStepNotes removeAllObjects];
+  [_midiHeldStepScoreNotes removeAllObjects];
+  [_midiAuditionPitches removeAllObjects];
+  [self updateScoreSourceMIDIInputHighlight];
   [_playbackMonitorView clearLiveNotes];
-  [_recordButton setTitle:@"Record"];
+  [_recordButton setTitle:@""];
+  [_recordButton setImage:ScoreMakerTransportImage (@"record")];
+  [_recordButton setImagePosition:NSImageOnly];
+  [_recordButton setToolTip:@"Record"];
+  ScoreMakerSetAccessibilityLabel (_recordButton, @"Record");
   if (_midiRecordedNotes && [self scoreDocument])
     {
       if (_midiRecordingUndoSnapshot)
@@ -5066,6 +6781,185 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [operation runOperation];
   [[self scoreView] setPublicationTrack:previousTrack];
   [previousTrack release];
+}
+
+- (void)editPageLayout:(id)sender
+{
+  (void)sender;
+  ScorePageLayout *layout = [[self scoreDocument] pageLayout];
+  if (!layout)
+    return;
+  NSView *accessory = [[[NSView alloc] initWithFrame:NSMakeRect (0, 0, 430, 270)] autorelease];
+  NSArray *labels = @[ @"Paper width", @"Paper height", @"Top margin", @"Right margin",
+                       @"Bottom margin", @"Left margin", @"Staff scale", @"System spacing" ];
+  NSArray *values = @[ @([layout paperWidth]), @([layout paperHeight]), @([layout marginTop]),
+                       @([layout marginRight]), @([layout marginBottom]), @([layout marginLeft]),
+                       @([layout staffScale]), @([layout systemSpacing]) ];
+  NSMutableArray *fields = [NSMutableArray array];
+  for (NSUInteger index = 0; index < [labels count]; index++)
+    {
+      NSUInteger column = index / 4, row = index % 4;
+      CGFloat x = 8.0 + column * 210.0, y = 235.0 - row * 46.0;
+      NSTextField *label = [self labelWithString:[labels objectAtIndex:index]
+                                           frame:NSMakeRect (x, y, 120, 18)];
+      [accessory addSubview:label];
+      NSTextField *field = [[[NSTextField alloc]
+        initWithFrame:NSMakeRect (x + 122.0, y - 4.0, 72.0, 24.0)] autorelease];
+      [field setDoubleValue:[[values objectAtIndex:index] doubleValue]];
+      [accessory addSubview:field];
+      [fields addObject:field];
+    }
+  NSTextField *headerLabel = [self labelWithString:@"Header"
+                                               frame:NSMakeRect (8, 48, 54, 18)];
+  [accessory addSubview:headerLabel];
+  NSTextField *header = [[[NSTextField alloc] initWithFrame:NSMakeRect (64, 44, 150, 24)] autorelease];
+  [header setStringValue:[layout headerText] ?: @""];
+  [accessory addSubview:header];
+  NSTextField *footerLabel = [self labelWithString:@"Footer"
+                                               frame:NSMakeRect (222, 48, 54, 18)];
+  [accessory addSubview:footerLabel];
+  NSTextField *footer = [[[NSTextField alloc] initWithFrame:NSMakeRect (278, 44, 144, 24)] autorelease];
+  [footer setStringValue:[layout footerText] ?: @""];
+  [accessory addSubview:footer];
+  NSButton *pageNumbers = [[[NSButton alloc] initWithFrame:NSMakeRect (8, 10, 150, 22)] autorelease];
+  [pageNumbers setButtonType:ScoreMakerSwitchButton];
+  [pageNumbers setTitle:@"Show page numbers"];
+  [pageNumbers setState:[layout showPageNumbers] ? ScoreMakerStateOn : ScoreMakerStateOff];
+  [accessory addSubview:pageNumbers];
+  NSButton *headers = [[[NSButton alloc] initWithFrame:NSMakeRect (180, 10, 150, 22)] autorelease];
+  [headers setButtonType:ScoreMakerSwitchButton];
+  [headers setTitle:@"Show running headers"];
+  [headers setState:[layout showHeaders] ? ScoreMakerStateOn : ScoreMakerStateOff];
+  [accessory addSubview:headers];
+
+  NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+  [alert setMessageText:@"Page Layout"];
+  [alert setInformativeText:@"Values use ScoreMaker publication points and apply to screen, print, and PDF output."];
+  [alert setAccessoryView:accessory];
+  [alert addButtonWithTitle:@"Apply"];
+  [alert addButtonWithTitle:@"Cancel"];
+  if ([alert runModal] != NSAlertFirstButtonReturn)
+    return;
+  [self registerUndoSnapshotWithName:@"Page Layout"];
+  [layout setPaperWidth:[[fields objectAtIndex:0] doubleValue]];
+  [layout setPaperHeight:[[fields objectAtIndex:1] doubleValue]];
+  [layout setMarginTop:[[fields objectAtIndex:2] doubleValue]];
+  [layout setMarginRight:[[fields objectAtIndex:3] doubleValue]];
+  [layout setMarginBottom:[[fields objectAtIndex:4] doubleValue]];
+  [layout setMarginLeft:[[fields objectAtIndex:5] doubleValue]];
+  [layout setStaffScale:[[fields objectAtIndex:6] doubleValue]];
+  [layout setSystemSpacing:[[fields objectAtIndex:7] doubleValue]];
+  [layout setHeaderText:[header stringValue]];
+  [layout setFooterText:[footer stringValue]];
+  [layout setShowPageNumbers:[pageNumbers state] == ScoreMakerStateOn];
+  [layout setShowHeaders:[headers state] == ScoreMakerStateOn];
+  [[self scoreView] reloadDocument];
+  [self updateChangeCount:NSChangeDone];
+  [self commitUndoBaseline];
+}
+
+- (void)exportPDF:(id)sender
+{
+  (void)sender;
+  if (![self scoreView])
+    return;
+  NSPopUpButton *scope = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (0, 0, 340, 26)
+                                                     pullsDown:NO] autorelease];
+  [scope addItemWithTitle:@"Full Score"];
+  NSString *partName = [[self scoreDocument] nameForTrack:[self selectedPartNumber]] ?: @"Current Part";
+  [scope addItemWithTitle:[NSString stringWithFormat:@"Current Part — %@", partName]];
+  NSAlert *scopeAlert = [[[NSAlert alloc] init] autorelease];
+  [scopeAlert setMessageText:@"Export PDF"];
+  [scopeAlert setInformativeText:@"Export the conductor score or an independently reflowed part."];
+  [scopeAlert setAccessoryView:scope];
+  [scopeAlert addButtonWithTitle:@"Continue"];
+  [scopeAlert addButtonWithTitle:@"Cancel"];
+  if ([scopeAlert runModal] != NSAlertFirstButtonReturn)
+    return;
+  NSNumber *previousTrack = [[[self scoreView] publicationTrack] retain];
+  if ([scope indexOfSelectedItem] == 1)
+    [[self scoreView] setPublicationTrack:@([self selectedPartNumber])];
+  NSSavePanel *panel = [NSSavePanel savePanel];
+  [panel setNameFieldStringValue:[NSString stringWithFormat:@"%@.pdf",
+                                  [[self scoreDocument] title] ?: @"ScoreMaker Score"]];
+  if ([panel runModal] != NSModalResponseOK)
+    {
+      [[self scoreView] setPublicationTrack:previousTrack];
+      [previousTrack release];
+      return;
+    }
+  NSPrintInfo *info = [[[self printInfo] copy] autorelease];
+  NSMutableDictionary *dictionary = [info dictionary];
+  [dictionary setObject:NSPrintSaveJob forKey:NSPrintJobDisposition];
+#if defined(__APPLE__)
+  [dictionary setObject:[panel URL] forKey:NSPrintJobSavingURL];
+#else
+  [dictionary setObject:[[panel URL] path] forKey:NSPrintSavePath];
+#endif
+  [info setHorizontallyCentered:YES];
+  [info setVerticallyCentered:NO];
+  NSPrintOperation *operation = [NSPrintOperation printOperationWithView:[self scoreView]
+                                                               printInfo:info];
+  [operation setShowsPrintPanel:NO];
+  [operation setShowsProgressPanel:YES];
+  [operation runOperation];
+  [[self scoreView] setPublicationTrack:previousTrack];
+  [previousTrack release];
+}
+
+- (void)showExportCompatibilityReport:(id)sender
+{
+  (void)sender;
+  NSPopUpButton *format = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (0, 0, 360, 26)
+                                                       pullsDown:NO] autorelease];
+  [format addItemsWithTitles:@[ @"ScoreMaker Project", @"MusicXML", @"Standard MIDI",
+                                 @"MusicKit Scorefile", @"PDF", @"Audio" ]];
+  NSAlert *chooser = [[[NSAlert alloc] init] autorelease];
+  [chooser setMessageText:@"Export Compatibility Report"];
+  [chooser setInformativeText:@"Choose a destination format to review what remains editable and portable."];
+  [chooser setAccessoryView:format];
+  [chooser addButtonWithTitle:@"Review"];
+  [chooser addButtonWithTitle:@"Cancel"];
+  if ([chooser runModal] != NSAlertFirstButtonReturn) return;
+  NSString *selection = [format titleOfSelectedItem];
+  NSMutableArray *notes = [NSMutableArray array];
+  NSString *status = @"Fully preserves the native document model.";
+  if ([selection isEqualToString:@"MusicXML"])
+    {
+      status = @"Preserves notation and musical structure for interchange.";
+      [notes addObject:@"Audio Unit identities, internal synth patches, effects, mixer state, and MIDI hardware routes are native project features."];
+      [notes addObject:@"Publication margins, headers, and exact system breaks should be reviewed in the receiving notation application."];
+    }
+  else if ([selection isEqualToString:@"Standard MIDI"])
+    {
+      status = @"Preserves performed notes, timing, tempo, meter, keys, programs, channels, and velocity.";
+      [notes addObject:@"Engraving, voices, lyrics, slurs, ties, tuplets, articulations, repeats, page layout, and score text are not represented reliably by Standard MIDI."];
+    }
+  else if ([selection isEqualToString:@"MusicKit Scorefile"])
+    {
+      status = @"Preserves playable score statements plus ScoreMaker structural metadata.";
+      [notes addObject:@"Older MusicKit readers ignore ScoreMaker metadata for voices, advanced notation, layout, routing, and synthesis."];
+    }
+  else if ([selection isEqualToString:@"PDF"])
+    {
+      status = @"Preserves the vector publication appearance.";
+      [notes addObject:@"PDF is intended for reading and printing, not round-trip score editing or playback."];
+    }
+  else if ([selection isEqualToString:@"Audio"])
+    {
+      status = @"Preserves the rendered performance as WAV, AIFF, or CAF.";
+      [notes addObject:@"Rendered audio does not contain editable notation, MIDI, routing, or instrument settings."];
+    }
+  NSMutableString *detail = [NSMutableString stringWithFormat:@"%@\n\n%lu parts · %lu notes · %lu measures",
+                             status, (unsigned long)[[[self scoreDocument] parts] count],
+                             (unsigned long)[[[self scoreDocument] notes] count],
+                             (unsigned long)[[[self scoreDocument] measures] count]];
+  for (NSString *warning in notes) [detail appendFormat:@"\n\n• %@", warning];
+  NSAlert *report = [[[NSAlert alloc] init] autorelease];
+  [report setMessageText:[NSString stringWithFormat:@"%@ compatibility", selection]];
+  [report setInformativeText:detail];
+  [report addButtonWithTitle:@"OK"];
+  [report runModal];
 }
 
 - (NSString *)generatedScoreSourceWithError:(NSError **)error
@@ -5152,8 +7046,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #endif
-      NSUInteger style = NSTitledWindowMask | NSClosableWindowMask | NSMiniaturizableWindowMask
-                         | NSResizableWindowMask;
+      NSUInteger style = ScoreMakerWindowTitled | ScoreMakerWindowClosable | ScoreMakerWindowMiniaturizable
+                         | ScoreMakerWindowResizable;
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
@@ -5552,6 +7446,35 @@ ScoreSourceNoteIdentity (ScoreNote *note, ScoreDocument *document)
 #endif
 }
 
+- (void)updateScoreSourceMIDIInputHighlight
+{
+  [self clearScoreSourcePlaybackHighlight];
+  if (!_scoreSourceEditorWindow || ![_scoreSourceEditorWindow isVisible]
+      || _scoreSourceEditorDirty || ![_midiHeldStepScoreNotes count])
+    return;
+
+  NSArray *active = [_midiHeldStepScoreNotes allValues];
+  NSMutableArray *ranges = [NSMutableArray array];
+  NSLayoutManager *layout = [_scoreSourceTextView layoutManager];
+  for (ScoreNote *note in active)
+    {
+      NSValue *value = [self sourceRangeForScoreNote:note];
+      if (value && ![ranges containsObject:value])
+        {
+          [ranges addObject:value];
+          NSColor *color = [ScoreVoiceColor ([note voice], NO) colorWithAlphaComponent:0.42];
+          [layout addTemporaryAttribute:NSBackgroundColorAttributeName
+                                 value:color
+                     forCharacterRange:[value rangeValue]];
+        }
+    }
+  if (![ranges count])
+    return;
+  _scoreSourcePlaybackRanges = [ranges copy];
+  _scoreSourcePlaybackSignature = [@"midi-input" copy];
+  [_scoreSourceTextView scrollRangeToVisible:[[ranges objectAtIndex:0] rangeValue]];
+}
+
 - (ScoreNote *)scoreNoteForSourceLocation:(NSUInteger)location
 {
   if (!_scoreSourceRangeMappings && !_scoreSourceEditorDirty)
@@ -5635,6 +7558,7 @@ ScoreSourceNoteIdentity (ScoreNote *note, ScoreDocument *document)
 
   [self registerUndoSnapshotWithName:@"Edit Score Source"];
   _applyingScoreSource = YES;
+  [parsed copyMIDIRoutingAssignmentsFromDocument:[self scoreDocument]];
   [self setScoreDocument:parsed];
   [[self scoreView] reloadDocument];
   [self refreshInspector];

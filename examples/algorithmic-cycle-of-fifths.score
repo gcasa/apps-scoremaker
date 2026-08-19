@@ -1,0 +1,72 @@
+/*
+ * Algorithmic Cycle of Fifths
+ *
+ * This example is intentionally a program rather than an expanded note list.
+ * It demonstrates the historical MusicKit ScoreFile scripting constructs that
+ * ScoreMaker supports: typed variables, arithmetic and exponentiation, nested
+ * while loops, if/else, part defaults, envelopes, relative time, and computed
+ * synthesis parameters.
+ */
+
+string scoreTitle = "Algorithmic Cycle of Fifths";
+string scoreComposer = "ScoreMaker example";
+
+info tempo:108 timeSignature:4/4;
+
+part Harmony, Sparkle;
+Harmony synthPatch:"Warm Pad" synthPatchCount:4;
+Sparkle synthPatch:"Pluck" synthPatchCount:2;
+
+envelope phraseShape = [(0,0)(.08,1)|(.72,.7)(1,0)];
+envelope brightShape = [(0,.25)(.5,.9)(1,.35)];
+
+BEGIN;
+
+t 0;
+
+/* Untagged updates establish defaults inherited by generated notes. */
+Harmony (noteUpdate) amp:.18 ampEnv:phraseShape bright:.42;
+Sparkle (noteUpdate) amp:.42 ampEnv:phraseShape brightEnv:brightShape;
+
+int chord = 0;
+double root = c3;
+double level = .18;
+
+while (chord < 12) {
+    /* Move around the circle of fifths, folding roots into a useful register. */
+    root = c3 * 1.5 ^ chord;
+    while (root > c5) {
+        root = root / 2;
+    }
+
+    if (chord < 6) {
+        level = .16 + chord * .018;
+    } else {
+        level = .27 - (chord - 6) * .018;
+    }
+
+    /* Build a four-voice harmonic-series chord at the current time. */
+    int voice = 0;
+    while (voice < 4) {
+        Harmony (.44) freq:root * (voice + 1)
+                       amp:level
+                       bearing:-36 + voice * 24;
+        voice = voice + 1;
+    }
+
+    /* A short upper voice picks out alternating partials. */
+    if (chord < 6) {
+        Sparkle (.20) freq:root * 6 amp:.38 bearing:30;
+    } else {
+        Sparkle (.20) freq:root * 5 amp:.34 bearing:-30;
+    }
+
+    t + .5;
+    chord = chord + 1;
+}
+
+/* Let the final sonority settle on a low tonic. */
+Harmony (1.5) freq:c3 amp:.22 bearing:0;
+Harmony (1.5) freq:c4 amp:.16 bearing:0;
+
+END;

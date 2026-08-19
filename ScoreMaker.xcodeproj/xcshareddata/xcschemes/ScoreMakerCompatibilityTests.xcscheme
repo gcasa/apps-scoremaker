@@ -14,9 +14,23 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "C0A54602A598905410F218C4"
+               BlueprintIdentifier = "BB243FAC65FF068EAAEBACCF"
                BuildableName = "ScoreMakerCompatibilityTests"
                BlueprintName = "ScoreMakerCompatibilityTests"
+               ReferencedContainer = "container:ScoreMaker.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "7F06EBCA8164056CEEA6F0A2"
+               BuildableName = "ScoreMakerTests.xctest"
+               BlueprintName = "ScoreMakerTests"
                ReferencedContainer = "container:ScoreMaker.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -30,13 +44,23 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "C0A54602A598905410F218C4"
+            BlueprintIdentifier = "BB243FAC65FF068EAAEBACCF"
             BuildableName = "ScoreMakerCompatibilityTests"
             BlueprintName = "ScoreMakerCompatibilityTests"
             ReferencedContainer = "container:ScoreMaker.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "7F06EBCA8164056CEEA6F0A2"
+               BuildableName = "ScoreMakerTests.xctest"
+               BlueprintName = "ScoreMakerTests"
+               ReferencedContainer = "container:ScoreMaker.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction
@@ -53,7 +77,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "C0A54602A598905410F218C4"
+            BlueprintIdentifier = "BB243FAC65FF068EAAEBACCF"
             BuildableName = "ScoreMakerCompatibilityTests"
             BlueprintName = "ScoreMakerCompatibilityTests"
             ReferencedContainer = "container:ScoreMaker.xcodeproj">
@@ -70,7 +94,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "C0A54602A598905410F218C4"
+            BlueprintIdentifier = "BB243FAC65FF068EAAEBACCF"
             BuildableName = "ScoreMakerCompatibilityTests"
             BlueprintName = "ScoreMakerCompatibilityTests"
             ReferencedContainer = "container:ScoreMaker.xcodeproj">

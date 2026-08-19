@@ -1,0 +1,28 @@
+name: ScoreMaker CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test
+        run: make test
+      - name: Run Xcode test bundle
+        run: >-
+          xcodebuild -project ScoreMaker.xcodeproj
+          -scheme ScoreMakerCompatibilityTests
+          -configuration Debug test CODE_SIGNING_ALLOWED=NO
+      - name: Verify application metadata
+        run: |
+          plutil -lint Info.plist ScoreMaker.entitlements
+          sh -n tools/release.sh tools/install.sh
+      - name: Archive test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scoremaker-test-build
+          path: build/

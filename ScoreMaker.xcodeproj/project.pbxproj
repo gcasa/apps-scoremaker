@@ -7,256 +7,284 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		05A7AF5F652AE152E19E5348 /* treble_clef.png in Resources */ = {isa = PBXBuildFile; fileRef = 3C5DB85E7AE1E2193ADF4AA9 /* treble_clef.png */; };
-		0908B70B8981DE703D507125 /* PlaybackMonitorView.m in Sources */ = {isa = PBXBuildFile; fileRef = E8945A467FF27DD81E7031EB /* PlaybackMonitorView.m */; };
-		0A97977CF24CD0A5EC437386 /* CoreMIDI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 34352F410E9909B394A4D151 /* CoreMIDI.framework */; };
-		0AB3156D52E41F54D5F7FEA6 /* ScoreMakerDocument.m in Sources */ = {isa = PBXBuildFile; fileRef = EE619D60A8DF5B7748080F3B /* ScoreMakerDocument.m */; };
-		11CFF22F8463568D9215E07B /* ScoreProjectSerializer.m in Sources */ = {isa = PBXBuildFile; fileRef = 52DB73290C650A496814781F /* ScoreProjectSerializer.m */; };
-		22EDE2F9917B44E699951F8F /* MusicEngine.m in Sources */ = {isa = PBXBuildFile; fileRef = 9D864F877B13D9CC6C1DD9DA /* MusicEngine.m */; };
-		2F194AF6762BBCEA92E8C20C /* EngravingLayout.m in Sources */ = {isa = PBXBuildFile; fileRef = A548380673F863C401896648 /* EngravingLayout.m */; };
-		39932A69246DD64551610A5E /* bass_clef.png in Resources */ = {isa = PBXBuildFile; fileRef = 21D717EE01F69BDA33850872 /* bass_clef.png */; };
-		439852AB36EBD8F4857330F1 /* CoreAudioKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9A1E890FFEB039815CAA2462 /* CoreAudioKit.framework */; };
-		454A7C5D28A709EC952C37CF /* ScoreProjectSerializer.m in Sources */ = {isa = PBXBuildFile; fileRef = 52DB73290C650A496814781F /* ScoreProjectSerializer.m */; };
-		522D7C313B1149146563FAF0 /* NotationModel.m in Sources */ = {isa = PBXBuildFile; fileRef = 228EB9CA26A40FC44ACCC08B /* NotationModel.m */; };
-		59601707345ADB17000ABE02 /* ScorefileParser.m in Sources */ = {isa = PBXBuildFile; fileRef = 4B58436FE769382EB13291B0 /* ScorefileParser.m */; };
-		59738E7FEAD0A4F8C686D40A /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1A70C455BE2CC8ABF925B0D1 /* AudioToolbox.framework */; };
-		59E9F7DC6C9AC9126236090C /* ScoreModel.m in Sources */ = {isa = PBXBuildFile; fileRef = DF222F9EF56205443F8F3CD3 /* ScoreModel.m */; };
-		5BDD65C4EAB9962D8BE74742 /* CoreAudioKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9A1E890FFEB039815CAA2462 /* CoreAudioKit.framework */; };
-		5BEEAB2F8F16477A67C04ABD /* EngravingLayout.m in Sources */ = {isa = PBXBuildFile; fileRef = A548380673F863C401896648 /* EngravingLayout.m */; };
-		64ADADE23E19E4D988C36B53 /* ScorefileCompatibilityTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 3F799D722E77BFD23337E522 /* ScorefileCompatibilityTests.m */; };
-		68128BB88115479B0A579083 /* ScoreMakerAppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 4B198025E6EAB0EE32E1F736 /* ScoreMakerAppIcon.icns */; };
-		69358E356F3B53FF178686D2 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1A70C455BE2CC8ABF925B0D1 /* AudioToolbox.framework */; };
-		6DFE1FE77EE9FCD4F3DA5FF7 /* ScorefileParser.m in Sources */ = {isa = PBXBuildFile; fileRef = 4B58436FE769382EB13291B0 /* ScorefileParser.m */; };
-		7393C416BB2AB77DE1E58500 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7DD120A57061B213B7B4F21E /* AVFoundation.framework */; };
-		7C34AA5CDDE018F74B0CF917 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7DD120A57061B213B7B4F21E /* AVFoundation.framework */; };
-		8195D903859651CB28EFBD91 /* ScoreMakerDocumentIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 9FAFA7EEADE9A5E22E52156C /* ScoreMakerDocumentIcon.icns */; };
-		81C3F29D1B6240A3041A6306 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3A57A3C431DE1043036941E2 /* Cocoa.framework */; };
-		94AEE05D49E4324D57D0AC03 /* MidiParser.m in Sources */ = {isa = PBXBuildFile; fileRef = DDE562585F5401517CCB0A84 /* MidiParser.m */; };
-		98D89CFB61734E6E7F385CE3 /* NotationModel.m in Sources */ = {isa = PBXBuildFile; fileRef = 228EB9CA26A40FC44ACCC08B /* NotationModel.m */; };
-		A183DDCE7305441A62812AA0 /* MIDIInputManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 69089E29418C1A6FF51DC2A3 /* MIDIInputManager.m */; };
-		A317FB36559949ADB9858901 /* ScoreModel.m in Sources */ = {isa = PBXBuildFile; fileRef = DF222F9EF56205443F8F3CD3 /* ScoreModel.m */; };
-		A3984DD64903DC8A81C3DD9C /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2AC8BBDE894D2B0B7DAD7C5A /* AppKit.framework */; };
-		AAEC1887051B1EEA3C7A63AC /* MidiParser.m in Sources */ = {isa = PBXBuildFile; fileRef = DDE562585F5401517CCB0A84 /* MidiParser.m */; };
-		AEA3BBF7691E0AAC8BE1AA80 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = FA02D0EF08EE979E674F1665 /* main.m */; };
-		C312DB4F1561DB5A4D969FE3 /* ScoreMakerDocumentController.m in Sources */ = {isa = PBXBuildFile; fileRef = 60F33E3CC9C93F597A181184 /* ScoreMakerDocumentController.m */; };
-		CF87E2E6757DFC9325B8AEFC /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3A2C52994F3C57D20BAA3516 /* Foundation.framework */; };
-		D885A64C6F806F081C9554C7 /* ScoreView.m in Sources */ = {isa = PBXBuildFile; fileRef = 2ECB7EDE238F8D6019CBD1FD /* ScoreView.m */; };
-		DE955430A5974E101F2181FA /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3A57A3C431DE1043036941E2 /* Cocoa.framework */; };
-		DFD0B397850EE36C68CAA603 /* RealtimeDSP.m in Sources */ = {isa = PBXBuildFile; fileRef = 0DFAD83E2EA3C8AFDB71A2FA /* RealtimeDSP.m */; };
-		E2C0AD4695BCFBA1DCB91810 /* MusicXMLParser.m in Sources */ = {isa = PBXBuildFile; fileRef = 048C696D4EB536BED76873BA /* MusicXMLParser.m */; };
-		E718D39DE23B3B772AB6298F /* MusicPlatformModel.m in Sources */ = {isa = PBXBuildFile; fileRef = D0014F96A62EF4E5250D5EB1 /* MusicPlatformModel.m */; };
-		E776E5CF0CA55270A6CCD426 /* MusicPlatformModel.m in Sources */ = {isa = PBXBuildFile; fileRef = D0014F96A62EF4E5250D5EB1 /* MusicPlatformModel.m */; };
-		E8F817C74C6B7D814C1AD262 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 10C8CB908D42F8BB46E15CF5 /* AppDelegate.m */; };
-		EF57C518B9ABCBA0B0137B6C /* RealtimeDSP.m in Sources */ = {isa = PBXBuildFile; fileRef = 0DFAD83E2EA3C8AFDB71A2FA /* RealtimeDSP.m */; };
-		F8BC42D5B75E843A2B7E8BAC /* MusicXMLParser.m in Sources */ = {isa = PBXBuildFile; fileRef = 048C696D4EB536BED76873BA /* MusicXMLParser.m */; };
-		FEC4E47B0D199413D3272AE4 /* MusicEngine.m in Sources */ = {isa = PBXBuildFile; fileRef = 9D864F877B13D9CC6C1DD9DA /* MusicEngine.m */; };
+		072068F0C05EEF4D1BA26075 /* PlaybackMonitorView.m in Sources */ = {isa = PBXBuildFile; fileRef = 6C8A364A7D41EF0CD5838E39 /* PlaybackMonitorView.m */; };
+		07A633FF2083FC110E38D4B2 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8A0266FD0A5C2110DB7717D0 /* AudioToolbox.framework */; };
+		0BE6E31709E79B4BDC09137D /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 43172EB298FE5D3A227A2649 /* AppKit.framework */; };
+		2365632C808E7485B21A3FB6 /* MIDIInputManager.m in Sources */ = {isa = PBXBuildFile; fileRef = A39C5B06944CDBE9BA557351 /* MIDIInputManager.m */; };
+		2E9ADCF723F33D88E614F443 /* MidiParser.m in Sources */ = {isa = PBXBuildFile; fileRef = F33F82DE3273D96A504D1CFD /* MidiParser.m */; };
+		32D99BBB22F2F2A660AA482C /* ScoreModel.m in Sources */ = {isa = PBXBuildFile; fileRef = 72296BA4594E3DA2E298D22D /* ScoreModel.m */; };
+		360A63759B7A984DBADD4048 /* EngravingLayout.m in Sources */ = {isa = PBXBuildFile; fileRef = D088E5C401B10C21404E9ABF /* EngravingLayout.m */; };
+		3C79726409D1588418A53DF8 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7A1C2464BEF563DBA56D95F2 /* Cocoa.framework */; };
+		485A3FBB709E43C1BE409030 /* bass_clef.png in Resources */ = {isa = PBXBuildFile; fileRef = 6343EE7DED7C0D2F4D1A2588 /* bass_clef.png */; };
+		4A944B92D313D7B46113808F /* ScoreView.m in Sources */ = {isa = PBXBuildFile; fileRef = 69AB1D4962BA8C73B583683E /* ScoreView.m */; };
+		5BE9FF8C23065F44533B9168 /* ScoreMakerXcodeTests.m in Sources */ = {isa = PBXBuildFile; fileRef = BA329B2B3B9A18465CA8B2B3 /* ScoreMakerXcodeTests.m */; };
+		5E047826D46FE9387B43D623 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0BD892C8ECA6DA27F9AD2379 /* AVFoundation.framework */; };
+		6C25A7590F11BB3626AE3446 /* MusicPlatformModel.m in Sources */ = {isa = PBXBuildFile; fileRef = 15F92212BF4339CF286CF85A /* MusicPlatformModel.m */; };
+		73BF91F6076E5546C3036EEF /* ScoreMakerDocument.m in Sources */ = {isa = PBXBuildFile; fileRef = 04C518C42594E59D08977794 /* ScoreMakerDocument.m */; };
+		78C934E8E74945AC2E9321DE /* CoreMIDI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 27682708507FD6C015BF7974 /* CoreMIDI.framework */; };
+		78E602AEF4F844FC9327E531 /* ScorefileParser.m in Sources */ = {isa = PBXBuildFile; fileRef = 2ACC5A6A395D11AB0EE4CCDB /* ScorefileParser.m */; };
+		7B2AEAE86FD39A503E1AE3FC /* ScoreMakerDocumentController.m in Sources */ = {isa = PBXBuildFile; fileRef = 361B3D8FE04CC3A116FA05E0 /* ScoreMakerDocumentController.m */; };
+		7CDA3B86FCD9FA57F5E8503F /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0BD892C8ECA6DA27F9AD2379 /* AVFoundation.framework */; };
+		7D3459EDF48F694129665FE6 /* ScoreMakerAppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 6733F47828D9C0BB4683A399 /* ScoreMakerAppIcon.icns */; };
+		8371CF81600C4E26DB6B5AE2 /* ScorefileCompatibilityTests.m in Sources */ = {isa = PBXBuildFile; fileRef = E146739B98DEE34DCBF0C9B1 /* ScorefileCompatibilityTests.m */; };
+		849F9CE255D380D51CB14DC7 /* ScorefileParser.m in Sources */ = {isa = PBXBuildFile; fileRef = 2ACC5A6A395D11AB0EE4CCDB /* ScorefileParser.m */; };
+		869E3FF66718EBD10B33733A /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7A1C2464BEF563DBA56D95F2 /* Cocoa.framework */; };
+		8A0EAD0C7480BDFEC74CC53F /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = CF72CFA8628910C51A32E526 /* AppDelegate.m */; };
+		8C3BA21AEE6ADB4F24C90909 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 31AAE73F3337856D70EE685B /* main.m */; };
+		8F0F790D6609455D68408784 /* ScoreModel.m in Sources */ = {isa = PBXBuildFile; fileRef = 72296BA4594E3DA2E298D22D /* ScoreModel.m */; };
+		9073E355910C9453C2D7E13E /* CoreAudioKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 54886F16C62BD46C3550402B /* CoreAudioKit.framework */; };
+		A26C9EB56E20287BE50926C8 /* MusicEngine.m in Sources */ = {isa = PBXBuildFile; fileRef = 34EC1950510B0797077BC5B7 /* MusicEngine.m */; };
+		A77DC2F36C207C3857D03A31 /* ScoreProjectSerializer.m in Sources */ = {isa = PBXBuildFile; fileRef = 6CE5A1AEBA76B83299F2B007 /* ScoreProjectSerializer.m */; };
+		AA17C7A70A8981BAD6614217 /* MidiParser.m in Sources */ = {isa = PBXBuildFile; fileRef = F33F82DE3273D96A504D1CFD /* MidiParser.m */; };
+		AD1DABE7EAF15F4C0796404B /* MusicXMLParser.m in Sources */ = {isa = PBXBuildFile; fileRef = 99169A0C31FEF71A9C269602 /* MusicXMLParser.m */; };
+		BE407F3ACB72B083B8F08EE6 /* ScoreMakerDocumentIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = A21CEB8796F38D3CCBEBF9A2 /* ScoreMakerDocumentIcon.icns */; };
+		BFCD81D20C7ED5692FC153AD /* ScoreProjectSerializer.m in Sources */ = {isa = PBXBuildFile; fileRef = 6CE5A1AEBA76B83299F2B007 /* ScoreProjectSerializer.m */; };
+		C1C932353ADCD811CE5CA3B1 /* NotationModel.m in Sources */ = {isa = PBXBuildFile; fileRef = 8104C3C2853DE8200592C5A5 /* NotationModel.m */; };
+		C4F1A8171AD209B2B824E0B6 /* RealtimeDSP.m in Sources */ = {isa = PBXBuildFile; fileRef = 5FD9E2697DA1423B44701D1E /* RealtimeDSP.m */; };
+		C763FA3A4598D4489A66A13A /* RealtimeDSP.m in Sources */ = {isa = PBXBuildFile; fileRef = 5FD9E2697DA1423B44701D1E /* RealtimeDSP.m */; };
+		C7B293CF269942B519849D94 /* MusicEngine.m in Sources */ = {isa = PBXBuildFile; fileRef = 34EC1950510B0797077BC5B7 /* MusicEngine.m */; };
+		D31D2EE9E6D67323890BE8CC /* MusicXMLParser.m in Sources */ = {isa = PBXBuildFile; fileRef = 99169A0C31FEF71A9C269602 /* MusicXMLParser.m */; };
+		D4B2EBD7D2F33D2C958C1375 /* MusicPlatformModel.m in Sources */ = {isa = PBXBuildFile; fileRef = 15F92212BF4339CF286CF85A /* MusicPlatformModel.m */; };
+		D58CFD51F19479A57AA82EB4 /* EngravingLayout.m in Sources */ = {isa = PBXBuildFile; fileRef = D088E5C401B10C21404E9ABF /* EngravingLayout.m */; };
+		DA32C633B5F81586384B81E1 /* CoreAudioKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 54886F16C62BD46C3550402B /* CoreAudioKit.framework */; };
+		E2784E729AE1836E01D8307F /* NotationModel.m in Sources */ = {isa = PBXBuildFile; fileRef = 8104C3C2853DE8200592C5A5 /* NotationModel.m */; };
+		E7D3EEDEAD9C5F9FFB424D71 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1A951310045AB4FC20CA8ACF /* Foundation.framework */; };
+		EC3626EBC45066BC4DBC5ADF /* treble_clef.png in Resources */ = {isa = PBXBuildFile; fileRef = 009BDF7A9B80FCCA8C3CED30 /* treble_clef.png */; };
+		EF2EC4119F2DA76093BA363C /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0AA51A509529C03C268ED723 /* XCTest.framework */; };
+		F249F545878871101B89AE00 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7A1C2464BEF563DBA56D95F2 /* Cocoa.framework */; };
+		F411A12C5E17B183A7B21AE4 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8A0266FD0A5C2110DB7717D0 /* AudioToolbox.framework */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		7DC3E09F4AD6A95FD5F2D0D5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5C6BAA41D04797D2297B33BB /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BB243FAC65FF068EAAEBACCF;
+			remoteInfo = ScoreMakerCompatibilityTests;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
-		048C696D4EB536BED76873BA /* MusicXMLParser.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = MusicXMLParser.m; sourceTree = "<group>"; };
-		049616C2473316E9C4F79AF1 /* ScoreProjectSerializer.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = ScoreProjectSerializer.h; sourceTree = "<group>"; };
-		07AD1CD140C10A92F3027804 /* ScoreMakerDocument.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = ScoreMakerDocument.h; sourceTree = "<group>"; };
-		090925949F90EC81C39602FD /* ScoreMaker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ScoreMaker.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		0DFAD83E2EA3C8AFDB71A2FA /* RealtimeDSP.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = RealtimeDSP.m; sourceTree = "<group>"; };
-		10C8CB908D42F8BB46E15CF5 /* AppDelegate.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
-		1138781B6C6C9E02FE625998 /* MidiParser.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = MidiParser.h; sourceTree = "<group>"; };
-		1741B97299568ADCA0EE3D99 /* EngravingLayout.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = EngravingLayout.h; sourceTree = "<group>"; };
-		1A70C455BE2CC8ABF925B0D1 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/AudioToolbox.framework; sourceTree = DEVELOPER_DIR; };
-		21D717EE01F69BDA33850872 /* bass_clef.png */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.png; path = bass_clef.png; sourceTree = "<group>"; };
-		228EB9CA26A40FC44ACCC08B /* NotationModel.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = NotationModel.m; sourceTree = "<group>"; };
-		2AC8BBDE894D2B0B7DAD7C5A /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/AppKit.framework; sourceTree = DEVELOPER_DIR; };
-		2D3828296C287C2C2B61E20B /* RealtimeDSP.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = RealtimeDSP.h; sourceTree = "<group>"; };
-		2ECB7EDE238F8D6019CBD1FD /* ScoreView.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = ScoreView.m; sourceTree = "<group>"; };
-		34352F410E9909B394A4D151 /* CoreMIDI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMIDI.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/CoreMIDI.framework; sourceTree = DEVELOPER_DIR; };
-		3A2C52994F3C57D20BAA3516 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
-		3A57A3C431DE1043036941E2 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
-		3C5DB85E7AE1E2193ADF4AA9 /* treble_clef.png */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.png; path = treble_clef.png; sourceTree = "<group>"; };
-		3F799D722E77BFD23337E522 /* ScorefileCompatibilityTests.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = ScorefileCompatibilityTests.m; sourceTree = "<group>"; };
-		4B198025E6EAB0EE32E1F736 /* ScoreMakerAppIcon.icns */ = {isa = PBXFileReference; includeInIndex = 1; path = ScoreMakerAppIcon.icns; sourceTree = "<group>"; };
-		4B58436FE769382EB13291B0 /* ScorefileParser.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = ScorefileParser.m; sourceTree = "<group>"; };
-		52DB73290C650A496814781F /* ScoreProjectSerializer.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = ScoreProjectSerializer.m; sourceTree = "<group>"; };
-		60F33E3CC9C93F597A181184 /* ScoreMakerDocumentController.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = ScoreMakerDocumentController.m; sourceTree = "<group>"; };
-		64EE2E5A9D421A02BEBEB041 /* ScorefileParser.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = ScorefileParser.h; sourceTree = "<group>"; };
-		69089E29418C1A6FF51DC2A3 /* MIDIInputManager.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = MIDIInputManager.m; sourceTree = "<group>"; };
-		7DD120A57061B213B7B4F21E /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/AVFoundation.framework; sourceTree = DEVELOPER_DIR; };
-		7F1944300F5A514653F77934 /* ScoreMakerDocumentController.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = ScoreMakerDocumentController.h; sourceTree = "<group>"; };
-		9A1E890FFEB039815CAA2462 /* CoreAudioKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudioKit.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/CoreAudioKit.framework; sourceTree = DEVELOPER_DIR; };
-		9D864F877B13D9CC6C1DD9DA /* MusicEngine.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = MusicEngine.m; sourceTree = "<group>"; };
-		9FAFA7EEADE9A5E22E52156C /* ScoreMakerDocumentIcon.icns */ = {isa = PBXFileReference; includeInIndex = 1; path = ScoreMakerDocumentIcon.icns; sourceTree = "<group>"; };
-		A077B78724D974F994830883 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		A09370B3E6B750E142F10232 /* ScoreMaker.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = ScoreMaker.entitlements; sourceTree = "<group>"; };
-		A0D87081EE4E5126CD9E8FA2 /* ScoreMakerCompatibilityTests */ = {isa = PBXFileReference; includeInIndex = 0; path = ScoreMakerCompatibilityTests; sourceTree = BUILT_PRODUCTS_DIR; };
-		A548380673F863C401896648 /* EngravingLayout.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = EngravingLayout.m; sourceTree = "<group>"; };
-		A680606306DA70974476DAEB /* MusicEngine.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = MusicEngine.h; sourceTree = "<group>"; };
-		AEEB0790F0F20EBC7E05DF69 /* AppDelegate.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
-		B6D68052FA669E74926F9159 /* MusicPlatformModel.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = MusicPlatformModel.h; sourceTree = "<group>"; };
-		C5F07A36878C860BFE128DF7 /* ScoreView.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = ScoreView.h; sourceTree = "<group>"; };
-		C965DCECA43660C803595674 /* PlaybackMonitorView.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = PlaybackMonitorView.h; sourceTree = "<group>"; };
-		D0014F96A62EF4E5250D5EB1 /* MusicPlatformModel.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = MusicPlatformModel.m; sourceTree = "<group>"; };
-		D1CBD755639E5447B50BBB8A /* MIDIInputManager.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = MIDIInputManager.h; sourceTree = "<group>"; };
-		DDE562585F5401517CCB0A84 /* MidiParser.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = MidiParser.m; sourceTree = "<group>"; };
-		DF222F9EF56205443F8F3CD3 /* ScoreModel.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = ScoreModel.m; sourceTree = "<group>"; };
-		DF7609C059A441F922C947EE /* NotationModel.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = NotationModel.h; sourceTree = "<group>"; };
-		E4677727BC7FE1A1F4C6F7CA /* ScoreModel.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = ScoreModel.h; sourceTree = "<group>"; };
-		E8945A467FF27DD81E7031EB /* PlaybackMonitorView.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = PlaybackMonitorView.m; sourceTree = "<group>"; };
-		EE619D60A8DF5B7748080F3B /* ScoreMakerDocument.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = ScoreMakerDocument.m; sourceTree = "<group>"; };
-		EFCC8D93A7CBC05A1FB33779 /* MusicXMLParser.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = MusicXMLParser.h; sourceTree = "<group>"; };
-		FA02D0EF08EE979E674F1665 /* main.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		009BDF7A9B80FCCA8C3CED30 /* treble_clef.png */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.png; path = treble_clef.png; sourceTree = "<group>"; };
+		04C518C42594E59D08977794 /* ScoreMakerDocument.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = ScoreMakerDocument.m; sourceTree = "<group>"; };
+		0AA51A509529C03C268ED723 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
+		0BD892C8ECA6DA27F9AD2379 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/AVFoundation.framework; sourceTree = DEVELOPER_DIR; };
+		11FC58A81CAC85758561DB93 /* ScoreMakerCompatibilityTests */ = {isa = PBXFileReference; includeInIndex = 0; path = ScoreMakerCompatibilityTests; sourceTree = BUILT_PRODUCTS_DIR; };
+		1394DC7BEFC18DC9AD8C2B70 /* MusicEngine.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = MusicEngine.h; sourceTree = "<group>"; };
+		15F92212BF4339CF286CF85A /* MusicPlatformModel.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = MusicPlatformModel.m; sourceTree = "<group>"; };
+		162C7B7D467C085351CEF6EB /* AppDelegate.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
+		19C62FCAE560D9BB8DB42703 /* MusicXMLParser.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = MusicXMLParser.h; sourceTree = "<group>"; };
+		1A951310045AB4FC20CA8ACF /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		27443086F13E75230F07EFED /* NotationModel.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = NotationModel.h; sourceTree = "<group>"; };
+		27682708507FD6C015BF7974 /* CoreMIDI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMIDI.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/CoreMIDI.framework; sourceTree = DEVELOPER_DIR; };
+		29A7A70B5BA516F1BEDE39FD /* ScoreView.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = ScoreView.h; sourceTree = "<group>"; };
+		2ACC5A6A395D11AB0EE4CCDB /* ScorefileParser.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = ScorefileParser.m; sourceTree = "<group>"; };
+		2C479F4B402EF5F59CFE1545 /* ScoreModel.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = ScoreModel.h; sourceTree = "<group>"; };
+		31AAE73F3337856D70EE685B /* main.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		334EE0C1AAE9CE09A067022A /* ScoreMaker.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = ScoreMaker.entitlements; sourceTree = "<group>"; };
+		34EC1950510B0797077BC5B7 /* MusicEngine.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = MusicEngine.m; sourceTree = "<group>"; };
+		361B3D8FE04CC3A116FA05E0 /* ScoreMakerDocumentController.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = ScoreMakerDocumentController.m; sourceTree = "<group>"; };
+		3AB2579BD423888D7037948F /* EngravingLayout.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = EngravingLayout.h; sourceTree = "<group>"; };
+		3DCD26960AD4FD57CB5B1AFF /* ScoreMakerDocument.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = ScoreMakerDocument.h; sourceTree = "<group>"; };
+		40DB48F76C94CB9ECBF44358 /* PlaybackMonitorView.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = PlaybackMonitorView.h; sourceTree = "<group>"; };
+		43172EB298FE5D3A227A2649 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/AppKit.framework; sourceTree = DEVELOPER_DIR; };
+		4F3D13EDF54F4E9F9F9050B6 /* MIDIInputManager.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = MIDIInputManager.h; sourceTree = "<group>"; };
+		54886F16C62BD46C3550402B /* CoreAudioKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudioKit.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/CoreAudioKit.framework; sourceTree = DEVELOPER_DIR; };
+		5FD9E2697DA1423B44701D1E /* RealtimeDSP.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = RealtimeDSP.m; sourceTree = "<group>"; };
+		60088124C20702D04D9ACFFB /* ScoreMakerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ScoreMakerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		6343EE7DED7C0D2F4D1A2588 /* bass_clef.png */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.png; path = bass_clef.png; sourceTree = "<group>"; };
+		666419D8471B15DE2028D06A /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		6733F47828D9C0BB4683A399 /* ScoreMakerAppIcon.icns */ = {isa = PBXFileReference; includeInIndex = 1; path = ScoreMakerAppIcon.icns; sourceTree = "<group>"; };
+		69AB1D4962BA8C73B583683E /* ScoreView.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = ScoreView.m; sourceTree = "<group>"; };
+		6C8A364A7D41EF0CD5838E39 /* PlaybackMonitorView.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = PlaybackMonitorView.m; sourceTree = "<group>"; };
+		6CE5A1AEBA76B83299F2B007 /* ScoreProjectSerializer.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = ScoreProjectSerializer.m; sourceTree = "<group>"; };
+		6DF7589E713F70DB7F3ED0E1 /* MusicPlatformModel.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = MusicPlatformModel.h; sourceTree = "<group>"; };
+		72296BA4594E3DA2E298D22D /* ScoreModel.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = ScoreModel.m; sourceTree = "<group>"; };
+		74ADFDA13DAEC05193CAFC7A /* RealtimeDSP.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = RealtimeDSP.h; sourceTree = "<group>"; };
+		7A1C2464BEF563DBA56D95F2 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
+		8104C3C2853DE8200592C5A5 /* NotationModel.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = NotationModel.m; sourceTree = "<group>"; };
+		8A0266FD0A5C2110DB7717D0 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/AudioToolbox.framework; sourceTree = DEVELOPER_DIR; };
+		937DC0364DB221BD834F7E28 /* ScoreMaker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ScoreMaker.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		99169A0C31FEF71A9C269602 /* MusicXMLParser.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = MusicXMLParser.m; sourceTree = "<group>"; };
+		A21CEB8796F38D3CCBEBF9A2 /* ScoreMakerDocumentIcon.icns */ = {isa = PBXFileReference; includeInIndex = 1; path = ScoreMakerDocumentIcon.icns; sourceTree = "<group>"; };
+		A39C5B06944CDBE9BA557351 /* MIDIInputManager.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = MIDIInputManager.m; sourceTree = "<group>"; };
+		AA27981F6170B0EA6C7406D4 /* ScoreMakerDocumentController.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = ScoreMakerDocumentController.h; sourceTree = "<group>"; };
+		BA329B2B3B9A18465CA8B2B3 /* ScoreMakerXcodeTests.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = ScoreMakerXcodeTests.m; sourceTree = "<group>"; };
+		CF72CFA8628910C51A32E526 /* AppDelegate.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
+		D088E5C401B10C21404E9ABF /* EngravingLayout.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = EngravingLayout.m; sourceTree = "<group>"; };
+		E146739B98DEE34DCBF0C9B1 /* ScorefileCompatibilityTests.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = ScorefileCompatibilityTests.m; sourceTree = "<group>"; };
+		E1EFA82635DD87123340F52E /* MidiParser.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = MidiParser.h; sourceTree = "<group>"; };
+		E26739FD6E9CE5F3508CD33E /* ScorefileParser.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = ScorefileParser.h; sourceTree = "<group>"; };
+		F33F82DE3273D96A504D1CFD /* MidiParser.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = MidiParser.m; sourceTree = "<group>"; };
+		FA9DD65B361B58E41527ED2B /* ScoreProjectSerializer.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = ScoreProjectSerializer.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		35EB374E02F31806C2EAE3F6 /* Frameworks */ = {
+		6A51E6AF2ABF3DE8D1D17743 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				DE955430A5974E101F2181FA /* Cocoa.framework in Frameworks */,
-				CF87E2E6757DFC9325B8AEFC /* Foundation.framework in Frameworks */,
-				A3984DD64903DC8A81C3DD9C /* AppKit.framework in Frameworks */,
-				7C34AA5CDDE018F74B0CF917 /* AVFoundation.framework in Frameworks */,
-				59738E7FEAD0A4F8C686D40A /* AudioToolbox.framework in Frameworks */,
-				439852AB36EBD8F4857330F1 /* CoreAudioKit.framework in Frameworks */,
+				F249F545878871101B89AE00 /* Cocoa.framework in Frameworks */,
+				EF2EC4119F2DA76093BA363C /* XCTest.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		C2D573D647C001827014EDFD /* Frameworks */ = {
+		A5FF9C6D773475FC86DEB7DA /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				81C3F29D1B6240A3041A6306 /* Cocoa.framework in Frameworks */,
-				7393C416BB2AB77DE1E58500 /* AVFoundation.framework in Frameworks */,
-				69358E356F3B53FF178686D2 /* AudioToolbox.framework in Frameworks */,
-				5BDD65C4EAB9962D8BE74742 /* CoreAudioKit.framework in Frameworks */,
-				0A97977CF24CD0A5EC437386 /* CoreMIDI.framework in Frameworks */,
+				869E3FF66718EBD10B33733A /* Cocoa.framework in Frameworks */,
+				7CDA3B86FCD9FA57F5E8503F /* AVFoundation.framework in Frameworks */,
+				07A633FF2083FC110E38D4B2 /* AudioToolbox.framework in Frameworks */,
+				DA32C633B5F81586384B81E1 /* CoreAudioKit.framework in Frameworks */,
+				78C934E8E74945AC2E9321DE /* CoreMIDI.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D7C215CA14D98BEEDD75D733 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3C79726409D1588418A53DF8 /* Cocoa.framework in Frameworks */,
+				E7D3EEDEAD9C5F9FFB424D71 /* Foundation.framework in Frameworks */,
+				0BE6E31709E79B4BDC09137D /* AppKit.framework in Frameworks */,
+				5E047826D46FE9387B43D623 /* AVFoundation.framework in Frameworks */,
+				F411A12C5E17B183A7B21AE4 /* AudioToolbox.framework in Frameworks */,
+				9073E355910C9453C2D7E13E /* CoreAudioKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		0A0F30F7E27DEB7FD5E38D38 = {
+		09BA10C1C950B524FF2B73BD /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				54CB8E28D581D35325758C47 /* Products */,
-				4452DDCE63D8B1B737EAE557 /* Frameworks */,
-				98C8FFB529E7D1A4A0B40E86 /* Sources */,
-				6D15A50B12E7FCA043DAD0DD /* Resources */,
-				160EB64745C12FBC8BB05964 /* Tests */,
-				5ADE73115ACD38CAF4E0D4F6 /* Supporting Files */,
+				409B30A4E82F116BBD3ECFED /* OS X */,
 			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		160EB64745C12FBC8BB05964 /* Tests */ = {
+		354BB4C9272EF8A7AEF91E03 /* Supporting Files */ = {
 			isa = PBXGroup;
 			children = (
-				3F799D722E77BFD23337E522 /* ScorefileCompatibilityTests.m */,
+				666419D8471B15DE2028D06A /* Info.plist */,
+				334EE0C1AAE9CE09A067022A /* ScoreMaker.entitlements */,
+			);
+			name = "Supporting Files";
+			sourceTree = "<group>";
+		};
+		409B30A4E82F116BBD3ECFED /* OS X */ = {
+			isa = PBXGroup;
+			children = (
+				7A1C2464BEF563DBA56D95F2 /* Cocoa.framework */,
+				0BD892C8ECA6DA27F9AD2379 /* AVFoundation.framework */,
+				8A0266FD0A5C2110DB7717D0 /* AudioToolbox.framework */,
+				54886F16C62BD46C3550402B /* CoreAudioKit.framework */,
+				27682708507FD6C015BF7974 /* CoreMIDI.framework */,
+				1A951310045AB4FC20CA8ACF /* Foundation.framework */,
+				43172EB298FE5D3A227A2649 /* AppKit.framework */,
+				0AA51A509529C03C268ED723 /* XCTest.framework */,
+			);
+			name = "OS X";
+			sourceTree = "<group>";
+		};
+		560363FF5DC1CB5C5596B342 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				937DC0364DB221BD834F7E28 /* ScoreMaker.app */,
+				11FC58A81CAC85758561DB93 /* ScoreMakerCompatibilityTests */,
+				60088124C20702D04D9ACFFB /* ScoreMakerTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		6B575027F8906E75E2EB5230 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				E146739B98DEE34DCBF0C9B1 /* ScorefileCompatibilityTests.m */,
+				BA329B2B3B9A18465CA8B2B3 /* ScoreMakerXcodeTests.m */,
 			);
 			name = Tests;
 			path = tests;
 			sourceTree = "<group>";
 		};
-		4452DDCE63D8B1B737EAE557 /* Frameworks */ = {
+		896D09CA64C311B75E69EADA = {
 			isa = PBXGroup;
 			children = (
-				49B4333D3D6A3B12D9D65B16 /* OS X */,
+				560363FF5DC1CB5C5596B342 /* Products */,
+				09BA10C1C950B524FF2B73BD /* Frameworks */,
+				D51DA9E5AA681D69012C94FC /* Sources */,
+				DE745D52FC95DAB3830F787E /* Resources */,
+				6B575027F8906E75E2EB5230 /* Tests */,
+				354BB4C9272EF8A7AEF91E03 /* Supporting Files */,
 			);
-			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		49B4333D3D6A3B12D9D65B16 /* OS X */ = {
+		D51DA9E5AA681D69012C94FC /* Sources */ = {
 			isa = PBXGroup;
 			children = (
-				3A57A3C431DE1043036941E2 /* Cocoa.framework */,
-				7DD120A57061B213B7B4F21E /* AVFoundation.framework */,
-				1A70C455BE2CC8ABF925B0D1 /* AudioToolbox.framework */,
-				9A1E890FFEB039815CAA2462 /* CoreAudioKit.framework */,
-				34352F410E9909B394A4D151 /* CoreMIDI.framework */,
-				3A2C52994F3C57D20BAA3516 /* Foundation.framework */,
-				2AC8BBDE894D2B0B7DAD7C5A /* AppKit.framework */,
-			);
-			name = "OS X";
-			sourceTree = "<group>";
-		};
-		54CB8E28D581D35325758C47 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				090925949F90EC81C39602FD /* ScoreMaker.app */,
-				A0D87081EE4E5126CD9E8FA2 /* ScoreMakerCompatibilityTests */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		5ADE73115ACD38CAF4E0D4F6 /* Supporting Files */ = {
-			isa = PBXGroup;
-			children = (
-				A077B78724D974F994830883 /* Info.plist */,
-				A09370B3E6B750E142F10232 /* ScoreMaker.entitlements */,
-			);
-			name = "Supporting Files";
-			sourceTree = "<group>";
-		};
-		6D15A50B12E7FCA043DAD0DD /* Resources */ = {
-			isa = PBXGroup;
-			children = (
-				4B198025E6EAB0EE32E1F736 /* ScoreMakerAppIcon.icns */,
-				9FAFA7EEADE9A5E22E52156C /* ScoreMakerDocumentIcon.icns */,
-				3C5DB85E7AE1E2193ADF4AA9 /* treble_clef.png */,
-				21D717EE01F69BDA33850872 /* bass_clef.png */,
-			);
-			name = Resources;
-			path = Resources;
-			sourceTree = "<group>";
-		};
-		98C8FFB529E7D1A4A0B40E86 /* Sources */ = {
-			isa = PBXGroup;
-			children = (
-				AEEB0790F0F20EBC7E05DF69 /* AppDelegate.h */,
-				10C8CB908D42F8BB46E15CF5 /* AppDelegate.m */,
-				1741B97299568ADCA0EE3D99 /* EngravingLayout.h */,
-				A548380673F863C401896648 /* EngravingLayout.m */,
-				D1CBD755639E5447B50BBB8A /* MIDIInputManager.h */,
-				69089E29418C1A6FF51DC2A3 /* MIDIInputManager.m */,
-				1138781B6C6C9E02FE625998 /* MidiParser.h */,
-				DDE562585F5401517CCB0A84 /* MidiParser.m */,
-				A680606306DA70974476DAEB /* MusicEngine.h */,
-				9D864F877B13D9CC6C1DD9DA /* MusicEngine.m */,
-				B6D68052FA669E74926F9159 /* MusicPlatformModel.h */,
-				D0014F96A62EF4E5250D5EB1 /* MusicPlatformModel.m */,
-				EFCC8D93A7CBC05A1FB33779 /* MusicXMLParser.h */,
-				048C696D4EB536BED76873BA /* MusicXMLParser.m */,
-				DF7609C059A441F922C947EE /* NotationModel.h */,
-				228EB9CA26A40FC44ACCC08B /* NotationModel.m */,
-				C965DCECA43660C803595674 /* PlaybackMonitorView.h */,
-				E8945A467FF27DD81E7031EB /* PlaybackMonitorView.m */,
-				2D3828296C287C2C2B61E20B /* RealtimeDSP.h */,
-				0DFAD83E2EA3C8AFDB71A2FA /* RealtimeDSP.m */,
-				07AD1CD140C10A92F3027804 /* ScoreMakerDocument.h */,
-				EE619D60A8DF5B7748080F3B /* ScoreMakerDocument.m */,
-				7F1944300F5A514653F77934 /* ScoreMakerDocumentController.h */,
-				60F33E3CC9C93F597A181184 /* ScoreMakerDocumentController.m */,
-				E4677727BC7FE1A1F4C6F7CA /* ScoreModel.h */,
-				DF222F9EF56205443F8F3CD3 /* ScoreModel.m */,
-				049616C2473316E9C4F79AF1 /* ScoreProjectSerializer.h */,
-				52DB73290C650A496814781F /* ScoreProjectSerializer.m */,
-				C5F07A36878C860BFE128DF7 /* ScoreView.h */,
-				2ECB7EDE238F8D6019CBD1FD /* ScoreView.m */,
-				64EE2E5A9D421A02BEBEB041 /* ScorefileParser.h */,
-				4B58436FE769382EB13291B0 /* ScorefileParser.m */,
-				FA02D0EF08EE979E674F1665 /* main.m */,
+				162C7B7D467C085351CEF6EB /* AppDelegate.h */,
+				CF72CFA8628910C51A32E526 /* AppDelegate.m */,
+				3AB2579BD423888D7037948F /* EngravingLayout.h */,
+				D088E5C401B10C21404E9ABF /* EngravingLayout.m */,
+				4F3D13EDF54F4E9F9F9050B6 /* MIDIInputManager.h */,
+				A39C5B06944CDBE9BA557351 /* MIDIInputManager.m */,
+				E1EFA82635DD87123340F52E /* MidiParser.h */,
+				F33F82DE3273D96A504D1CFD /* MidiParser.m */,
+				1394DC7BEFC18DC9AD8C2B70 /* MusicEngine.h */,
+				34EC1950510B0797077BC5B7 /* MusicEngine.m */,
+				6DF7589E713F70DB7F3ED0E1 /* MusicPlatformModel.h */,
+				15F92212BF4339CF286CF85A /* MusicPlatformModel.m */,
+				19C62FCAE560D9BB8DB42703 /* MusicXMLParser.h */,
+				99169A0C31FEF71A9C269602 /* MusicXMLParser.m */,
+				27443086F13E75230F07EFED /* NotationModel.h */,
+				8104C3C2853DE8200592C5A5 /* NotationModel.m */,
+				40DB48F76C94CB9ECBF44358 /* PlaybackMonitorView.h */,
+				6C8A364A7D41EF0CD5838E39 /* PlaybackMonitorView.m */,
+				74ADFDA13DAEC05193CAFC7A /* RealtimeDSP.h */,
+				5FD9E2697DA1423B44701D1E /* RealtimeDSP.m */,
+				3DCD26960AD4FD57CB5B1AFF /* ScoreMakerDocument.h */,
+				04C518C42594E59D08977794 /* ScoreMakerDocument.m */,
+				AA27981F6170B0EA6C7406D4 /* ScoreMakerDocumentController.h */,
+				361B3D8FE04CC3A116FA05E0 /* ScoreMakerDocumentController.m */,
+				2C479F4B402EF5F59CFE1545 /* ScoreModel.h */,
+				72296BA4594E3DA2E298D22D /* ScoreModel.m */,
+				FA9DD65B361B58E41527ED2B /* ScoreProjectSerializer.h */,
+				6CE5A1AEBA76B83299F2B007 /* ScoreProjectSerializer.m */,
+				29A7A70B5BA516F1BEDE39FD /* ScoreView.h */,
+				69AB1D4962BA8C73B583683E /* ScoreView.m */,
+				E26739FD6E9CE5F3508CD33E /* ScorefileParser.h */,
+				2ACC5A6A395D11AB0EE4CCDB /* ScorefileParser.m */,
+				31AAE73F3337856D70EE685B /* main.m */,
 			);
 			name = Sources;
 			path = src;
 			sourceTree = "<group>";
 		};
+		DE745D52FC95DAB3830F787E /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				6733F47828D9C0BB4683A399 /* ScoreMakerAppIcon.icns */,
+				A21CEB8796F38D3CCBEBF9A2 /* ScoreMakerDocumentIcon.icns */,
+				009BDF7A9B80FCCA8C3CED30 /* treble_clef.png */,
+				6343EE7DED7C0D2F4D1A2588 /* bass_clef.png */,
+			);
+			name = Resources;
+			path = Resources;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		52FC7F0121D1900B211E5087 /* ScoreMaker */ = {
+		5C093989918437659E746DDC /* ScoreMaker */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = B12947A6B5B74FC1C8347F9D /* Build configuration list for PBXNativeTarget "ScoreMaker" */;
+			buildConfigurationList = 3354CF2C14C4F699CD59C33A /* Build configuration list for PBXNativeTarget "ScoreMaker" */;
 			buildPhases = (
-				853F268D9C27D5BC8945C1B4 /* Sources */,
-				C2D573D647C001827014EDFD /* Frameworks */,
-				18E84014B572642B4D003EBF /* Resources */,
+				AE807CBE65B361777DC5C4B2 /* Sources */,
+				A5FF9C6D773475FC86DEB7DA /* Frameworks */,
+				69566A610554573B5F8E7693 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -264,15 +292,33 @@
 			);
 			name = ScoreMaker;
 			productName = ScoreMaker;
-			productReference = 090925949F90EC81C39602FD /* ScoreMaker.app */;
+			productReference = 937DC0364DB221BD834F7E28 /* ScoreMaker.app */;
 			productType = "com.apple.product-type.application";
 		};
-		C0A54602A598905410F218C4 /* ScoreMakerCompatibilityTests */ = {
+		7F06EBCA8164056CEEA6F0A2 /* ScoreMakerTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 39E6530DC97C10EFCB3ED7EA /* Build configuration list for PBXNativeTarget "ScoreMakerCompatibilityTests" */;
+			buildConfigurationList = FC1D477D56C051D02159614A /* Build configuration list for PBXNativeTarget "ScoreMakerTests" */;
 			buildPhases = (
-				77225C66BF18D8EA227F57E8 /* Sources */,
-				35EB374E02F31806C2EAE3F6 /* Frameworks */,
+				7D49A62C3DF9E0C3FE4B9011 /* Sources */,
+				6A51E6AF2ABF3DE8D1D17743 /* Frameworks */,
+				A2F68B5F607206E3F593BED8 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F2DDC2473FD8D95242E7AFF7 /* PBXTargetDependency */,
+			);
+			name = ScoreMakerTests;
+			productName = ScoreMakerTests;
+			productReference = 60088124C20702D04D9ACFFB /* ScoreMakerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		BB243FAC65FF068EAAEBACCF /* ScoreMakerCompatibilityTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BCE1273980564EC1EA6E02E3 /* Build configuration list for PBXNativeTarget "ScoreMakerCompatibilityTests" */;
+			buildPhases = (
+				119AE4C9342489B3D735DD72 /* Sources */,
+				D7C215CA14D98BEEDD75D733 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -280,20 +326,20 @@
 			);
 			name = ScoreMakerCompatibilityTests;
 			productName = ScoreMakerCompatibilityTests;
-			productReference = A0D87081EE4E5126CD9E8FA2 /* ScoreMakerCompatibilityTests */;
+			productReference = 11FC58A81CAC85758561DB93 /* ScoreMakerCompatibilityTests */;
 			productType = "com.apple.product-type.tool";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		F6A2782834B2E0A96639451D /* Project object */ = {
+		5C6BAA41D04797D2297B33BB /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				LastSwiftUpdateCheck = 1600;
 				LastUpgradeCheck = 2630;
 				ORGANIZATIONNAME = "Black Lotus";
 			};
-			buildConfigurationList = AB3B56A480DF8C0809101203 /* Build configuration list for PBXProject "ScoreMaker" */;
+			buildConfigurationList = 26E0F283BA7A5B34D9F27DF9 /* Build configuration list for PBXProject "ScoreMaker" */;
 			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -301,92 +347,105 @@
 				en,
 				Base,
 			);
-			mainGroup = 0A0F30F7E27DEB7FD5E38D38;
+			mainGroup = 896D09CA64C311B75E69EADA;
 			minimizedProjectReferenceProxies = 0;
 			preferredProjectObjectVersion = 77;
-			productRefGroup = 54CB8E28D581D35325758C47 /* Products */;
+			productRefGroup = 560363FF5DC1CB5C5596B342 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				52FC7F0121D1900B211E5087 /* ScoreMaker */,
-				C0A54602A598905410F218C4 /* ScoreMakerCompatibilityTests */,
+				5C093989918437659E746DDC /* ScoreMaker */,
+				BB243FAC65FF068EAAEBACCF /* ScoreMakerCompatibilityTests */,
+				7F06EBCA8164056CEEA6F0A2 /* ScoreMakerTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		18E84014B572642B4D003EBF /* Resources */ = {
+		69566A610554573B5F8E7693 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				68128BB88115479B0A579083 /* ScoreMakerAppIcon.icns in Resources */,
-				8195D903859651CB28EFBD91 /* ScoreMakerDocumentIcon.icns in Resources */,
-				05A7AF5F652AE152E19E5348 /* treble_clef.png in Resources */,
-				39932A69246DD64551610A5E /* bass_clef.png in Resources */,
+				7D3459EDF48F694129665FE6 /* ScoreMakerAppIcon.icns in Resources */,
+				BE407F3ACB72B083B8F08EE6 /* ScoreMakerDocumentIcon.icns in Resources */,
+				EC3626EBC45066BC4DBC5ADF /* treble_clef.png in Resources */,
+				485A3FBB709E43C1BE409030 /* bass_clef.png in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A2F68B5F607206E3F593BED8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		77225C66BF18D8EA227F57E8 /* Sources */ = {
+		119AE4C9342489B3D735DD72 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				64ADADE23E19E4D988C36B53 /* ScorefileCompatibilityTests.m in Sources */,
-				DFD0B397850EE36C68CAA603 /* RealtimeDSP.m in Sources */,
-				59601707345ADB17000ABE02 /* ScorefileParser.m in Sources */,
-				454A7C5D28A709EC952C37CF /* ScoreProjectSerializer.m in Sources */,
-				E2C0AD4695BCFBA1DCB91810 /* MusicXMLParser.m in Sources */,
-				94AEE05D49E4324D57D0AC03 /* MidiParser.m in Sources */,
-				A317FB36559949ADB9858901 /* ScoreModel.m in Sources */,
-				E776E5CF0CA55270A6CCD426 /* MusicPlatformModel.m in Sources */,
-				FEC4E47B0D199413D3272AE4 /* MusicEngine.m in Sources */,
-				98D89CFB61734E6E7F385CE3 /* NotationModel.m in Sources */,
-				2F194AF6762BBCEA92E8C20C /* EngravingLayout.m in Sources */,
+				8371CF81600C4E26DB6B5AE2 /* ScorefileCompatibilityTests.m in Sources */,
+				C4F1A8171AD209B2B824E0B6 /* RealtimeDSP.m in Sources */,
+				849F9CE255D380D51CB14DC7 /* ScorefileParser.m in Sources */,
+				BFCD81D20C7ED5692FC153AD /* ScoreProjectSerializer.m in Sources */,
+				D31D2EE9E6D67323890BE8CC /* MusicXMLParser.m in Sources */,
+				AA17C7A70A8981BAD6614217 /* MidiParser.m in Sources */,
+				8F0F790D6609455D68408784 /* ScoreModel.m in Sources */,
+				D4B2EBD7D2F33D2C958C1375 /* MusicPlatformModel.m in Sources */,
+				C7B293CF269942B519849D94 /* MusicEngine.m in Sources */,
+				C1C932353ADCD811CE5CA3B1 /* NotationModel.m in Sources */,
+				D58CFD51F19479A57AA82EB4 /* EngravingLayout.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		853F268D9C27D5BC8945C1B4 /* Sources */ = {
+		7D49A62C3DF9E0C3FE4B9011 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E8F817C74C6B7D814C1AD262 /* AppDelegate.m in Sources */,
-				5BEEAB2F8F16477A67C04ABD /* EngravingLayout.m in Sources */,
-				A183DDCE7305441A62812AA0 /* MIDIInputManager.m in Sources */,
-				AAEC1887051B1EEA3C7A63AC /* MidiParser.m in Sources */,
-				22EDE2F9917B44E699951F8F /* MusicEngine.m in Sources */,
-				E718D39DE23B3B772AB6298F /* MusicPlatformModel.m in Sources */,
-				F8BC42D5B75E843A2B7E8BAC /* MusicXMLParser.m in Sources */,
-				522D7C313B1149146563FAF0 /* NotationModel.m in Sources */,
-				0908B70B8981DE703D507125 /* PlaybackMonitorView.m in Sources */,
-				EF57C518B9ABCBA0B0137B6C /* RealtimeDSP.m in Sources */,
-				0AB3156D52E41F54D5F7FEA6 /* ScoreMakerDocument.m in Sources */,
-				C312DB4F1561DB5A4D969FE3 /* ScoreMakerDocumentController.m in Sources */,
-				59E9F7DC6C9AC9126236090C /* ScoreModel.m in Sources */,
-				11CFF22F8463568D9215E07B /* ScoreProjectSerializer.m in Sources */,
-				D885A64C6F806F081C9554C7 /* ScoreView.m in Sources */,
-				6DFE1FE77EE9FCD4F3DA5FF7 /* ScorefileParser.m in Sources */,
-				AEA3BBF7691E0AAC8BE1AA80 /* main.m in Sources */,
+				5BE9FF8C23065F44533B9168 /* ScoreMakerXcodeTests.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AE807CBE65B361777DC5C4B2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8A0EAD0C7480BDFEC74CC53F /* AppDelegate.m in Sources */,
+				360A63759B7A984DBADD4048 /* EngravingLayout.m in Sources */,
+				2365632C808E7485B21A3FB6 /* MIDIInputManager.m in Sources */,
+				2E9ADCF723F33D88E614F443 /* MidiParser.m in Sources */,
+				A26C9EB56E20287BE50926C8 /* MusicEngine.m in Sources */,
+				6C25A7590F11BB3626AE3446 /* MusicPlatformModel.m in Sources */,
+				AD1DABE7EAF15F4C0796404B /* MusicXMLParser.m in Sources */,
+				E2784E729AE1836E01D8307F /* NotationModel.m in Sources */,
+				072068F0C05EEF4D1BA26075 /* PlaybackMonitorView.m in Sources */,
+				C763FA3A4598D4489A66A13A /* RealtimeDSP.m in Sources */,
+				73BF91F6076E5546C3036EEF /* ScoreMakerDocument.m in Sources */,
+				7B2AEAE86FD39A503E1AE3FC /* ScoreMakerDocumentController.m in Sources */,
+				32D99BBB22F2F2A660AA482C /* ScoreModel.m in Sources */,
+				A77DC2F36C207C3857D03A31 /* ScoreProjectSerializer.m in Sources */,
+				4A944B92D313D7B46113808F /* ScoreView.m in Sources */,
+				78E602AEF4F844FC9327E531 /* ScorefileParser.m in Sources */,
+				8C3BA21AEE6ADB4F24C90909 /* main.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
-/* Begin XCBuildConfiguration section */
-		237473FF25C10926FAA63DA6 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = NO;
-				HEADER_SEARCH_PATHS = "$(SRCROOT)/src";
-				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.blacklotus.ScoreMaker.CompatibilityTests;
-				SDKROOT = macosx;
-			};
-			name = Release;
+/* Begin PBXTargetDependency section */
+		F2DDC2473FD8D95242E7AFF7 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = ScoreMakerCompatibilityTests;
+			target = BB243FAC65FF068EAAEBACCF /* ScoreMakerCompatibilityTests */;
+			targetProxy = 7DC3E09F4AD6A95FD5F2D0D5 /* PBXContainerItemProxy */;
 		};
-		70FFD357B8633063ED23085B /* Release */ = {
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		1502103E61A29FDFDE83C67B /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -441,29 +500,19 @@
 			};
 			name = Release;
 		};
-		727D702B79208CAEEAC6621D /* Debug */ = {
+		384214957371152EDCA9CF4A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = NO;
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CODE_SIGN_ENTITLEMENTS = ScoreMaker.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.blacklotus.ScoreMaker;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				GCC_PREPROCESSOR_DEFINITIONS = "PROJECT_DIR=@\\\"$(PROJECT_DIR)\\\"";
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.blacklotus.ScoreMaker.Tests;
 				SDKROOT = macosx;
 			};
 			name = Debug;
 		};
-		784529AA4D92475463D1ABBC /* Debug */ = {
+		6BFA870D1564421EEB4C942F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -525,7 +574,7 @@
 			};
 			name = Debug;
 		};
-		A1CC8A3D7E56039A54503BA1 /* Release */ = {
+		83E91A1AEA7FA46AC49307C5 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -547,7 +596,7 @@
 			};
 			name = Release;
 		};
-		C6CBEEF66FFAC0471FB156EF /* Debug */ = {
+		9AAB3378D1EE624129B299AC /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
@@ -559,37 +608,92 @@
 			};
 			name = Debug;
 		};
+		AB2F4267A8165E542A4830B0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_ARC = NO;
+				GCC_PREPROCESSOR_DEFINITIONS = "PROJECT_DIR=@\\\"$(PROJECT_DIR)\\\"";
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.blacklotus.ScoreMaker.Tests;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		D9CBCE95D74FFA3264DE7ED2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = NO;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGN_ENTITLEMENTS = ScoreMaker.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.blacklotus.ScoreMaker;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		F8AC0308ECBC06619727A89B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = NO;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/src";
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.blacklotus.ScoreMaker.CompatibilityTests;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		39E6530DC97C10EFCB3ED7EA /* Build configuration list for PBXNativeTarget "ScoreMakerCompatibilityTests" */ = {
+		26E0F283BA7A5B34D9F27DF9 /* Build configuration list for PBXProject "ScoreMaker" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				237473FF25C10926FAA63DA6 /* Release */,
-				C6CBEEF66FFAC0471FB156EF /* Debug */,
+				6BFA870D1564421EEB4C942F /* Debug */,
+				1502103E61A29FDFDE83C67B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		AB3B56A480DF8C0809101203 /* Build configuration list for PBXProject "ScoreMaker" */ = {
+		3354CF2C14C4F699CD59C33A /* Build configuration list for PBXNativeTarget "ScoreMaker" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				784529AA4D92475463D1ABBC /* Debug */,
-				70FFD357B8633063ED23085B /* Release */,
+				83E91A1AEA7FA46AC49307C5 /* Release */,
+				D9CBCE95D74FFA3264DE7ED2 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		B12947A6B5B74FC1C8347F9D /* Build configuration list for PBXNativeTarget "ScoreMaker" */ = {
+		BCE1273980564EC1EA6E02E3 /* Build configuration list for PBXNativeTarget "ScoreMakerCompatibilityTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A1CC8A3D7E56039A54503BA1 /* Release */,
-				727D702B79208CAEEAC6621D /* Debug */,
+				F8AC0308ECBC06619727A89B /* Release */,
+				9AAB3378D1EE624129B299AC /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		FC1D477D56C051D02159614A /* Build configuration list for PBXNativeTarget "ScoreMakerTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AB2F4267A8165E542A4830B0 /* Release */,
+				384214957371152EDCA9CF4A /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
-	rootObject = F6A2782834B2E0A96639451D /* Project object */;
+	rootObject = 5C6BAA41D04797D2297B33BB /* Project object */;
 }

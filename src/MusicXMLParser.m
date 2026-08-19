@@ -85,6 +85,8 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
   BOOL _noteRest;
   BOOL _noteChord;
   BOOL _noteGrace;
+  BOOL _noteCue;
+  NSUInteger _noteTremoloStrokes;
   BOOL _noteSlurStart;
   BOOL _noteSlurEnd;
   BOOL _noteTieStart;
@@ -92,12 +94,26 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
   NSUInteger _noteTupletActual;
   NSUInteger _noteTupletNormal;
   NSString *_noteArticulation;
+  NSString *_noteLyric;
+  NSString *_noteOrnament;
   NSString *_pendingDynamic;
+  NSString *_pendingHairpinStart;
+  BOOL _pendingHairpinEnd;
+  BOOL _pendingPedalStart;
+  BOOL _pendingPedalEnd;
+  NSInteger _pendingOctaveShiftStart;
+  BOOL _pendingOctaveShiftEnd;
+  NSString *_pendingDirectionText;
   NSInteger _currentKeyFifths;
   NSString *_currentKeyMode;
   BOOL _measureRepeatStart;
   BOOL _measureRepeatEnd;
+  NSString *_measureRehearsalMark;
+  NSString *_measureEndingText;
+  BOOL _measureSystemBreak;
+  BOOL _measurePageBreak;
   NSInteger _noteVoice;
+  NSInteger _noteStaff;
   NSInteger _currentMeasureNumber;
   NSInteger _currentMeasureIndex;
   BOOL _currentMeasureNumberSpecified;
@@ -142,11 +158,17 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
   [_currentPartID release];
   [_noteStep release];
   [_noteArticulation release];
+  [_noteLyric release];
+  [_noteOrnament release];
   [_pendingDynamic release];
+  [_pendingHairpinStart release];
+  [_pendingDirectionText release];
   [_scoreTitle release];
   [_scoreTitleFontName release];
   [_scoreComposer release];
   [_currentKeyMode release];
+  [_measureRehearsalMark release];
+  [_measureEndingText release];
   [super dealloc];
 }
 
@@ -209,6 +231,17 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
       _currentMeasureIndex++;
       _measureRepeatStart = NO;
       _measureRepeatEnd = NO;
+      _measureSystemBreak = NO;
+      _measurePageBreak = NO;
+      [_measureRehearsalMark release]; _measureRehearsalMark = nil;
+      [_measureEndingText release]; _measureEndingText = nil;
+    }
+  else if ([element isEqualToString:@"print"])
+    {
+      _measureSystemBreak = [[attributes objectForKey:@"new-system"] isEqualToString:@"yes"];
+      _measurePageBreak = [[attributes objectForKey:@"new-page"] isEqualToString:@"yes"];
+      if (_measurePageBreak)
+        _measureSystemBreak = YES;
     }
   else if ([element isEqualToString:@"note"])
     {
@@ -216,6 +249,8 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
       _noteRest = NO;
       _noteChord = NO;
       _noteGrace = NO;
+      _noteCue = NO;
+      _noteTremoloStrokes = 0;
       _noteSlurStart = NO;
       _noteSlurEnd = NO;
       _noteTieStart = NO;
@@ -224,7 +259,10 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
       _noteTupletNormal = 0;
       [_noteArticulation release];
       _noteArticulation = nil;
+      [_noteLyric release]; _noteLyric = nil;
+      [_noteOrnament release]; _noteOrnament = nil;
       _noteVoice = 1;
+      _noteStaff = 0;
       _noteAlter = 0;
       _noteOctave = 4;
       _noteDurationQuarters = 1.0 / (double)MAX ((NSUInteger)1, _divisions);
@@ -243,6 +281,16 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
     {
       _noteGrace = YES;
       _noteDurationQuarters = 0.0;
+    }
+  else if (_inNote && [element isEqualToString:@"cue"])
+    _noteCue = YES;
+  else if (_inNote && ([element isEqualToString:@"trill-mark"]
+                       || [element isEqualToString:@"turn"]
+                       || [element isEqualToString:@"mordent"]
+                       || [element isEqualToString:@"inverted-mordent"]))
+    {
+      [_noteOrnament release];
+      _noteOrnament = [element copy];
     }
   else if ([element isEqualToString:@"backup"])
     {
@@ -283,9 +331,37 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
       if ([direction isEqualToString:@"backward"])
         _measureRepeatEnd = YES;
     }
+  else if ([element isEqualToString:@"ending"]
+           && ![[attributes objectForKey:@"type"] isEqualToString:@"stop"])
+    {
+      [_measureEndingText release];
+      _measureEndingText = [[attributes objectForKey:@"number"] copy];
+    }
   else if ([element isEqualToString:@"dynamics"])
     {
       /* The child element name (p, mf, ff, …) is captured below. */
+    }
+  else if ([element isEqualToString:@"wedge"])
+    {
+      NSString *type = [attributes objectForKey:@"type"];
+      if ([type isEqualToString:@"crescendo"] || [type isEqualToString:@"diminuendo"])
+        { [_pendingHairpinStart release]; _pendingHairpinStart = [type copy]; }
+      else if ([type isEqualToString:@"stop"]) _pendingHairpinEnd = YES;
+    }
+  else if ([element isEqualToString:@"pedal"])
+    {
+      NSString *type = [attributes objectForKey:@"type"];
+      if ([type isEqualToString:@"start"] || [type isEqualToString:@"resume"])
+        _pendingPedalStart = YES;
+      else if ([type isEqualToString:@"stop"] || [type isEqualToString:@"discontinue"])
+        _pendingPedalEnd = YES;
+    }
+  else if ([element isEqualToString:@"octave-shift"])
+    {
+      NSString *type = [attributes objectForKey:@"type"];
+      if ([type isEqualToString:@"down"]) _pendingOctaveShiftStart = 1;
+      else if ([type isEqualToString:@"up"]) _pendingOctaveShiftStart = -1;
+      else if ([type isEqualToString:@"stop"]) _pendingOctaveShiftEnd = YES;
     }
   else if ([element isEqualToString:@"p"] || [element isEqualToString:@"pp"] ||
            [element isEqualToString:@"ppp"] || [element isEqualToString:@"mp"] ||
@@ -356,6 +432,16 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
         }
       _inComposerCreator = NO;
     }
+  else if ([element isEqualToString:@"rehearsal"] && [value length])
+    {
+      [_measureRehearsalMark release];
+      _measureRehearsalMark = [value copy];
+    }
+  else if ([element isEqualToString:@"words"] && [value length])
+    {
+      [_pendingDirectionText release];
+      _pendingDirectionText = [value copy];
+    }
   else if ([element isEqualToString:@"part-name"] && _currentPartID)
     {
       [_partNames setObject:value forKey:_currentPartID];
@@ -410,6 +496,10 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
     {
       _noteVoice = MAX ((NSInteger)1, [value integerValue]);
     }
+  else if (_inNote && [element isEqualToString:@"staff"])
+    {
+      _noteStaff = MIN (MAX ([value integerValue], (NSInteger)0), (NSInteger)2);
+    }
   else if (_inNote && [element isEqualToString:@"actual-notes"])
     {
       _noteTupletActual = MAX ((NSUInteger)1, (NSUInteger)[value integerValue]);
@@ -418,6 +508,13 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
     {
       _noteTupletNormal = MAX ((NSUInteger)1, (NSUInteger)[value integerValue]);
     }
+  else if (_inNote && [element isEqualToString:@"text"] && [value length])
+    {
+      [_noteLyric release];
+      _noteLyric = [value copy];
+    }
+  else if (_inNote && [element isEqualToString:@"tremolo"])
+    _noteTremoloStrokes = MIN ((NSUInteger)4, (NSUInteger)MAX ((NSInteger)0, [value integerValue]));
   else if ([element isEqualToString:@"duration"])
     {
       double duration = (double)MAX ((NSInteger)1, [value integerValue])
@@ -459,6 +556,22 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
       [note setTupletActual:_noteTupletActual];
       [note setTupletNormal:_noteTupletNormal];
       [note setArticulation:_noteArticulation];
+      [note setLyric:_noteLyric];
+      [note setOrnament:_noteOrnament];
+      [note setGrace:_noteGrace];
+      [note setCue:_noteCue];
+      [note setTremoloStrokes:_noteTremoloStrokes];
+      [note setHairpinStart:_pendingHairpinStart];
+      [note setHairpinEnd:_pendingHairpinEnd];
+      [note setPedalStart:_pendingPedalStart];
+      [note setPedalEnd:_pendingPedalEnd];
+      [note setOctaveShiftStart:_pendingOctaveShiftStart];
+      [note setOctaveShiftEnd:_pendingOctaveShiftEnd];
+      [note setDirectionText:_pendingDirectionText];
+      [_pendingHairpinStart release]; _pendingHairpinStart = nil;
+      _pendingHairpinEnd = NO; _pendingPedalStart = NO; _pendingPedalEnd = NO;
+      _pendingOctaveShiftStart = 0; _pendingOctaveShiftEnd = NO;
+      [_pendingDirectionText release]; _pendingDirectionText = nil;
       [note setDynamic:_pendingDynamic];
       if ([_pendingDynamic length])
         {
@@ -466,6 +579,7 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
           _pendingDynamic = nil;
         }
       [note setVoice:_noteVoice];
+      [note setStaffAssignment:_noteStaff];
       [note setMeasureIndex:_currentMeasureIndex];
       [[_document notes] addObject:note];
       _lastNoteStartQuarter = startQuarter;
@@ -505,6 +619,10 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
           [measure setKeyMode:_currentKeyMode];
           [measure setRepeatStart:_measureRepeatStart];
           [measure setRepeatEnd:_measureRepeatEnd];
+          [measure setRehearsalMark:_measureRehearsalMark];
+          [measure setEndingText:_measureEndingText];
+          [measure setSystemBreak:_measureSystemBreak];
+          [measure setPageBreak:_measurePageBreak];
           [[_document measures] addObject:measure];
         }
       // Notes may legitimately sound across a barline. Their end positions must
@@ -653,6 +771,16 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
           if ([measure repeatStart])
             [xml appendString:
                    @"      <barline location=\"left\"><repeat direction=\"forward\"/></barline>\n"];
+          if ([measure pageBreak])
+            [xml appendString:@"      <print new-page=\"yes\"/>\n"];
+          else if ([measure systemBreak])
+            [xml appendString:@"      <print new-system=\"yes\"/>\n"];
+          if ([[measure rehearsalMark] length])
+            [xml appendFormat:@"      <direction placement=\"above\"><direction-type><rehearsal>%@</rehearsal></direction-type></direction>\n",
+                              EscapeXML ([measure rehearsalMark])];
+          if ([[measure endingText] length])
+            [xml appendFormat:@"      <barline location=\"left\"><ending number=\"%@\" type=\"start\"/></barline>\n",
+                              EscapeXML ([measure endingText])];
           if (measureIndex == 0)
             {
               double bpm = [document tempoMicrosecondsPerQuarter]
@@ -696,7 +824,24 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
                                       @"placement=\"below\"><direction-type><dynamics><%@/></"
                                       @"dynamics></direction-type></direction>\n",
                                       [note dynamic]];
+                  if ([[note hairpinStart] length])
+                    [xml appendFormat:@"      <direction placement=\"below\"><direction-type><wedge type=\"%@\"/></direction-type></direction>\n",
+                                      [note hairpinStart]];
+                  if ([note hairpinEnd])
+                    [xml appendString:@"      <direction placement=\"below\"><direction-type><wedge type=\"stop\"/></direction-type></direction>\n"];
+                  if ([note pedalStart] || [note pedalEnd])
+                    [xml appendFormat:@"      <direction placement=\"below\"><direction-type><pedal type=\"%@\" line=\"yes\"/></direction-type></direction>\n",
+                                      [note pedalStart] ? @"start" : @"stop"];
+                  if ([note octaveShiftStart] || [note octaveShiftEnd])
+                    [xml appendFormat:@"      <direction placement=\"above\"><direction-type><octave-shift type=\"%@\" size=\"8\"/></direction-type></direction>\n",
+                                      [note octaveShiftEnd] ? @"stop"
+                                        : ([note octaveShiftStart] > 0 ? @"down" : @"up")];
+                  if ([[note directionText] length])
+                    [xml appendFormat:@"      <direction placement=\"above\"><direction-type><words>%@</words></direction-type></direction>\n",
+                                      EscapeXML ([note directionText])];
                   [xml appendString:@"      <note>"];
+                  if ([note isGrace]) [xml appendString:@"<grace/>"];
+                  if ([note isCue]) [xml appendString:@"<cue/>"];
                   NSInteger accidental = [note accidental];
                   if ([note isRest])
                     {
@@ -712,9 +857,12 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
                         [xml appendFormat:@"<alter>%ld</alter>", (long)accidental];
                       [xml appendFormat:@"<octave>%ld</octave></pitch>", (long)octave];
                     }
-                  [xml appendFormat:@"<duration>%lu</duration><voice>%ld</voice>",
-                                    (unsigned long)MAX ((NSUInteger)1, [note durationTicks]),
-                                    (long)[note voice]];
+                  if (![note isGrace])
+                    [xml appendFormat:@"<duration>%lu</duration>",
+                                      (unsigned long)MAX ((NSUInteger)1, [note durationTicks])];
+                  [xml appendFormat:@"<voice>%ld</voice>", (long)[note voice]];
+                  if ([note staffAssignment])
+                    [xml appendFormat:@"<staff>%ld</staff>", (long)[note staffAssignment]];
                   if ([note tieEnd])
                     [xml appendString:@"<tie type=\"stop\"/>"];
                   if ([note tieStart])
@@ -729,7 +877,8 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
                       [xml appendFormat:@"<accidental>%@</accidental>",
                                         accidental > 0 ? @"sharp" : @"flat"];
                     }
-                  if ([note slurStart] || [note slurEnd] || [[note articulation] length])
+                  if ([note slurStart] || [note slurEnd] || [[note articulation] length]
+                      || [[note ornament] length] || [note tremoloStrokes])
                     {
                       [xml appendString:@"<notations>"];
                       if ([note slurStart])
@@ -739,8 +888,21 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
                       if ([[note articulation] length])
                         [xml appendFormat:@"<articulations><%@/></articulations>",
                                           [note articulation]];
+                      if ([[note ornament] length] || [note tremoloStrokes])
+                        {
+                          [xml appendString:@"<ornaments>"];
+                          if ([[note ornament] length])
+                            [xml appendFormat:@"<%@/>", [note ornament]];
+                          if ([note tremoloStrokes])
+                            [xml appendFormat:@"<tremolo>%lu</tremolo>",
+                                              (unsigned long)[note tremoloStrokes]];
+                          [xml appendString:@"</ornaments>"];
+                        }
                       [xml appendString:@"</notations>"];
                     }
+                  if ([[note lyric] length])
+                    [xml appendFormat:@"<lyric><text>%@</text></lyric>",
+                                      EscapeXML ([note lyric])];
                   [xml appendString:@"</note>\n"];
                   cursor = onset + (NSInteger)[note durationTicks];
                 }

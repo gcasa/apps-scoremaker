@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "52FC7F0121D1900B211E5087"
+               BlueprintIdentifier = "5C093989918437659E746DDC"
                BuildableName = "ScoreMaker.app"
                BlueprintName = "ScoreMaker"
                ReferencedContainer = "container:ScoreMaker.xcodeproj">
@@ -30,7 +30,7 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "52FC7F0121D1900B211E5087"
+            BlueprintIdentifier = "5C093989918437659E746DDC"
             BuildableName = "ScoreMaker.app"
             BlueprintName = "ScoreMaker"
             ReferencedContainer = "container:ScoreMaker.xcodeproj">
@@ -53,7 +53,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "52FC7F0121D1900B211E5087"
+            BlueprintIdentifier = "5C093989918437659E746DDC"
             BuildableName = "ScoreMaker.app"
             BlueprintName = "ScoreMaker"
             ReferencedContainer = "container:ScoreMaker.xcodeproj">
@@ -70,7 +70,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "52FC7F0121D1900B211E5087"
+            BlueprintIdentifier = "5C093989918437659E746DDC"
             BuildableName = "ScoreMaker.app"
             BlueprintName = "ScoreMaker"
             ReferencedContainer = "container:ScoreMaker.xcodeproj">

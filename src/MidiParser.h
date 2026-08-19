@@ -20,8 +20,18 @@
 #import <Foundation/Foundation.h>
 #import "ScoreModel.h"
 
+/** Converts Standard MIDI files to and from the ScoreMaker document model. */
 @interface MidiParser : NSObject
+/**
+ * Parses the MIDI file at <var>path</var>.
+ * Returns a new score document, or <code>nil</code> and an error on failure.
+ */
 + (ScoreDocument *)parseFileAtPath:(NSString *)path error:(NSError **)error;
+/**
+ * Encodes <var>document</var> as a Standard MIDI file.
+ * Returns the encoded bytes, or <code>nil</code> and an error on failure.
+ */
 + (NSData *)dataForDocument:(ScoreDocument *)document error:(NSError **)error;
+/** Returns the ordered list of 128 General MIDI program names. */
 + (NSArray *)generalMidiProgramNames;
 @end

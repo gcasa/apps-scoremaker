@@ -23,6 +23,7 @@
 @implementation ScoreEngravingSystem
 @synthesize startTick = _startTick, endTick = _endTick;
 @synthesize firstMeasureIndex = _firstMeasureIndex, lastMeasureIndex = _lastMeasureIndex;
+@synthesize startsNewPage = _startsNewPage;
 @synthesize ticks = _ticks, fractions = _fractions;
 - (void)dealloc
 {
@@ -49,6 +50,46 @@
   return (CGFloat)(tick - _startTick) / (CGFloat)MAX ((NSUInteger)1, _endTick - _startTick);
 }
 @end
+
+NSUInteger
+ScorePageIndexForSystem (NSArray *systems, NSUInteger targetSystem, NSUInteger systemsPerPage)
+{
+  NSUInteger page = 0, position = 0;
+  systemsPerPage = MAX ((NSUInteger)1, systemsPerPage);
+  NSUInteger count = MIN (targetSystem + 1, [systems count]);
+  for (NSUInteger system = 0; system < count; system++)
+    {
+      ScoreEngravingSystem *layout = [systems objectAtIndex:system];
+      if (system > 0 && (position >= systemsPerPage || [layout startsNewPage]))
+        {
+          page++;
+          position = 0;
+        }
+      if (system == targetSystem)
+        return page;
+      position++;
+    }
+  return page;
+}
+
+NSUInteger
+ScorePositionOnPageForSystem (NSArray *systems, NSUInteger targetSystem,
+                              NSUInteger systemsPerPage)
+{
+  NSUInteger position = 0;
+  systemsPerPage = MAX ((NSUInteger)1, systemsPerPage);
+  NSUInteger count = MIN (targetSystem + 1, [systems count]);
+  for (NSUInteger system = 0; system < count; system++)
+    {
+      ScoreEngravingSystem *layout = [systems objectAtIndex:system];
+      if (system > 0 && (position >= systemsPerPage || [layout startsNewPage]))
+        position = 0;
+      if (system == targetSystem)
+        return position;
+      position++;
+    }
+  return position;
+}
 
 @implementation ScoreEngravingLayout
 @synthesize systems = _systems, notationElements = _notationElements;
@@ -221,6 +262,7 @@
   [system setEndTick:end];
   [system setFirstMeasureIndex:first];
   [system setLastMeasureIndex:last];
+  [system setStartsNewPage:first < [measures count] && [[measures objectAtIndex:first] pageBreak]];
   [system setTicks:ticks];
   [system setFractions:fractions];
   return system;
@@ -280,6 +322,7 @@
   [system setEndTick:end];
   [system setFirstMeasureIndex:first];
   [system setLastMeasureIndex:last];
+  [system setStartsNewPage:first < [measures count] && [[measures objectAtIndex:first] pageBreak]];
   [system setTicks:ticks];
   [system setFractions:fractions];
   return system;
@@ -326,7 +369,8 @@
                                         minimum:minimum
                                  notesByMeasure:notesByMeasure
                                        previous:previous];
-          if (i > first && used + width > musicWidth)
+          BOOL forcedBreak = i > first && ([measure systemBreak] || [measure pageBreak]);
+          if (i > first && (forcedBreak || used + width > musicWidth))
             {
               [systems addObject:[self systemForDocument:document
                                                    first:first

@@ -26,6 +26,7 @@ resource_names = %w[
 ]
 resource_files = resource_names.map { |name| resources_group.new_file(name) }
 test_file = tests_group.new_file("ScorefileCompatibilityTests.m")
+xcode_test_file = tests_group.new_file("ScoreMakerXcodeTests.m")
 info_plist = support_group.new_file("Info.plist")
 entitlements = support_group.new_file("ScoreMaker.entitlements")
 
@@ -88,8 +89,6 @@ project.build_configurations.each do |configuration|
   settings["SDKROOT"] = "macosx"
 end
 
-project.save
-
 app_scheme = Xcodeproj::XCScheme.new
 app_scheme.add_build_target(app)
 app_scheme.set_launch_target(app)
@@ -98,6 +97,22 @@ app_scheme.save_as(PROJECT_PATH, "ScoreMaker", true)
 tests_scheme = Xcodeproj::XCScheme.new
 tests_scheme.add_build_target(compatibility_tests)
 tests_scheme.set_launch_target(compatibility_tests)
+
+xcode_tests = project.new_target(:unit_test_bundle, "ScoreMakerTests", :osx, "14.0")
+xcode_tests.add_file_references([xcode_test_file])
+xcode_tests.add_dependency(compatibility_tests)
+xcode_tests.add_system_framework("XCTest")
+xcode_tests.build_configurations.each do |configuration|
+  settings = configuration.build_settings
+  settings["PRODUCT_BUNDLE_IDENTIFIER"] = "com.blacklotus.ScoreMaker.Tests"
+  settings["GENERATE_INFOPLIST_FILE"] = "YES"
+  settings["CLANG_ENABLE_OBJC_ARC"] = "NO"
+  settings["GCC_PREPROCESSOR_DEFINITIONS"] = ['PROJECT_DIR=@\"$(PROJECT_DIR)\"']
+  settings["MACOSX_DEPLOYMENT_TARGET"] = "14.0"
+end
+tests_scheme.add_build_target(xcode_tests)
+tests_scheme.add_test_target(xcode_tests)
+project.save
 tests_scheme.save_as(PROJECT_PATH, "ScoreMakerCompatibilityTests", true)
 
 puts "Generated #{PROJECT_PATH}"

@@ -22,8 +22,11 @@ static NSString *const ScoreAudioUnitFailureDefaultsKey = @"ScoreAudioUnitFailur
 typedef struct
 {
   int pitch;
+  double frequency;
+  int track;
   int notationVoice;
   float velocity;
+  float pan;
   BOOL on;
   uint64_t sampleFrame;
 } ScoreDSPEvent;
@@ -50,6 +53,8 @@ typedef struct
 typedef struct
 {
   int pitch;
+  double frequency;
+  int track;
   int notationVoice;
   double phase;
   double lfoPhase;
@@ -61,6 +66,7 @@ typedef struct
   float filterLow;
   float filterBand;
   float velocity;
+  float pan;
   int envelopeStage;
   int filterEnvelopeStage;
   BOOL active;
@@ -355,7 +361,7 @@ ScoreDSPPush (ScoreDSPState *s, int pitch, int notationVoice, float velocity, BO
   unsigned next = (write + 1) % SCORE_DSP_EVENTS;
   if (next == atomic_load_explicit (&s->readIndex, memory_order_acquire))
     return;
-  s->events[write] = (ScoreDSPEvent){ pitch, notationVoice, velocity, on, 0 };
+  s->events[write] = (ScoreDSPEvent){ pitch, 0.0, 0, notationVoice, velocity, 0.0f, on, 0 };
   atomic_store_explicit (&s->writeIndex, next, memory_order_release);
 }
 static void
@@ -373,6 +379,8 @@ ScoreDSPApplyEvent (ScoreDSPState *s, ScoreDSPEvent e)
       if (!v)
         v = &s->voices[0];
       *v = (ScoreDSPVoice){ .pitch = e.pitch,
+                            .frequency = e.frequency,
+                            .track = e.track,
                             .notationVoice = e.notationVoice,
                             .phase = 0,
                             .lfoPhase = 0,
@@ -380,6 +388,7 @@ ScoreDSPApplyEvent (ScoreDSPState *s, ScoreDSPEvent e)
                             .envelopeLevel = 0,
                             .releaseRate = 0,
                             .velocity = e.velocity,
+                            .pan = e.pan,
                             .envelopeStage = 0,
                             .active = YES,
                             .releasing = NO };
@@ -387,7 +396,9 @@ ScoreDSPApplyEvent (ScoreDSPState *s, ScoreDSPEvent e)
   else
     for (int i = 0; i < SCORE_DSP_VOICES; i++)
       if (s->voices[i].active && s->voices[i].pitch == e.pitch
-          && s->voices[i].notationVoice == e.notationVoice)
+          && s->voices[i].track == e.track
+          && s->voices[i].notationVoice == e.notationVoice
+          && (e.frequency <= 0.0 || fabs (s->voices[i].frequency - e.frequency) < 0.000001))
         s->voices[i].releasing = YES;
 }
 static void
@@ -415,7 +426,8 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
       while (s->scheduledEventIndex < s->scheduledEventCount
              && s->scheduledEvents[s->scheduledEventIndex].sampleFrame <= s->renderedFrames)
         ScoreDSPApplyEvent (s, s->scheduledEvents[s->scheduledEventIndex++]);
-      double voiceMix[SCORE_DSP_PATCHES] = { 0 };
+      double voiceLeftMix[SCORE_DSP_PATCHES] = { 0 };
+      double voiceRightMix[SCORE_DSP_PATCHES] = { 0 };
       for (int i = 0; i < SCORE_DSP_VOICES; i++)
         {
           ScoreDSPVoice *v = &s->voices[i];
@@ -491,7 +503,9 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
                   v->filterEnvelopeStage = 2;
                 }
             }
-          double hz = 440.0 * pow (2.0, (v->pitch - 69) / 12.0);
+          double hz = v->frequency > 0.0
+                        ? v->frequency
+                        : 440.0 * pow (2.0, (v->pitch - 69) / 12.0);
           if ((double)v->ageFrames / s->sampleRate >= patch.lfoDelay && patch.lfoDepth != 0.0f)
             hz *= pow (2.0, sin (v->lfoPhase) * patch.lfoDepth / 12.0);
           double oscillator = 0.0;
@@ -527,7 +541,10 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
               v->filterBand += coefficient * high;
               filtered = v->filterLow;
             }
-          voiceMix[patchIndex] += filtered * v->envelopeLevel * velocityGain;
+          double sample = filtered * v->envelopeLevel * velocityGain;
+          float pan = MAX (-1.0f, MIN (1.0f, v->pan));
+          voiceLeftMix[patchIndex] += sample * sqrt ((1.0 - pan) * 0.5);
+          voiceRightMix[patchIndex] += sample * sqrt ((1.0 + pan) * 0.5);
           v->phase += 2.0 * M_PI * hz / s->sampleRate;
           if (v->phase >= 2.0 * M_PI)
             v->phase -= 2.0 * M_PI;
@@ -540,8 +557,8 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
       float mixedRight = 0.0f;
       for (NSUInteger patchIndex = 0; patchIndex < SCORE_DSP_PATCHES; patchIndex++)
         {
-          float voiceLeft = (float)(voiceMix[patchIndex] * 0.22);
-          float voiceRight = voiceLeft;
+          float voiceLeft = (float)(voiceLeftMix[patchIndex] * 0.31);
+          float voiceRight = (float)(voiceRightMix[patchIndex] * 0.31);
           ScoreDSPApplyVoiceEffects (s, patchIndex, &voiceLeft, &voiceRight);
           mixedLeft += voiceLeft;
           mixedRight += voiceRight;
@@ -570,6 +587,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   AVAudioUnitMIDIInstrument *_instrument;
   NSDictionary *_instrumentDescription;
   NSMutableArray *_engineEffectNodes;
+  NSInteger _generalMIDIProgram;
 #endif
   NSArray *_effectConfiguration;
   NSMutableDictionary *_internalSynthPatches;
@@ -873,6 +891,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   if ((self = [super init]))
     {
       _dsp = calloc (1, sizeof (*_dsp));
+      _generalMIDIProgram = -1;
       ScoreDSPInitializeEffects (_dsp, 48000.0);
       _effectConfiguration = [[NSArray alloc] init];
       _internalSynthPatches = [[NSMutableDictionary alloc] init];
@@ -1004,6 +1023,46 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   _instrument = nil;
   [_instrumentDescription release];
   _instrumentDescription = nil;
+  _generalMIDIProgram = -1;
+#endif
+}
+- (BOOL)useGeneralMIDIProgram:(NSInteger)program error:(NSError **)error
+{
+#if defined(__APPLE__)
+  program = MAX ((NSInteger)0, MIN ((NSInteger)127, program));
+  if (_instrument && !_instrumentDescription && _generalMIDIProgram == program)
+    return YES;
+
+  NSURL *soundBankURL = [NSURL fileURLWithPath:
+    @"/System/Library/Components/CoreAudio.component/Contents/Resources/gs_instruments.dls"];
+  AVAudioUnitSampler *sampler = [[[AVAudioUnitSampler alloc] init] autorelease];
+  NSError *loadError = nil;
+  if (![sampler loadSoundBankInstrumentAtURL:soundBankURL
+                                     program:(uint8_t)program
+                                     bankMSB:kAUSampler_DefaultMelodicBankMSB
+                                     bankLSB:kAUSampler_DefaultBankLSB
+                                       error:&loadError])
+    {
+      if (error)
+        *error = loadError;
+      return NO;
+    }
+
+  [self stop];
+  [_instrument release];
+  _instrument = [sampler retain];
+  [_instrumentDescription release];
+  _instrumentDescription = nil;
+  _generalMIDIProgram = program;
+  return YES;
+#else
+  (void)program;
+  if (error)
+    *error = [NSError errorWithDomain:@"ScoreMakerDSP"
+                                 code:12
+                             userInfo:@{ NSLocalizedDescriptionKey :
+                                           @"General MIDI live audition is unavailable." }];
+  return NO;
 #endif
 }
 - (void)loadAudioUnitInstrument:(NSDictionary *)description
@@ -1077,6 +1136,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
                           _instrument = [(AVAudioUnitMIDIInstrument *)unit retain];
                           [_instrumentDescription release];
                           _instrumentDescription = savedDescription;
+                          _generalMIDIProgram = -1;
                           NSDictionary *state = [description objectForKey:@"state"];
                           if (state)
                             [[_instrument AUAudioUnit] setFullState:state];
@@ -1685,8 +1745,11 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
       NSDictionary *item = [events objectAtIndex:index];
       _dsp->scheduledEvents[index] = (ScoreDSPEvent){
         [[item objectForKey:@"pitch"] intValue],
+        [[item objectForKey:@"frequency"] doubleValue],
+        [[item objectForKey:@"track"] intValue],
         MAX (1, [[item objectForKey:@"voice"] intValue]),
         [[item objectForKey:@"velocity"] floatValue] / 127.0f,
+        MAX (-1.0f, MIN (1.0f, [[item objectForKey:@"pan"] floatValue])),
         [[item objectForKey:@"on"] boolValue],
         (uint64_t)llround ([[item objectForKey:@"time"] doubleValue] * _dsp->sampleRate)
       };
@@ -1711,7 +1774,20 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
       for (NSUInteger index = 0; index < _dsp->scheduledEventCount; index++)
         {
           ScoreDSPEvent event = _dsp->scheduledEvents[index];
-          uint8_t midi[3] = { event.on ? 0x90 : 0x80, (uint8_t)event.pitch,
+          uint8_t channel = (uint8_t)(MAX (0, event.track) % 16);
+          if (event.on && event.frequency > 0.0)
+            {
+              double equalFrequency = 440.0 * pow (2.0, ((double)event.pitch - 69.0) / 12.0);
+              double semitones = 12.0 * log (event.frequency / equalFrequency) / log (2.0);
+              int bend = (int)lrint (8192.0 + semitones * 4096.0);
+              bend = MAX (0, MIN (16383, bend));
+              uint8_t bendMIDI[3] = { (uint8_t)(0xe0 | channel),
+                                      (uint8_t)(bend & 0x7f),
+                                      (uint8_t)((bend >> 7) & 0x7f) };
+              schedule ((AUEventSampleTime)event.sampleFrame, 0, 3, bendMIDI);
+            }
+          uint8_t midi[3] = { (uint8_t)((event.on ? 0x90 : 0x80) | channel),
+                              (uint8_t)event.pitch,
                               event.on ? (uint8_t)lrintf (event.velocity * 127.0f) : 0 };
           schedule ((AUEventSampleTime)event.sampleFrame, 0, 3, midi);
         }
@@ -1777,8 +1853,11 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
       NSDictionary *item = [events objectAtIndex:index];
       state.scheduledEvents[index] = (ScoreDSPEvent){
         [[item objectForKey:@"pitch"] intValue],
+        [[item objectForKey:@"frequency"] doubleValue],
+        [[item objectForKey:@"track"] intValue],
         MAX (1, [[item objectForKey:@"voice"] intValue]),
         [[item objectForKey:@"velocity"] floatValue] / 127.0f,
+        MAX (-1.0f, MIN (1.0f, [[item objectForKey:@"pan"] floatValue])),
         [[item objectForKey:@"on"] boolValue],
         (uint64_t)llround ([[item objectForKey:@"time"] doubleValue] * sampleRate)
       };

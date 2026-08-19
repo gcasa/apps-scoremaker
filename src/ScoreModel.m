@@ -19,6 +19,7 @@
 
 #import "ScoreModel.h"
 #import "MusicPlatformModel.h"
+#import <math.h>
 
 @implementation ScoreNote
 
@@ -30,6 +31,7 @@
       _voice = 1;
       _measureIndex = -1;
       _velocity = 64;
+      _performanceParameters = [[NSMutableDictionary alloc] init];
     }
   return self;
 }
@@ -63,6 +65,28 @@ DefaultAccidentalForPitch (NSInteger pitch)
 {
   _pitch = pitch;
   _accidental = DefaultAccidentalForPitch (pitch);
+}
+
+- (double)playbackFrequency
+{
+  return _playbackFrequency;
+}
+
+- (void)setPlaybackFrequency:(double)frequency
+{
+  _playbackFrequency = isfinite (frequency) && frequency > 0.0 ? frequency : 0.0;
+}
+
+- (NSMutableDictionary *)performanceParameters { return _performanceParameters; }
+- (void)setPerformanceParameters:(NSMutableDictionary *)parameters
+{
+  if (_performanceParameters != parameters)
+    {
+      [_performanceParameters release];
+      _performanceParameters = [parameters mutableCopy];
+      if (!_performanceParameters)
+        _performanceParameters = [[NSMutableDictionary alloc] init];
+    }
 }
 
 - (NSInteger)channel
@@ -201,6 +225,49 @@ DefaultAccidentalForPitch (NSInteger pitch)
       _articulation = [value copy];
     }
 }
+- (NSString *)lyric { return _lyric; }
+- (void)setLyric:(NSString *)value
+{
+  if (_lyric != value) { [_lyric release]; _lyric = [value copy]; }
+}
+- (NSString *)ornament { return _ornament; }
+- (void)setOrnament:(NSString *)value
+{
+  if (_ornament != value) { [_ornament release]; _ornament = [value copy]; }
+}
+- (BOOL)isGrace { return _grace; }
+- (void)setGrace:(BOOL)value { _grace = value; }
+- (BOOL)isCue { return _cue; }
+- (void)setCue:(BOOL)value { _cue = value; }
+- (NSUInteger)tremoloStrokes { return _tremoloStrokes; }
+- (void)setTremoloStrokes:(NSUInteger)value { _tremoloStrokes = MIN ((NSUInteger)4, value); }
+- (NSString *)hairpinStart { return _hairpinStart; }
+- (void)setHairpinStart:(NSString *)value
+{
+  NSString *normalized = ([value isEqualToString:@"crescendo"] ||
+                          [value isEqualToString:@"diminuendo"]) ? value : nil;
+  if (_hairpinStart != normalized) { [_hairpinStart release]; _hairpinStart = [normalized copy]; }
+}
+- (BOOL)hairpinEnd { return _hairpinEnd; }
+- (void)setHairpinEnd:(BOOL)value { _hairpinEnd = value; }
+- (BOOL)pedalStart { return _pedalStart; }
+- (void)setPedalStart:(BOOL)value { _pedalStart = value; }
+- (BOOL)pedalEnd { return _pedalEnd; }
+- (void)setPedalEnd:(BOOL)value { _pedalEnd = value; }
+- (NSInteger)octaveShiftStart { return _octaveShiftStart; }
+- (void)setOctaveShiftStart:(NSInteger)value { _octaveShiftStart = MIN ((NSInteger)1, MAX ((NSInteger)-1, value)); }
+- (BOOL)octaveShiftEnd { return _octaveShiftEnd; }
+- (void)setOctaveShiftEnd:(BOOL)value { _octaveShiftEnd = value; }
+- (NSString *)directionText { return _directionText; }
+- (void)setDirectionText:(NSString *)value
+{
+  if (_directionText != value) { [_directionText release]; _directionText = [value copy]; }
+}
+- (NSInteger)staffAssignment { return _staffAssignment; }
+- (void)setStaffAssignment:(NSInteger)value
+{
+  _staffAssignment = MIN (MAX (value, (NSInteger)0), (NSInteger)2);
+}
 
 - (NSInteger)voice
 {
@@ -264,6 +331,7 @@ DefaultAccidentalForPitch (NSInteger pitch)
 {
   ScoreNote *copy = [[ScoreNote allocWithZone:zone] init];
   [copy setPitch:_pitch];
+  [copy setPlaybackFrequency:_playbackFrequency];
   [copy setAccidental:_accidental];
   [copy setChannel:_channel];
   [copy setTrack:_track];
@@ -278,10 +346,24 @@ DefaultAccidentalForPitch (NSInteger pitch)
   [copy setTupletNormal:_tupletNormal];
   [copy setDynamic:_dynamic];
   [copy setArticulation:_articulation];
+  [copy setLyric:_lyric];
+  [copy setOrnament:_ornament];
+  [copy setGrace:_grace];
+  [copy setCue:_cue];
+  [copy setTremoloStrokes:_tremoloStrokes];
+  [copy setHairpinStart:_hairpinStart];
+  [copy setHairpinEnd:_hairpinEnd];
+  [copy setPedalStart:_pedalStart];
+  [copy setPedalEnd:_pedalEnd];
+  [copy setOctaveShiftStart:_octaveShiftStart];
+  [copy setOctaveShiftEnd:_octaveShiftEnd];
+  [copy setDirectionText:_directionText];
+  [copy setStaffAssignment:_staffAssignment];
   [copy setVoice:_voice];
   [copy setMeasureIndex:_measureIndex];
   [copy setVelocity:_velocity];
   [copy setProvenance:_provenance];
+  [copy setPerformanceParameters:_performanceParameters];
   return copy;
 }
 
@@ -289,7 +371,12 @@ DefaultAccidentalForPitch (NSInteger pitch)
 {
   [_dynamic release];
   [_articulation release];
+  [_lyric release];
+  [_ornament release];
+  [_hairpinStart release];
+  [_directionText release];
   [_provenance release];
+  [_performanceParameters release];
   [super dealloc];
 }
 
@@ -388,6 +475,25 @@ DefaultAccidentalForPitch (NSInteger pitch)
 {
   _repeatEnd = value;
 }
+- (NSString *)rehearsalMark { return _rehearsalMark; }
+- (void)setRehearsalMark:(NSString *)value
+{
+  if (_rehearsalMark != value) { [_rehearsalMark release]; _rehearsalMark = [value copy]; }
+}
+- (NSString *)endingText { return _endingText; }
+- (void)setEndingText:(NSString *)value
+{
+  if (_endingText != value) { [_endingText release]; _endingText = [value copy]; }
+}
+- (BOOL)systemBreak { return _systemBreak; }
+- (void)setSystemBreak:(BOOL)value { _systemBreak = value; }
+- (BOOL)pageBreak { return _pageBreak; }
+- (void)setPageBreak:(BOOL)value
+{
+  _pageBreak = value;
+  if (value)
+    _systemBreak = YES;
+}
 - (id)copyWithZone:(NSZone *)zone
 {
   ScoreMeasure *copy = [[ScoreMeasure allocWithZone:zone] init];
@@ -401,11 +507,17 @@ DefaultAccidentalForPitch (NSInteger pitch)
   [copy setKeyMode:[self keyMode]];
   [copy setRepeatStart:_repeatStart];
   [copy setRepeatEnd:_repeatEnd];
+  [copy setRehearsalMark:_rehearsalMark];
+  [copy setEndingText:_endingText];
+  [copy setSystemBreak:_systemBreak];
+  [copy setPageBreak:_pageBreak];
   return copy;
 }
 - (void)dealloc
 {
   [_keyMode release];
+  [_rehearsalMark release];
+  [_endingText release];
   [super dealloc];
 }
 @end
@@ -745,6 +857,8 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
       _midiRoutes = [[NSMutableArray alloc] init];
       _synthesisGraph = [[ScoreSynthesisGraph alloc] init];
       _compositionProgram = [[ScoreCompositionProgram alloc] init];
+      _pageLayout = [[ScorePageLayout alloc] init];
+      _scorefileCompatibility = [[NSMutableDictionary alloc] init];
     }
   return self;
 }
@@ -764,7 +878,21 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
   [_midiRoutes release];
   [_synthesisGraph release];
   [_compositionProgram release];
+  [_pageLayout release];
+  [_scorefileCompatibility release];
   [super dealloc];
+}
+
+- (NSMutableDictionary *)scorefileCompatibility { return _scorefileCompatibility; }
+- (void)setScorefileCompatibility:(NSMutableDictionary *)compatibility
+{
+  if (_scorefileCompatibility != compatibility)
+    {
+      [_scorefileCompatibility release];
+      _scorefileCompatibility = [compatibility mutableCopy];
+      if (!_scorefileCompatibility)
+        _scorefileCompatibility = [[NSMutableDictionary alloc] init];
+    }
 }
 
 - (NSString *)nameForTrack:(NSInteger)track
@@ -866,6 +994,18 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
       _compositionProgram = [program retain];
     }
 }
+- (ScorePageLayout *)pageLayout
+{
+  return _pageLayout;
+}
+- (void)setPageLayout:(ScorePageLayout *)layout
+{
+  if (_pageLayout != layout)
+    {
+      [_pageLayout release];
+      _pageLayout = [layout retain];
+    }
+}
 
 - (void)rebuildStructuredPartsFromLegacyTracks
 {
@@ -937,6 +1077,114 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
   [_tempoEvents addObject:tempo];
 }
 
+- (void)copyMIDIRoutingAssignmentsFromDocument:(ScoreDocument *)document
+{
+  if (!document || document == self)
+    return;
+
+  NSMutableDictionary *sourcePartsByTrack = [NSMutableDictionary dictionary];
+  for (ScorePartDefinition *part in [document parts])
+    [sourcePartsByTrack setObject:part
+                          forKey:[NSNumber numberWithInteger:[part legacyTrack]]];
+
+  for (ScorePartDefinition *part in _parts)
+    {
+      ScorePartDefinition *source =
+        [sourcePartsByTrack objectForKey:[NSNumber numberWithInteger:[part legacyTrack]]];
+      if (!source)
+        continue;
+      [part setMidiOutputUniqueID:[source midiOutputUniqueID]];
+      [part setMidiOutputName:[source midiOutputName]];
+      [part setMidiFallbackMode:[source midiFallbackMode] ?: @"builtin"];
+      [part setMidiFallbackUniqueID:[source midiFallbackUniqueID]];
+      [part setMidiFallbackName:[source midiFallbackName]];
+      [part setMuted:[source muted]];
+      [part setSoloed:[source soloed]];
+      [part setGain:[source gain]];
+      [part setPan:[source pan]];
+      [part setVisible:[source visible]];
+      [part setGroupName:[source groupName]];
+    }
+}
+
+- (NSUInteger)convertVoicesToPartsForTrack:(NSInteger)track
+{
+  NSMutableSet *voiceSet = [NSMutableSet set];
+  for (ScoreNote *note in _notes)
+    if ([note track] == track)
+      [voiceSet addObject:[NSNumber numberWithInteger:[note voice]]];
+  NSArray *voices = [[voiceSet allObjects] sortedArrayUsingSelector:@selector (compare:)];
+  if ([voices count] < 2)
+    return 0;
+
+  NSInteger highestTrack = track;
+  for (NSNumber *number in [_partNames allKeys])
+    highestTrack = MAX (highestTrack, [number integerValue]);
+  for (NSNumber *number in [_trackPrograms allKeys])
+    highestTrack = MAX (highestTrack, [number integerValue]);
+  for (ScoreNote *note in _notes)
+    highestTrack = MAX (highestTrack, [note track]);
+
+  NSString *baseName = [self nameForTrack:track];
+  if (![baseName length])
+    baseName = [NSString stringWithFormat:@"Part %ld", (long)(track + 1)];
+  NSNumber *program = [self programForTrack:track];
+  NSMutableDictionary *tracksByVoice = [NSMutableDictionary dictionary];
+  for (NSUInteger index = 0; index < [voices count]; index++)
+    {
+      NSNumber *voice = [voices objectAtIndex:index];
+      NSInteger destinationTrack = index == 0 ? track : ++highestTrack;
+      [tracksByVoice setObject:[NSNumber numberWithInteger:destinationTrack] forKey:voice];
+      [self setName:[NSString stringWithFormat:@"%@ — Voice %@", baseName, voice]
+             forTrack:destinationTrack];
+      [self setProgram:program ?: [NSNumber numberWithInteger:0] forTrack:destinationTrack];
+    }
+  for (ScoreNote *note in _notes)
+    if ([note track] == track)
+      {
+        [note setTrack:[[tracksByVoice objectForKey:
+                         [NSNumber numberWithInteger:[note voice]]] integerValue]];
+        [note setVoice:1];
+      }
+  [self rebuildStructuredPartsFromLegacyTracks];
+  return [voices count];
+}
+
+- (NSUInteger)convertPartsToVoices
+{
+  /* Only populated tracks can become notation voices.  Including an empty
+   * named/programmed placeholder here creates a voice definition with no
+   * notes and shifts the first audible part to voice 2. */
+  NSMutableSet *trackSet = [NSMutableSet set];
+  for (ScoreNote *note in _notes)
+    [trackSet addObject:[NSNumber numberWithInteger:[note track]]];
+  NSArray *tracks = [[trackSet allObjects] sortedArrayUsingSelector:@selector (compare:)];
+  if ([tracks count] < 2)
+    return 0;
+
+  NSInteger destinationTrack = [[tracks objectAtIndex:0] integerValue];
+  NSString *destinationName = [self nameForTrack:destinationTrack];
+  NSNumber *destinationProgram = [self programForTrack:destinationTrack];
+  NSMutableDictionary *voicesByTrack = [NSMutableDictionary dictionary];
+  for (NSUInteger index = 0; index < [tracks count]; index++)
+    [voicesByTrack setObject:[NSNumber numberWithUnsignedInteger:index + 1]
+                      forKey:[tracks objectAtIndex:index]];
+  for (ScoreNote *note in _notes)
+    {
+      [note setVoice:[[voicesByTrack objectForKey:
+                       [NSNumber numberWithInteger:[note track]]] integerValue]];
+      [note setTrack:destinationTrack];
+    }
+  [_partNames removeAllObjects];
+  [_trackPrograms removeAllObjects];
+  [self setName:[destinationName length] ? destinationName : @"Combined Parts"
+         forTrack:destinationTrack];
+  [self setProgram:destinationProgram ?: [NSNumber numberWithInteger:0]
+          forTrack:destinationTrack];
+  [self rebuildStructuredPartsFromLegacyTracks];
+  return [tracks count];
+}
+
 - (id)copyWithZone:(NSZone *)zone
 {
   ScoreDocument *copy = [[ScoreDocument allocWithZone:zone] init];
@@ -968,6 +1216,8 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
                                                    copyItems:YES] autorelease]];
   [copy setSynthesisGraph:[[_synthesisGraph copy] autorelease]];
   [copy setCompositionProgram:[[_compositionProgram copy] autorelease]];
+  [copy setPageLayout:[[_pageLayout copy] autorelease]];
+  [copy setScorefileCompatibility:_scorefileCompatibility];
   return copy;
 }
 

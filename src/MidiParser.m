@@ -19,6 +19,7 @@
 
 #import "MidiParser.h"
 #import <stdint.h>
+#import <math.h>
 
 static NSString *const MidiParserErrorDomain = @"ScoreMakerMidiParser";
 
@@ -120,6 +121,7 @@ AppendMetaText (NSMutableData *data, unsigned char type, NSString *text)
 static NSComparisonResult
 CompareMidiEventDictionaries (id a, id b, void *context)
 {
+  (void)context;
   NSUInteger tickA = [[a objectForKey:@"tick"] unsignedIntegerValue];
   NSUInteger tickB = [[b objectForKey:@"tick"] unsignedIntegerValue];
   if (tickA < tickB)
@@ -777,11 +779,26 @@ GeneralMidiProgramName (unsigned char program)
             = (unsigned char)MIN (MAX ([note pitch], (NSInteger)0), (NSInteger)127);
           unsigned char channel
             = (unsigned char)MIN (MAX ([note channel], (NSInteger)0), (NSInteger)15);
+          if ([note playbackFrequency] > 0.0 && channel != 9)
+            {
+              double equalFrequency = 440.0 * pow (2.0, ((double)[note pitch] - 69.0) / 12.0);
+              double semitones = 12.0 * log ([note playbackFrequency] / equalFrequency) / log (2.0);
+              /* General MIDI instruments conventionally use a +/-2-semitone bend range. */
+              NSInteger bend = (NSInteger)llround (8192.0 + semitones * 4096.0);
+              bend = MAX ((NSInteger)0, MIN ((NSInteger)16383, bend));
+              [events addObject:[NSDictionary dictionaryWithObjectsAndKeys:
+                [NSNumber numberWithUnsignedInteger:[note startTick]], @"tick",
+                [NSNumber numberWithInteger:1], @"order",
+                [NSNumber numberWithUnsignedChar:(unsigned char)(0xe0 | channel)], @"status",
+                [NSNumber numberWithUnsignedChar:(unsigned char)(bend & 0x7f)], @"data1",
+                [NSNumber numberWithUnsignedChar:(unsigned char)((bend >> 7) & 0x7f)], @"data2",
+                nil]];
+            }
           [events
             addObject:[NSDictionary
                         dictionaryWithObjectsAndKeys:
                           [NSNumber numberWithUnsignedInteger:[note startTick]], @"tick",
-                          [NSNumber numberWithInteger:1], @"order",
+                          [NSNumber numberWithInteger:2], @"order",
                           [NSNumber numberWithUnsignedChar:(unsigned char)(0x90 | channel)],
                           @"status", [NSNumber numberWithUnsignedChar:pitch], @"data1",
                           [NSNumber numberWithUnsignedInteger:[note velocity]], @"data2", nil]];

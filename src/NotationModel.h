@@ -20,22 +20,57 @@
 #import <Foundation/Foundation.h>
 #import "ScoreModel.h"
 
+/** Identifies the musical meaning of a normalized notation element. */
 typedef NS_ENUM (NSInteger, ScoreNotationKind) {
+  /** A sounding note. */
   ScoreNotationNote,
+  /** A notated rest. */
   ScoreNotationRest,
+  /** An accidental glyph. */
   ScoreNotationAccidental,
+  /** A slur span. */
   ScoreNotationSlur,
+  /** A tie span. */
   ScoreNotationTie,
+  /** A tuplet span or marker. */
   ScoreNotationTuplet,
+  /** A dynamic marking. */
   ScoreNotationDynamic,
+  /** An articulation marking. */
   ScoreNotationArticulation,
+  /** A key-signature change. */
   ScoreNotationKeySignature,
-  ScoreNotationRepeat
+  /** A repeat barline. */
+  ScoreNotationRepeat,
+  /** A lyric syllable. */
+  ScoreNotationLyric,
+  /** An ornament such as a trill or turn. */
+  ScoreNotationOrnament,
+  /** An unmetered grace-note marker. */
+  ScoreNotationGrace,
+  /** A cue-sized note marker. */
+  ScoreNotationCue,
+  /** A measured or unmeasured tremolo. */
+  ScoreNotationTremolo,
+  /** A boxed rehearsal mark. */
+  ScoreNotationRehearsalMark,
+  /** A volta/ending span. */
+  ScoreNotationEnding,
+  /** Crescendo or diminuendo wedge. */
+  ScoreNotationHairpin,
+  /** Piano sustain-pedal line. */
+  ScoreNotationPedal,
+  /** 8va or 8vb line. */
+  ScoreNotationOctaveShift,
+  /** Free score text anchored to a rhythmic position. */
+  ScoreNotationText
 };
 
-/* A normalized semantic element. Importers and editors may continue using the
- * compatibility fields on ScoreNote/ScoreMeasure; all downstream consumers
- * should use this representation instead of interpreting those fields again. */
+/**
+ * A normalized semantic element. Importers and editors may continue using the
+ * compatibility fields on ScoreNote and ScoreMeasure; downstream consumers
+ * should use this representation instead of interpreting those fields again.
+ */
 @interface ScoreNotationElement : NSObject
 {
   ScoreNotationKind _kind;
@@ -46,15 +81,24 @@ typedef NS_ENUM (NSInteger, ScoreNotationKind) {
   NSString *_value;
   id _source;
 }
+/** Semantic kind of this element. */
 @property (nonatomic) ScoreNotationKind kind;
+/** Inclusive starting tick. */
 @property (nonatomic) NSUInteger startTick;
+/** Exclusive ending tick. */
 @property (nonatomic) NSUInteger endTick;
+/** Legacy track containing the element. */
 @property (nonatomic) NSInteger track;
+/** One-based notation voice number. */
 @property (nonatomic) NSInteger notationVoice;
+/** Kind-specific normalized textual value. */
 @property (nonatomic, copy) NSString *value;
+/** Nonretained ScoreNote or ScoreMeasure from which the element was derived. */
 @property (nonatomic, assign) id source;
 @end
 
+/** Produces normalized notation elements from a complete score document. */
 @interface ScoreNotationModel : NSObject
+/** Returns the ordered normalized notation elements for <var>document</var>. */
 + (NSArray *)elementsForDocument:(ScoreDocument *)document;
 @end
