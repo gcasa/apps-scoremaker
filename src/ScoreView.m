@@ -854,17 +854,20 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                        atX:(CGFloat)x trebleY:(CGFloat)trebleY bassY:(CGFloat)bassY
 {
   NSInteger count = labs (fifths);
-  NSInteger sharpSteps[] = { 0, 3, -1, 2, 5, 1, 4 };
-  NSInteger flatSteps[] = { 4, 1, 5, 2, 6, 3, 7 };
+  NSInteger trebleSharpSteps[] = { 0, 3, -1, 2, 5, 1, 4 };
+  NSInteger trebleFlatSteps[] = { 4, 1, 5, 2, 6, 3, 7 };
+  NSInteger bassSharpSteps[] = { 2, 5, 1, 4, 7, 3, 6 };
+  NSInteger bassFlatSteps[] = { -1, 3, 0, 4, 1, 5, 2 };
   NSDictionary *attrs = [NSDictionary dictionaryWithObjectsAndKeys:
     ([NSFont fontWithName:@"Times New Roman" size:18.0] ?: [NSFont systemFontOfSize:16.0]),
     NSFontAttributeName, [NSColor blackColor], NSForegroundColorAttributeName, nil];
   for (NSInteger i = 0; i < count; i++)
     {
-      NSInteger step = fifths > 0 ? sharpSteps[i] : flatSteps[i];
-      [symbol drawAtPoint:NSMakePoint (x + i * 8.0, trebleY + step * 2.5 - 9.0)
+      NSInteger trebleStep = fifths > 0 ? trebleSharpSteps[i] : trebleFlatSteps[i];
+      NSInteger bassStep = fifths > 0 ? bassSharpSteps[i] : bassFlatSteps[i];
+      [symbol drawAtPoint:NSMakePoint (x + i * 8.0, trebleY + trebleStep * 2.5 - 9.0)
            withAttributes:attrs];
-      [symbol drawAtPoint:NSMakePoint (x + i * 8.0, bassY + step * 2.5 - 9.0)
+      [symbol drawAtPoint:NSMakePoint (x + i * 8.0, bassY + bassStep * 2.5 - 9.0)
            withAttributes:attrs];
     }
 }

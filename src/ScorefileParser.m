@@ -292,6 +292,9 @@ ScoreMakerStructureComment (ScoreDocument *document, NSError **error)
 static void
 ApplyScoreMakerStructure (ScoreDocument *document, NSDictionary *structure)
 {
+  NSUInteger storedTPQ = [[structure objectForKey:@"ticksPerQuarter"] unsignedIntegerValue];
+  storedTPQ = MAX ((NSUInteger)1, storedTPQ ?: [document ticksPerQuarter]);
+  NSUInteger documentTPQ = MAX ((NSUInteger)1, [document ticksPerQuarter]);
   NSArray *storedMeasures = [structure objectForKey:@"measures"];
   if ([storedMeasures isKindOfClass:[NSArray class]] && [storedMeasures count] > 0)
     {
@@ -302,9 +305,12 @@ ApplyScoreMakerStructure (ScoreDocument *document, NSDictionary *structure)
             continue;
           ScoreMeasure *measure = [[[ScoreMeasure alloc] init] autorelease];
           [measure setNumber:[[item objectForKey:@"number"] integerValue]];
-          [measure setStartTick:[[item objectForKey:@"startTick"] unsignedIntegerValue]];
-          [measure setDurationTicks:MAX ((NSUInteger)1, [[item objectForKey:@"durationTicks"]
-                                                          unsignedIntegerValue])];
+          NSUInteger storedStart = [[item objectForKey:@"startTick"] unsignedIntegerValue];
+          NSUInteger storedDuration = [[item objectForKey:@"durationTicks"] unsignedIntegerValue];
+          [measure setStartTick:(NSUInteger)llround ((double)storedStart * documentTPQ /
+                                                     storedTPQ)];
+          [measure setDurationTicks:MAX ((NSUInteger)1,
+            (NSUInteger)llround ((double)storedDuration * documentTPQ / storedTPQ))];
           [measure setTimeSignatureNumerator:MAX ((NSUInteger)1, [[item objectForKey:@"beats"]
                                                                    unsignedIntegerValue])];
           [measure setTimeSignatureDenominator:MAX ((NSUInteger)1, [[item objectForKey:@"beatType"]
@@ -324,9 +330,6 @@ ApplyScoreMakerStructure (ScoreDocument *document, NSDictionary *structure)
         [document setMeasures:measures];
     }
   NSArray *details = [structure objectForKey:@"noteDetails"];
-  NSUInteger storedTPQ = [[structure objectForKey:@"ticksPerQuarter"] unsignedIntegerValue];
-  storedTPQ = MAX ((NSUInteger)1, storedTPQ ?: [document ticksPerQuarter]);
-  NSUInteger documentTPQ = MAX ((NSUInteger)1, [document ticksPerQuarter]);
   NSMutableDictionary *notesByIdentity = [NSMutableDictionary dictionary];
   NSMutableDictionary *nextNoteByIdentity = [NSMutableDictionary dictionary];
   for (ScoreNote *candidate in [document notes])

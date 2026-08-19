@@ -184,6 +184,13 @@ main (void)
              llround ((double)[normalizedNote durationTicks] * 1000000.0 /
                     (double)[normalized ticksPerQuarter]),
            @"generated source changed high-resolution MIDI note timing");
+  ScoreMeasure *highResolutionMeasure = [[highResolution measures] objectAtIndex:0];
+  ScoreMeasure *normalizedMeasure = [[normalized measures] objectAtIndex:0];
+  Require (llround ((double)[highResolutionMeasure durationTicks] * 1000000.0 /
+                    (double)[highResolution ticksPerQuarter]) ==
+             llround ((double)[normalizedMeasure durationTicks] * 1000000.0 /
+                    (double)[normalized ticksPerQuarter]),
+           @"generated source changed high-resolution measure timing");
 
   NSDirectoryEnumerator *examples = [[NSFileManager defaultManager] enumeratorAtPath:@"examples"];
   for (NSString *name in examples)
