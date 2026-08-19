@@ -587,8 +587,8 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   AVAudioUnitMIDIInstrument *_instrument;
   NSDictionary *_instrumentDescription;
   NSMutableArray *_engineEffectNodes;
-  NSInteger _generalMIDIProgram;
 #endif
+  NSInteger _generalMIDIProgram;
   NSArray *_effectConfiguration;
   NSMutableDictionary *_internalSynthPatches;
   NSMutableDictionary *_internalSynthEffects;
