@@ -30,7 +30,7 @@ main (int argc, const char *argv[])
   // Process arguments, currently we ignore them but this avoids the warning.
   for (i = 0; i < argc; i++)
     {
-      printf("Argument#%ld - %s", argv[i]);
+      printf("Argument#%ld - %s", i, argv[i]);
     }
   
   [ScoreMakerDocumentController sharedDocumentController];
