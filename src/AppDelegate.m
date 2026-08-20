@@ -361,11 +361,13 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
                                                keyEquivalent:@""] autorelease];
   [aboutItem setTarget:self];
   [appMenu addItem:aboutItem];
+#ifndef GNUSTEP
   [appMenu addItem:[NSMenuItem separatorItem]];
   NSMenuItem *quitItem = [[[NSMenuItem alloc] initWithTitle:@"Quit ScoreMaker"
                                                      action:@selector (terminate:)
                                               keyEquivalent:@"q"] autorelease];
   [appMenu addItem:quitItem];
+#endif
   [appItem setSubmenu:appMenu];
 
   NSMenuItem *fileItem = [[[NSMenuItem alloc] initWithTitle:@"File" action:NULL
@@ -559,6 +561,13 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
                                                  action:@selector (chooseTitleFont:)
                                           keyEquivalent:@""] autorelease]];
   [scoreItem setSubmenu:scoreMenu];
+
+#ifdef GNUSTEP
+  NSMenuItem *quitItem = [[[NSMenuItem alloc] initWithTitle:@"Quit ScoreMaker"
+                                                     action:@selector (terminate:)
+                                              keyEquivalent:@"q"] autorelease];
+  [mainMenu addItem:quitItem];
+#endif
 
   [NSApp setMainMenu:mainMenu];
 }
