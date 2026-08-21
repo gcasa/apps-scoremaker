@@ -141,11 +141,6 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
                       [NSColor colorWithCalibratedRed:0.55 green:0.27 blue:0.22 alpha:1.0], NSTextAlignmentLeft);
   ScoreMakerDrawText (@"Native AppKit", NSMakeRect (178.0, 450.0, 130.0, 22.0),
                       [NSFont systemFontOfSize:14.0], ink, NSTextAlignmentLeft);
-  ScoreMakerDrawText (@"LICENSE", NSMakeRect (338.0, 430.0, 80.0, 18.0),
-                      [NSFont boldSystemFontOfSize:10.0],
-                      [NSColor colorWithCalibratedRed:0.55 green:0.27 blue:0.22 alpha:1.0], NSTextAlignmentLeft);
-  ScoreMakerDrawText (@"GNU LGPL 2.1+", NSMakeRect (338.0, 450.0, 150.0, 22.0),
-                      [NSFont systemFontOfSize:14.0], ink, NSTextAlignmentLeft);
   ScoreMakerDrawText (@"♪", NSMakeRect (535.0, 426.0, 40.0, 50.0),
                       [NSFont systemFontOfSize:34.0],
                       [NSColor colorWithCalibratedRed:0.91 green:0.29 blue:0.22 alpha:1.0], NSTextAlignmentCenter);
