@@ -25,7 +25,14 @@ int
 main (int argc, const char *argv[])
 {
   NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-
+  NSUInteger i = 0;
+  
+  // Process arguments, currently we ignore them but this avoids the warning.
+  for (i = 0; i < argc; i++)
+    {
+      printf("Argument#%ld - %s", i, argv[i]);
+    }
+  
   [ScoreMakerDocumentController sharedDocumentController];
   NSApplication *application = [NSApplication sharedApplication];
   AppDelegate *delegate = [[AppDelegate alloc] init];
