@@ -336,7 +336,7 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
 - (void)buildMenu
 {
   NSMenu *mainMenu = [[[NSMenu alloc] initWithTitle:@"ScoreMaker"] autorelease];
-#ifdef GNUSTEP
+#if !defined(__APPLE__)
   NSMenuItem *appItem = [[[NSMenuItem alloc] initWithTitle:@"Info"
                                                     action:NULL
                                              keyEquivalent:@""] autorelease];
@@ -356,7 +356,7 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
                                                keyEquivalent:@""] autorelease];
   [aboutItem setTarget:self];
   [appMenu addItem:aboutItem];
-#ifndef GNUSTEP
+#if defined(__APPLE__)
   [appMenu addItem:[NSMenuItem separatorItem]];
   NSMenuItem *quitItem = [[[NSMenuItem alloc] initWithTitle:@"Quit ScoreMaker"
                                                      action:@selector (terminate:)
@@ -557,7 +557,7 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
                                           keyEquivalent:@""] autorelease]];
   [scoreItem setSubmenu:scoreMenu];
 
-#ifdef GNUSTEP
+#if !defined(__APPLE__)
   NSMenuItem *quitItem = [[[NSMenuItem alloc] initWithTitle:@"Quit ScoreMaker"
                                                      action:@selector (terminate:)
                                               keyEquivalent:@"q"] autorelease];

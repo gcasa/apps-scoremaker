@@ -48,7 +48,6 @@
     CFBundleIconFile = ScoreMakerAppIcon;
     CFBundleIdentifier = "com.gnustep.ScoreMaker";
     Copyright = "Copyright (C) 2026 Gregory Casamento";
-    CopyrightDescription = "GNU Lesser General Public License, version 2.1 or later";
     FullVersionID = "0.1";
     NSExecutable = ScoreMaker;
     NSIcon = "Resources/ScoreMakerAppIcon.png";
