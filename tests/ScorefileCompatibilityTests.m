@@ -227,6 +227,16 @@ main (void)
                @"measure count changed after round trip");
     }
 
+  NSError *bachError = nil;
+  ScoreDocument *bach =
+    [ScorefileParser parseFileAtPath:@"examples/bach-fugue-bwv-1041.score"
+                               error:&bachError];
+  NSMutableSet *bachVelocities = [NSMutableSet set];
+  for (ScoreNote *note in [bach notes])
+    [bachVelocities addObject:[NSNumber numberWithUnsignedInteger:[note velocity]]];
+  Require (bach != nil && [bachVelocities count] > 50,
+           @"BWV 1041 lost its note-by-note amplitude settings");
+
   ScoreDocument *platform = [[[ScoreDocument alloc] init] autorelease];
   ScoreCompositionProgram *program = [platform compositionProgram];
   [program setSource:@"part 0 Lead\nvoice 1\nnote 60 480\nnote 64 480\nrest 0 240\n"];
