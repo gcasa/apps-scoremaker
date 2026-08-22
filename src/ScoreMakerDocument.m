@@ -18,6 +18,9 @@
  */
 
 #import "ScoreMakerDocument.h"
+
+NSString * const ScoreMakerDocumentPlaybackDidFinishNotification =
+  @"ScoreMakerDocumentPlaybackDidFinishNotification";
 #import "MusicEngine.h"
 #import "MidiParser.h"
 #import "MusicXMLParser.h"
@@ -4189,6 +4192,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [self updatePauseButtonForPaused:NO];
       [_pauseButton setEnabled:NO];
       [_realtimeDSP allNotesOff];
+      [[NSNotificationCenter defaultCenter]
+        postNotificationName:ScoreMakerDocumentPlaybackDidFinishNotification object:self];
       return;
     }
 
@@ -4717,8 +4722,17 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 
 - (void)pianoKeyPressed:(id)sender
 {
-  NSInteger pitch = [(PlaybackMonitorView *)sender inputPitch];
-  if (pitch < 0 || pitch > 127 || ![self scoreDocument] || _playbackTimer || _playbackPaused)
+  PlaybackMonitorView *monitor = (PlaybackMonitorView *)sender;
+  NSInteger pitch = [monitor inputPitch];
+  if (_playbackTimer || _playbackPaused)
+    {
+      /* Playback owns the keyboard highlights.  A click still reaches this
+         action after the view has recorded its input pitch, so clear that
+         transient state instead of leaving the key latched visually. */
+      [monitor resetInputPitch];
+      return;
+    }
+  if (pitch < 0 || pitch > 127 || ![self scoreDocument])
     return;
   if (_useRealtimeDSP)
     {

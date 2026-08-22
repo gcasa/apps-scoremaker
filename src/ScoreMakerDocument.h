@@ -18,6 +18,9 @@
  */
 
 #import <AppKit/AppKit.h>
+
+/** Posted with the ScoreMakerDocument as its object after playback reaches the score's end. */
+FOUNDATION_EXPORT NSString * const ScoreMakerDocumentPlaybackDidFinishNotification;
 #import "ScoreView.h"
 #import "PlaybackMonitorView.h"
 #import "MIDIInputManager.h"

@@ -160,6 +160,10 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
 - (void)applicationDidFinishLaunching:(NSNotification *)notification
 {
   (void)notification;
+  _playlistPaths = [[NSMutableArray alloc] init];
+  [[NSNotificationCenter defaultCenter]
+    addObserver:self selector:@selector (playlistDocumentDidFinish:)
+           name:ScoreMakerDocumentPlaybackDidFinishNotification object:nil];
   [self buildMenu];
 }
 
@@ -221,6 +225,7 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
 - (void)applicationWillTerminate:(NSNotification *)notification
 {
   (void)notification;
+  [self stopPlaylist:nil];
   for (NSDocument *document in [[NSDocumentController sharedDocumentController] documents])
     {
       if ([document isKindOfClass:[ScoreMakerDocument class]])
@@ -232,9 +237,203 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
 
 - (void)dealloc
 {
+  [[NSNotificationCenter defaultCenter] removeObserver:self];
+  [_playlistDelayTimer invalidate];
+  [_playlistDelayTimer release];
+  [_playlistPaths release];
+  [_playlistPanel release];
   [_recentDocumentsMenu release];
   [_infoPanel release];
   [super dealloc];
+}
+
+- (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView
+{
+  return tableView == _playlistTable ? (NSInteger)[_playlistPaths count] : 0;
+}
+
+- (id)tableView:(NSTableView *)tableView
+ objectValueForTableColumn:(NSTableColumn *)column
+             row:(NSInteger)row
+{
+  (void)tableView;
+  (void)column;
+  if (row < 0 || (NSUInteger)row >= [_playlistPaths count])
+    return @"";
+  return [[_playlistPaths objectAtIndex:(NSUInteger)row] lastPathComponent];
+}
+
+- (NSButton *)playlistButtonWithTitle:(NSString *)title frame:(NSRect)frame action:(SEL)action
+{
+  NSButton *button = [[[NSButton alloc] initWithFrame:frame] autorelease];
+  [button setTitle:title];
+  [button setTarget:self];
+  [button setAction:action];
+  return button;
+}
+
+- (void)showPlaylist:(id)sender
+{
+  (void)sender;
+  if (!_playlistPanel)
+    {
+      NSRect frame = NSMakeRect (0.0, 0.0, 560.0, 410.0);
+      _playlistPanel = [[NSPanel alloc] initWithContentRect:frame
+                                                 styleMask:ScoreMakerPanelStyle
+                                                   backing:NSBackingStoreBuffered defer:NO];
+      [_playlistPanel setTitle:@"Playlist"];
+      [_playlistPanel setReleasedWhenClosed:NO];
+      NSView *content = [_playlistPanel contentView];
+      NSScrollView *scroll = [[[NSScrollView alloc]
+        initWithFrame:NSMakeRect (20.0, 92.0, 520.0, 290.0)] autorelease];
+      [scroll setHasVerticalScroller:YES];
+      [scroll setBorderType:NSBezelBorder];
+      _playlistTable = [[NSTableView alloc] initWithFrame:[scroll bounds]];
+      NSTableColumn *column = [[[NSTableColumn alloc] initWithIdentifier:@"music"] autorelease];
+      [[column headerCell] setStringValue:@"Music"];
+      [column setWidth:500.0];
+      [_playlistTable addTableColumn:column];
+      [_playlistTable setHeaderView:nil];
+      [_playlistTable setDataSource:self];
+      [_playlistTable setDelegate:self];
+      [scroll setDocumentView:_playlistTable];
+      [content addSubview:scroll];
+
+      [content addSubview:[self playlistButtonWithTitle:@"Add..." frame:NSMakeRect (20, 52, 72, 28)
+                                                  action:@selector (addPlaylistItems:)]];
+      [content addSubview:[self playlistButtonWithTitle:@"Remove" frame:NSMakeRect (98, 52, 72, 28)
+                                                  action:@selector (removePlaylistItem:)]];
+      [content addSubview:[self playlistButtonWithTitle:@"Up" frame:NSMakeRect (176, 52, 54, 28)
+                                                  action:@selector (movePlaylistItemUp:)]];
+      [content addSubview:[self playlistButtonWithTitle:@"Down" frame:NSMakeRect (236, 52, 58, 28)
+                                                  action:@selector (movePlaylistItemDown:)]];
+      NSTextField *delayLabel = [[[NSTextField alloc] initWithFrame:NSMakeRect (310, 57, 105, 20)] autorelease];
+      [delayLabel setStringValue:@"Delay (seconds):"];
+      [delayLabel setEditable:NO]; [delayLabel setBordered:NO]; [delayLabel setDrawsBackground:NO];
+      [content addSubview:delayLabel];
+      _playlistDelayField = [[NSTextField alloc] initWithFrame:NSMakeRect (418, 53, 58, 26)];
+      [_playlistDelayField setDoubleValue:2.0];
+      [content addSubview:_playlistDelayField];
+      [content addSubview:[self playlistButtonWithTitle:@"Play" frame:NSMakeRect (20, 14, 72, 28)
+                                                  action:@selector (playPlaylist:)]];
+      [content addSubview:[self playlistButtonWithTitle:@"Stop" frame:NSMakeRect (98, 14, 72, 28)
+                                                  action:@selector (stopPlaylist:)]];
+      _playlistStatusField = [[NSTextField alloc] initWithFrame:NSMakeRect (184, 19, 356, 20)];
+      [_playlistStatusField setStringValue:@"Not playing"];
+      [_playlistStatusField setEditable:NO]; [_playlistStatusField setBordered:NO];
+      [_playlistStatusField setDrawsBackground:NO];
+      [content addSubview:_playlistStatusField];
+    }
+  [_playlistPanel center];
+  [_playlistPanel makeKeyAndOrderFront:self];
+}
+
+- (void)addPlaylistItems:(id)sender
+{
+  (void)sender;
+  NSOpenPanel *panel = [NSOpenPanel openPanel];
+  [panel setAllowsMultipleSelection:YES];
+  [panel setCanChooseDirectories:NO];
+  if ([panel runModal] != NSModalResponseOK)
+    return;
+  for (NSURL *url in [panel URLs])
+    if (![_playlistPaths containsObject:[url path]])
+      [_playlistPaths addObject:[url path]];
+  [_playlistTable reloadData];
+}
+
+- (void)removePlaylistItem:(id)sender
+{
+  (void)sender;
+  NSInteger row = [_playlistTable selectedRow];
+  if (row >= 0 && (NSUInteger)row < [_playlistPaths count])
+    { [_playlistPaths removeObjectAtIndex:(NSUInteger)row]; [_playlistTable reloadData]; }
+}
+
+- (void)movePlaylistItemBy:(NSInteger)offset
+{
+  NSInteger row = [_playlistTable selectedRow], target = row + offset;
+  if (row < 0 || target < 0 || (NSUInteger)target >= [_playlistPaths count]) return;
+  [_playlistPaths exchangeObjectAtIndex:(NSUInteger)row withObjectAtIndex:(NSUInteger)target];
+  [_playlistTable reloadData];
+  [_playlistTable selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)target]
+             byExtendingSelection:NO];
+}
+- (void)movePlaylistItemUp:(id)sender { (void)sender; [self movePlaylistItemBy:-1]; }
+- (void)movePlaylistItemDown:(id)sender { (void)sender; [self movePlaylistItemBy:1]; }
+
+- (void)playPlaylistItem
+{
+  if (!_playlistPlaying || _playlistIndex >= [_playlistPaths count])
+    { [self stopPlaylist:nil]; return; }
+  NSString *path = [_playlistPaths objectAtIndex:_playlistIndex];
+  [_playlistStatusField setStringValue:[NSString stringWithFormat:@"Playing %lu of %lu: %@",
+    (unsigned long)(_playlistIndex + 1), (unsigned long)[_playlistPaths count], [path lastPathComponent]]];
+  NSDocumentController *controller = [NSDocumentController sharedDocumentController];
+#if defined(__APPLE__)
+  [controller openDocumentWithContentsOfURL:[NSURL fileURLWithPath:path] display:YES
+    completionHandler:^(NSDocument *document, BOOL alreadyOpen, NSError *error) {
+      (void)alreadyOpen;
+      if (error) { [controller presentError:error]; [self stopPlaylist:nil]; return; }
+      if (_playlistPlaying && [document isKindOfClass:[ScoreMakerDocument class]])
+        {
+          [[(ScoreMakerDocument *)document scoreView] selectNote:nil scrollToVisible:NO];
+          [(ScoreMakerDocument *)document playScore:self];
+        }
+    }];
+#else
+  NSError *error = nil;
+  NSDocument *document = [controller openDocumentWithContentsOfURL:[NSURL fileURLWithPath:path]
+                                                           display:YES error:&error];
+  if ([document isKindOfClass:[ScoreMakerDocument class]])
+    {
+      [[(ScoreMakerDocument *)document scoreView] selectNote:nil scrollToVisible:NO];
+      [(ScoreMakerDocument *)document playScore:self];
+    }
+  else { if (error) [controller presentError:error]; [self stopPlaylist:nil]; }
+#endif
+}
+
+- (void)playPlaylist:(id)sender
+{
+  (void)sender;
+  if (![_playlistPaths count]) { NSBeep (); return; }
+  [self stopPlaylist:nil];
+  _playlistPlaying = YES;
+  _playlistIndex = 0;
+  [self playPlaylistItem];
+}
+
+- (void)playlistDocumentDidFinish:(NSNotification *)notification
+{
+  if (!_playlistPlaying) return;
+  NSString *expected = [_playlistPaths objectAtIndex:_playlistIndex];
+  NSString *finished = [[(ScoreMakerDocument *)[notification object] fileURL] path];
+  if (finished && ![[expected stringByStandardizingPath] isEqualToString:[finished stringByStandardizingPath]]) return;
+  _playlistIndex++;
+  if (_playlistIndex >= [_playlistPaths count]) { [self stopPlaylist:nil]; return; }
+  NSTimeInterval delay = MAX (0.0, [_playlistDelayField doubleValue]);
+  [_playlistStatusField setStringValue:[NSString stringWithFormat:@"Next track in %.1f seconds", delay]];
+  _playlistDelayTimer = [[NSTimer scheduledTimerWithTimeInterval:MAX (0.001, delay) target:self
+    selector:@selector (playlistDelayDidFire:) userInfo:nil repeats:NO] retain];
+}
+
+- (void)playlistDelayDidFire:(NSTimer *)timer
+{
+  (void)timer;
+  [_playlistDelayTimer release]; _playlistDelayTimer = nil;
+  [self playPlaylistItem];
+}
+
+- (void)stopPlaylist:(id)sender
+{
+  (void)sender;
+  _playlistPlaying = NO;
+  [_playlistDelayTimer invalidate]; [_playlistDelayTimer release]; _playlistDelayTimer = nil;
+  for (NSDocument *document in [[NSDocumentController sharedDocumentController] documents])
+    if ([document isKindOfClass:[ScoreMakerDocument class]])
+      [(ScoreMakerDocument *)document stopCurrentPlayback];
+  [_playlistStatusField setStringValue:@"Not playing"];
 }
 
 - (void)showInfoPanel:(id)sender
@@ -376,6 +575,11 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
   [fileMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Open..."
                                                 action:@selector (openDocument:)
                                          keyEquivalent:@"o"] autorelease]];
+  NSMenuItem *playlistItem = [[[NSMenuItem alloc] initWithTitle:@"Playlist..."
+                                                        action:@selector (showPlaylist:)
+                                                 keyEquivalent:@""] autorelease];
+  [playlistItem setTarget:self];
+  [fileMenu addItem:playlistItem];
   NSMenuItem *recentItem = [[[NSMenuItem alloc] initWithTitle:@"Open Recent"
                                                        action:NULL
                                                 keyEquivalent:@""] autorelease];

@@ -17,6 +17,7 @@ ScoreMaker is a native Objective-C/AppKit notation, playback, recording, and pub
 - Add pitched notes and edit score notes, tempo, and time signature from the inspector next to the sheet.
 - Play the current score through AVFoundation on macOS. The experimental GNUstep port requires a
   separately supplied AVFoundation-compatible framework.
+- Build an ordered playlist of score or MIDI files and configure the silent delay between pieces.
 - Route individual parts to different physical CoreMIDI output devices on macOS, with persistent
   per-part assignments and built-in-synth fallback when a saved device is unavailable.
 - Show active notes on an 88-key piano with middle C marked as C4, display live MIDI-velocity meters for each voice during playback, and audition and enter notes by clicking the piano keys.
@@ -142,6 +143,10 @@ Choose a connected device under **MIDI Input** to audition notes without changin
 The input menu updates when MIDI devices are connected or removed. **Selected Part** routing sends all channels to the inspector's current part; **MIDI Channel → Part** maps channel 1 to Part 1, channel 2 to Part 2, and so on. Use **Edit → Undo/Redo** or Command-Z/Command-Shift-Z to reverse and restore edits; one recording take is one undo operation.
 
 Choose `Score > Play` or the Play button in the inspector to hear the current score. ScoreMaker sends the generated MIDI data directly to AVFoundation, using the platform AVFoundation implementation on macOS or GNUstep.
+
+Choose **File > Playlist...** to add score or MIDI files, arrange their playback order, and set the
+delay in seconds between pieces. **Play** starts at the first item and advances automatically;
+**Stop** cancels both current playback and any pending delay.
 
 On macOS, choose **Score > Routing Matrix...** to open the combined parts, mixer, and routing
 workspace. Rename, reorder, duplicate, remove, group, show/hide, mute, solo, adjust volume and pan,
