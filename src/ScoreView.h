@@ -39,6 +39,7 @@ extern NSString *const ScorePalettePasteboardType;
   ScoreEngravingLayout *_engravingLayout;
   NSDictionary *_displayedAccidentals;
   BOOL _separateParts;
+  BOOL _writtenPitch;
   NSNumber *_publicationTrack;
   ScoreNote *_draggedNote;
   BOOL _dragChanged;
@@ -75,6 +76,12 @@ extern NSString *const ScorePalettePasteboardType;
 - (BOOL)separateParts;
 /** Selects combined-score or separated-part display. */
 - (void)setSeparateParts:(BOOL)separate;
+/** Returns whether transposing instruments are displayed at written pitch. */
+- (BOOL)writtenPitch;
+/** Switches between written-pitch and concert-pitch notation. */
+- (void)setWrittenPitch:(BOOL)writtenPitch;
+/** Returns a note's concert or written pitch according to the display mode. */
+- (NSInteger)displayedPitchForNote:(ScoreNote *)note;
 /** Returns the sole legacy track selected for publication, or <code>nil</code>. */
 - (NSNumber *)publicationTrack;
 /** Sets the sole publication track, or <code>nil</code> to show all tracks. */

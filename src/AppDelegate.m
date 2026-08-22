@@ -240,6 +240,7 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
   [[NSNotificationCenter defaultCenter] removeObserver:self];
   [_playlistDelayTimer invalidate];
   [_playlistDelayTimer release];
+  [_playlistDocument release];
   [_playlistPaths release];
   [_playlistPanel release];
   [_recentDocumentsMenu release];
@@ -318,7 +319,11 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
                                                   action:@selector (playPlaylist:)]];
       [content addSubview:[self playlistButtonWithTitle:@"Stop" frame:NSMakeRect (98, 14, 72, 28)
                                                   action:@selector (stopPlaylist:)]];
-      _playlistStatusField = [[NSTextField alloc] initWithFrame:NSMakeRect (184, 19, 356, 20)];
+      [content addSubview:[self playlistButtonWithTitle:@"Save..." frame:NSMakeRect (176, 14, 72, 28)
+                                                  action:@selector (savePlaylist:)]];
+      [content addSubview:[self playlistButtonWithTitle:@"Load..." frame:NSMakeRect (254, 14, 72, 28)
+                                                  action:@selector (loadPlaylist:)]];
+      _playlistStatusField = [[NSTextField alloc] initWithFrame:NSMakeRect (340, 19, 200, 20)];
       [_playlistStatusField setStringValue:@"Not playing"];
       [_playlistStatusField setEditable:NO]; [_playlistStatusField setBordered:NO];
       [_playlistStatusField setDrawsBackground:NO];
@@ -342,6 +347,78 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
   [_playlistTable reloadData];
 }
 
+- (void)savePlaylist:(id)sender
+{
+  (void)sender;
+  NSSavePanel *panel = [NSSavePanel savePanel];
+  [panel setNameFieldStringValue:@"Playlist.scoreplaylist"];
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+  [panel setAllowedFileTypes:@[ @"scoreplaylist" ]];
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+  if ([panel runModal] != NSModalResponseOK) return;
+
+  NSDictionary *playlist = @{
+    @"version" : @1,
+    @"delay" : @([_playlistDelayField doubleValue]),
+    @"items" : _playlistPaths
+  };
+  NSError *error = nil;
+  NSData *data = [NSJSONSerialization dataWithJSONObject:playlist
+                                                  options:NSJSONWritingPrettyPrinted error:&error];
+  if (!data || ![data writeToURL:[panel URL] options:NSDataWritingAtomic error:&error])
+    [[NSDocumentController sharedDocumentController] presentError:error];
+}
+
+- (void)loadPlaylist:(id)sender
+{
+  (void)sender;
+  NSOpenPanel *panel = [NSOpenPanel openPanel];
+  [panel setAllowsMultipleSelection:NO];
+  [panel setCanChooseDirectories:NO];
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+  [panel setAllowedFileTypes:@[ @"scoreplaylist" ]];
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+  if ([panel runModal] != NSModalResponseOK) return;
+
+  NSError *error = nil;
+  NSData *data = [NSData dataWithContentsOfURL:[panel URL] options:0 error:&error];
+  id object = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:&error] : nil;
+  NSArray *items = [object isKindOfClass:[NSDictionary class]] ? [object objectForKey:@"items"] : nil;
+  NSNumber *version = [object isKindOfClass:[NSDictionary class]]
+    ? [object objectForKey:@"version"] : nil;
+  NSNumber *delay = [object isKindOfClass:[NSDictionary class]]
+    ? [object objectForKey:@"delay"] : nil;
+  BOOL valid = [version isKindOfClass:[NSNumber class]] && [version integerValue] == 1
+    && [items isKindOfClass:[NSArray class]] && [delay isKindOfClass:[NSNumber class]];
+  if (valid)
+    for (id item in items)
+      if (![item isKindOfClass:[NSString class]]) { valid = NO; break; }
+  if (!valid)
+    {
+      if (!error)
+        error = [NSError errorWithDomain:@"ScoreMakerPlaylistError" code:1
+                                userInfo:@{ NSLocalizedDescriptionKey :
+                                  @"The selected file is not a supported ScoreMaker playlist." }];
+      [[NSDocumentController sharedDocumentController] presentError:error];
+      return;
+    }
+
+  [self stopPlaylist:nil];
+  [_playlistPaths setArray:items];
+  [_playlistDelayField setDoubleValue:MAX (0.0, [delay doubleValue])];
+  [_playlistTable reloadData];
+}
+
 - (void)removePlaylistItem:(id)sender
 {
   (void)sender;
@@ -362,6 +439,26 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
 - (void)movePlaylistItemUp:(id)sender { (void)sender; [self movePlaylistItemBy:-1]; }
 - (void)movePlaylistItemDown:(id)sender { (void)sender; [self movePlaylistItemBy:1]; }
 
+- (void)setPlaylistDocument:(NSDocument *)document
+{
+  if (_playlistDocument == document) return;
+  NSDocument *previousDocument = _playlistDocument;
+  _playlistDocument = [document retain];
+  if (previousDocument)
+    {
+      [previousDocument close];
+      [previousDocument release];
+    }
+}
+
+- (void)highlightCurrentPlaylistItem
+{
+  if (!_playlistTable || _playlistIndex >= [_playlistPaths count]) return;
+  [_playlistTable selectRowIndexes:[NSIndexSet indexSetWithIndex:_playlistIndex]
+             byExtendingSelection:NO];
+  [_playlistTable scrollRowToVisible:(NSInteger)_playlistIndex];
+}
+
 - (void)playPlaylistItem
 {
   if (!_playlistPlaying || _playlistIndex >= [_playlistPaths count])
@@ -377,6 +474,8 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
       if (error) { [controller presentError:error]; [self stopPlaylist:nil]; return; }
       if (_playlistPlaying && [document isKindOfClass:[ScoreMakerDocument class]])
         {
+          [self setPlaylistDocument:document];
+          [self highlightCurrentPlaylistItem];
           [[(ScoreMakerDocument *)document scoreView] selectNote:nil scrollToVisible:NO];
           [(ScoreMakerDocument *)document playScore:self];
         }
@@ -387,6 +486,8 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
                                                            display:YES error:&error];
   if ([document isKindOfClass:[ScoreMakerDocument class]])
     {
+      [self setPlaylistDocument:document];
+      [self highlightCurrentPlaylistItem];
       [[(ScoreMakerDocument *)document scoreView] selectNote:nil scrollToVisible:NO];
       [(ScoreMakerDocument *)document playScore:self];
     }
@@ -398,9 +499,11 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
 {
   (void)sender;
   if (![_playlistPaths count]) { NSBeep (); return; }
+  NSInteger selectedRow = [_playlistTable selectedRow];
   [self stopPlaylist:nil];
   _playlistPlaying = YES;
-  _playlistIndex = 0;
+  _playlistIndex = selectedRow >= 0 && (NSUInteger)selectedRow < [_playlistPaths count]
+    ? (NSUInteger)selectedRow : 0;
   [self playPlaylistItem];
 }
 
@@ -410,6 +513,7 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
   NSString *expected = [_playlistPaths objectAtIndex:_playlistIndex];
   NSString *finished = [[(ScoreMakerDocument *)[notification object] fileURL] path];
   if (finished && ![[expected stringByStandardizingPath] isEqualToString:[finished stringByStandardizingPath]]) return;
+  [_playlistTable deselectAll:self];
   _playlistIndex++;
   if (_playlistIndex >= [_playlistPaths count]) { [self stopPlaylist:nil]; return; }
   NSTimeInterval delay = MAX (0.0, [_playlistDelayField doubleValue]);
@@ -433,6 +537,7 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
   for (NSDocument *document in [[NSDocumentController sharedDocumentController] documents])
     if ([document isKindOfClass:[ScoreMakerDocument class]])
       [(ScoreMakerDocument *)document stopCurrentPlayback];
+  [_playlistTable deselectAll:self];
   [_playlistStatusField setStringValue:@"Not playing"];
 }
 
@@ -668,6 +773,9 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
                                           keyEquivalent:@""] autorelease]];
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Metronome"
                                                  action:@selector (toggleMetronome:)
+                                          keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Written Pitch"
+                                                 action:@selector (toggleWrittenPitch:)
                                           keyEquivalent:@""] autorelease]];
   [scoreMenu addItem:[NSMenuItem separatorItem]];
   NSMenuItem *templateItem = [[[NSMenuItem alloc] initWithTitle:@"Templates"

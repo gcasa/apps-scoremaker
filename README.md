@@ -145,8 +145,11 @@ The input menu updates when MIDI devices are connected or removed. **Selected Pa
 Choose `Score > Play` or the Play button in the inspector to hear the current score. ScoreMaker sends the generated MIDI data directly to AVFoundation, using the platform AVFoundation implementation on macOS or GNUstep.
 
 Choose **File > Playlist...** to add score or MIDI files, arrange their playback order, and set the
-delay in seconds between pieces. **Play** starts at the first item and advances automatically;
-**Stop** cancels both current playback and any pending delay.
+delay in seconds between pieces. **Play** starts at the selected item, or at the first item when
+nothing is selected, and advances automatically; the currently playing item is highlighted, and
+as each new piece opens, the previous playlist document closes. **Stop** cancels both current
+playback and any pending delay. **Save...** stores the ordered file list and delay in a
+`.scoreplaylist` file; **Load...** restores them later.
 
 On macOS, choose **Score > Routing Matrix...** to open the combined parts, mixer, and routing
 workspace. Rename, reorder, duplicate, remove, group, show/hide, mute, solo, adjust volume and pan,
@@ -158,6 +161,15 @@ Select multiple rows to route them together, assign sequential channels, or rese
 Assignments are saved in ScoreMaker project files. Multiple physical destinations can play together; if an assigned device
 is disconnected, that part falls back to the built-in synthesizer. GNUstep builds preserve these
 project assignments but continue to use their configured system MIDI player.
+
+Use **Transpose Score...** in the inspector to choose a destination key for the entire score.
+ScoreMaker transposes every sounding note and all measure key changes together; the operation is
+available as one Undo step.
+
+Transposing instruments are shown at written pitch by default while playback remains at concert
+pitch. Deselect **Score > Written Pitch** to show the full score at concert pitch. ScoreMaker
+recognizes common B-flat, E-flat, and F instruments plus octave-transposing piccolo and double bass;
+the per-part transposition is retained in ScoreMaker project files.
 
 Use **Import .ins…** in the routing matrix to import a Cakewalk instrument-definition file and
 associate one of its definitions with an attached MIDI output. ScoreMaker remembers the association

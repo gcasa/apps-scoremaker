@@ -46,6 +46,55 @@ static NSString *const ScoreMakerMIDIInstrumentProfilesKey = @"ScoreMakerMIDIIns
 static NSString *const ScoreMakerMIDIDeviceProfileBindingsKey = @"ScoreMakerMIDIDeviceProfileBindings";
 static NSString *const ScoreMakerMIDIBankNumberParameter = @"midiBankNumber";
 
+static NSInteger
+ScoreMakerPositiveModulo12 (NSInteger value)
+{
+  return ((value % 12) + 12) % 12;
+}
+
+static NSInteger
+ScoreMakerTonicPitchClass (NSInteger fifths, NSString *mode)
+{
+  NSInteger tonic = [mode isEqualToString:@"minor"] ? 9 : 0;
+  return ScoreMakerPositiveModulo12 (tonic + 7 * fifths);
+}
+
+static NSInteger
+ScoreMakerTransposedFifths (NSInteger fifths, NSString *mode, NSInteger semitones,
+                            NSInteger expectedFifths)
+{
+  NSInteger targetPitchClass = ScoreMakerPositiveModulo12 (
+    ScoreMakerTonicPitchClass (fifths, mode) + semitones);
+  NSInteger best = 0, bestDistance = NSIntegerMax;
+  for (NSInteger candidate = -7; candidate <= 7; candidate++)
+    if (ScoreMakerTonicPitchClass (candidate, mode) == targetPitchClass)
+      {
+        NSInteger distance = labs (candidate - expectedFifths);
+        if (distance < bestDistance)
+          { best = candidate; bestDistance = distance; }
+      }
+  return best;
+}
+
+static NSInteger
+ScoreMakerAccidentalForPitchInKey (NSInteger pitch, NSInteger fifths)
+{
+  static NSInteger naturalPitchClasses[] = { 0, 2, 4, 5, 7, 9, 11 };
+  NSInteger pitchClass = ScoreMakerPositiveModulo12 (pitch);
+  for (NSInteger step = 0; step < 7; step++)
+    {
+      NSInteger accidental = ScoreKeySignatureAlterationForStep (fifths, step);
+      if (ScoreMakerPositiveModulo12 (naturalPitchClasses[step] + accidental) == pitchClass)
+        return accidental;
+    }
+  NSInteger order[] = { 0, fifths < 0 ? -1 : 1, fifths < 0 ? 1 : -1 };
+  for (NSInteger i = 0; i < 3; i++)
+    for (NSInteger step = 0; step < 7; step++)
+      if (ScoreMakerPositiveModulo12 (naturalPitchClasses[step] + order[i]) == pitchClass)
+        return order[i];
+  return 0;
+}
+
 static ScorePartDefinition *
 ScoreMakerPartForTrack (ScoreDocument *document, NSInteger track)
 {
@@ -839,6 +888,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       _realtimeDSPPitch = -1;
       _realtimeDSPVoice = 1;
       _audioUnitPartTrack = -1;
+      _writtenPitch = YES;
       ScoreDocument *document = [[[ScoreDocument alloc] init] autorelease];
       [document setTitle:@"Untitled"];
       [self setScoreDocument:document];
@@ -1024,6 +1074,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_separatePartsButton release];
   [_addNoteButton release];
   [_keySignaturePopUp release];
+  [_transposeScoreButton release];
   [_repeatStartButton release];
   [_repeatEndButton release];
   [_tieStartButton release];
@@ -1143,6 +1194,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 
   [self setScoreView:[[[ScoreView alloc] initWithFrame:NSMakeRect (0.0, 0.0, 980.0, 760.0)]
                        autorelease]];
+  [[self scoreView] setWrittenPitch:_writtenPitch];
   [[self scoreView] setDocument:[self scoreDocument]];
   [[NSNotificationCenter defaultCenter] addObserver:self
                                            selector:@selector (scoreViewDidEditScore:)
@@ -1594,9 +1646,17 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 
   NSTextField *notationLabel =
     [self labelWithString:@"Selected Note / Measure"
-                    frame:NSMakeRect (InspectorPadding, frame.size.height - 548.0, 190.0, 18.0)];
+                    frame:NSMakeRect (InspectorPadding, frame.size.height - 548.0, 150.0, 18.0)];
   [notationLabel setAutoresizingMask:NSViewMinYMargin];
   [[self inspectorView] addSubview:notationLabel];
+  _transposeScoreButton = [[NSButton alloc]
+    initWithFrame:NSMakeRect (InspectorPadding + 158.0, frame.size.height - 552.0, 124.0, 24.0)];
+  [_transposeScoreButton setTitle:@"Transpose Score..."];
+  [_transposeScoreButton setBezelStyle:NSRoundedBezelStyle];
+  [_transposeScoreButton setTarget:self];
+  [_transposeScoreButton setAction:@selector (transposeScoreToKey:)];
+  [_transposeScoreButton setAutoresizingMask:NSViewMinYMargin];
+  [[self inspectorView] addSubview:_transposeScoreButton];
 
   _keySignaturePopUp = [[NSPopUpButton alloc]
     initWithFrame:NSMakeRect (InspectorPadding, frame.size.height - 578.0, 128.0, 26.0)
@@ -1874,6 +1934,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_pauseButton setEnabled:hasDocument && (_playbackTimer || _playbackPaused)];
   [_stopButton setEnabled:hasDocument];
   [_recordButton setEnabled:hasDocument && [_midiInputPopUp indexOfSelectedItem] > 0];
+  [_transposeScoreButton setEnabled:hasDocument && [[document measures] count] > 0];
   [_midiQuantizePopUp setEnabled:hasDocument];
   [_midiRangeShadeButton setEnabled:[_midiInputPopUp indexOfSelectedItem] > 0];
   [_midiOctavePopUp setEnabled:[_midiInputPopUp indexOfSelectedItem] > 0];
@@ -2034,8 +2095,11 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
         {
           static NSString *pitchNames[]
             = { @"C", @"C#", @"D", @"D#", @"E", @"F", @"F#", @"G", @"G#", @"A", @"A#", @"B" };
-          NSInteger pitch = [selectedNote pitch];
+          NSInteger pitch = [[self scoreView] displayedPitchForNote:selectedNote];
           NSInteger accidental = [selectedNote accidental];
+          if (_writtenPitch && [[ScoreMakerPartForTrack (document, [selectedNote track]) instrument]
+                                 transposition] != 0)
+            accidental = 0;
           NSInteger naturalPitch = pitch - accidental;
           NSInteger pitchClass = naturalPitch % 12;
           if (pitchClass < 0)
@@ -2236,6 +2300,82 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [[self scoreView] reloadDocument];
   [self updateChangeCount:NSChangeDone];
   [self refreshInspector];
+  [self commitUndoBaseline];
+}
+
+- (void)transposeScoreToKey:(id)sender
+{
+  (void)sender;
+  ScoreDocument *document = [self scoreDocument];
+  ScoreMeasure *openingMeasure = [[document measures] count]
+    ? [[document measures] objectAtIndex:0] : nil;
+  if (!openingMeasure) { NSBeep (); return; }
+
+  NSString *mode = [[openingMeasure keyMode] isEqualToString:@"minor"] ? @"minor" : @"major";
+  NSArray *names = [mode isEqualToString:@"minor"]
+    ? @[ @"A minor", @"E minor", @"B minor", @"F♯ minor", @"C♯ minor", @"G♯ minor",
+         @"D♯ minor", @"A♯ minor", @"D minor", @"G minor", @"C minor", @"F minor",
+         @"B♭ minor", @"E♭ minor", @"A♭ minor" ]
+    : @[ @"C major", @"G major", @"D major", @"A major", @"E major", @"B major",
+         @"F♯ major", @"C♯ major", @"F major", @"B♭ major", @"E♭ major", @"A♭ major",
+         @"D♭ major", @"G♭ major", @"C♭ major" ];
+  NSInteger fifthValues[] = { 0, 1, 2, 3, 4, 5, 6, 7, -1, -2, -3, -4, -5, -6, -7 };
+  NSPopUpButton *keyChooser = [[[NSPopUpButton alloc]
+    initWithFrame:NSMakeRect (0.0, 0.0, 220.0, 26.0) pullsDown:NO] autorelease];
+  for (NSUInteger i = 0; i < [names count]; i++)
+    {
+      [keyChooser addItemWithTitle:[names objectAtIndex:i]];
+      [[keyChooser lastItem] setRepresentedObject:[NSNumber numberWithInteger:fifthValues[i]]];
+      if (fifthValues[i] == [openingMeasure keySignatureFifths])
+        [keyChooser selectItemAtIndex:(NSInteger)i];
+    }
+
+  NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+  [alert setMessageText:@"Transpose Entire Score"];
+  [alert setInformativeText:[NSString stringWithFormat:
+    @"Choose a destination %@ key. Every note and key change in the score will be transposed.", mode]];
+  [alert setAccessoryView:keyChooser];
+  [alert addButtonWithTitle:@"Transpose"];
+  [alert addButtonWithTitle:@"Cancel"];
+  if ([alert runModal] != NSAlertFirstButtonReturn) return;
+
+  NSInteger sourceFifths = [openingMeasure keySignatureFifths];
+  NSInteger targetFifths = [[[keyChooser selectedItem] representedObject] integerValue];
+  NSInteger semitones = ScoreMakerPositiveModulo12 (
+    ScoreMakerTonicPitchClass (targetFifths, mode)
+      - ScoreMakerTonicPitchClass (sourceFifths, mode));
+  if (semitones > 6) semitones -= 12;
+  for (ScoreNote *note in [document notes])
+    if (![note isRest] && ([note pitch] + semitones < 0 || [note pitch] + semitones > 127))
+      {
+        NSAlert *rangeAlert = [[[NSAlert alloc] init] autorelease];
+        [rangeAlert setMessageText:@"The score cannot be transposed to that key."];
+        [rangeAlert setInformativeText:
+          @"At least one note would fall outside the supported MIDI pitch range."];
+        [rangeAlert runModal];
+        return;
+      }
+  if (semitones == 0 && sourceFifths == targetFifths) return;
+
+  [self registerUndoSnapshotWithName:@"Transpose Entire Score"];
+  NSInteger fifthDelta = targetFifths - sourceFifths;
+  for (ScoreMeasure *measure in [document measures])
+    {
+      NSInteger expected = [measure keySignatureFifths] + fifthDelta;
+      [measure setKeySignatureFifths:ScoreMakerTransposedFifths (
+        [measure keySignatureFifths], [measure keyMode], semitones, expected)];
+    }
+  for (ScoreNote *note in [document notes])
+    if (![note isRest])
+      {
+        [note setPitch:[note pitch] + semitones];
+        ScoreMeasure *measure = [document measureContainingTick:[note startTick]];
+        [note setAccidental:ScoreMakerAccidentalForPitchInKey (
+          [note pitch], measure ? [measure keySignatureFifths] : targetFifths)];
+      }
+  [[self scoreView] reloadDocument];
+  [self refreshInspector];
+  [self updateChangeCount:NSChangeDone];
   [self commitUndoBaseline];
 }
 
@@ -4659,10 +4799,25 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   NSUInteger denominator = [self denominatorForSelectedNoteValue];
   double durationBeats = [self beatsForNoteValueDenominator:denominator];
   NSInteger trackNumber = [self selectedPartNumber] + 1;
+  NSInteger instrumentTransposition = 0;
   if (startBeats < 0.0)
     startBeats = 0.0;
   if (trackNumber < 1)
     trackNumber = 1;
+  if (!rest && _writtenPitch)
+    {
+      ScorePartDefinition *part = ScoreMakerPartForTrack (document, trackNumber - 1);
+      instrumentTransposition = [[part instrument] transposition];
+      pitch += instrumentTransposition;
+      if (pitch < 0 || pitch > 127)
+        {
+          NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+          [alert setMessageText:@"The written pitch is outside the instrument's sounding range"];
+          [alert setInformativeText:@"Choose a pitch that maps to MIDI pitch 0 through 127."];
+          [alert runModal];
+          return;
+        }
+    }
 
   NSUInteger startTick = (NSUInteger)llround (startBeats * (double)[document ticksPerQuarter]);
   NSUInteger durationTicks = [self durationTicksForNoteValueDenominator:denominator];
@@ -4671,7 +4826,10 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [note setPitch:rest ? 60 : pitch];
   if (!rest)
     {
-      [note setAccidental:[self accidentalForPitchString:[_notePitchField stringValue]]];
+      ScoreMeasure *measure = [document measureContainingTick:startTick];
+      [note setAccidental:instrumentTransposition != 0
+        ? ScoreMakerAccidentalForPitchInKey (pitch, measure ? [measure keySignatureFifths] : 0)
+        : [self accidentalForPitchString:[_notePitchField stringValue]]];
     }
   [note setChannel:(trackNumber - 1) % 16];
   [note setTrack:trackNumber - 1];
@@ -4811,6 +4969,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem
 {
+  if ([menuItem action] == @selector (toggleWrittenPitch:))
+    [menuItem setState:_writtenPitch ? ScoreMakerStateOn : ScoreMakerStateOff];
   if ([menuItem action] == @selector (toggleRealtimeDSP:))
     [menuItem setState:_useRealtimeDSP ? ScoreMakerStateOn : ScoreMakerStateOff];
   if ([menuItem action] == @selector (toggleLoopSelection:))
@@ -4825,6 +4985,14 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       return [self scoreDocument] != nil && !_midiRecording;
     }
   return YES;
+}
+
+- (void)toggleWrittenPitch:(id)sender
+{
+  _writtenPitch = !_writtenPitch;
+  [[self scoreView] setWrittenPitch:_writtenPitch];
+  if ([sender respondsToSelector:@selector (setState:)])
+    [sender setState:_writtenPitch ? ScoreMakerStateOn : ScoreMakerStateOff];
 }
 
 - (void)practiceMetronomeTick:(NSTimer *)timer

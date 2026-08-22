@@ -33,6 +33,7 @@
   NSTextField *_playlistDelayField;
   NSTextField *_playlistStatusField;
   NSMutableArray *_playlistPaths;
+  NSDocument *_playlistDocument;
   NSTimer *_playlistDelayTimer;
   NSUInteger _playlistIndex;
   BOOL _playlistPlaying;

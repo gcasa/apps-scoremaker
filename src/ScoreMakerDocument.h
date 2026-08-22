@@ -60,6 +60,7 @@ FOUNDATION_EXPORT NSString * const ScoreMakerDocumentPlaybackDidFinishNotificati
   NSButton *_separatePartsButton;
   NSButton *_addNoteButton;
   NSPopUpButton *_keySignaturePopUp;
+  NSButton *_transposeScoreButton;
   NSButton *_repeatStartButton;
   NSButton *_repeatEndButton;
   NSButton *_tieStartButton;
@@ -138,6 +139,7 @@ FOUNDATION_EXPORT NSString * const ScoreMakerDocumentPlaybackDidFinishNotificati
   NSTimeInterval _playbackMIDIOriginTime;
   BOOL _playbackPaused;
   BOOL _loopSelectionEnabled;
+  BOOL _writtenPitch;
   BOOL _updatingInspector;
   ScoreRealtimeDSP *_realtimeDSP;
   BOOL _useRealtimeDSP;
@@ -210,6 +212,8 @@ FOUNDATION_EXPORT NSString * const ScoreMakerDocumentPlaybackDidFinishNotificati
 - (void)applyScoreTemplate:(id)sender;
 /** Transposes the current note or Shift-click range by the sender's tag. */
 - (void)transposeSelection:(id)sender;
+/** Prompts for a destination key and transposes every note and measure key signature. */
+- (void)transposeScoreToKey:(id)sender;
 /** Snaps selected note starts and durations to the inspector's note value. */
 - (void)quantizeSelection:(id)sender;
 /** Stops every active playback engine without interpreting a sender. */
@@ -236,6 +240,8 @@ FOUNDATION_EXPORT NSString * const ScoreMakerDocumentPlaybackDidFinishNotificati
 - (void)fitScorePage:(id)sender;
 /** Enables or disables looping over the ScoreView selection. */
 - (void)toggleLoopSelection:(id)sender;
+/** Toggles transposing parts between written and concert pitch. */
+- (void)toggleWrittenPitch:(id)sender;
 /** Starts or stops the audible, animated practice metronome. */
 - (void)toggleMetronome:(id)sender;
 /** Presents the standard print workflow for the current score. */

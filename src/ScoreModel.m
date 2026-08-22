@@ -1031,6 +1031,26 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
         [[[ScoreInstrumentDefinition alloc] init] autorelease];
       [instrument setName:[part name]];
       [instrument setProgram:[[self programForTrack:track] integerValue]];
+      NSString *instrumentName = [[part name] lowercaseString];
+      NSInteger transposition = 0;
+      if ([instrumentName rangeOfString:@"baritone sax"].location != NSNotFound)
+        transposition = -21;
+      else if ([instrumentName rangeOfString:@"tenor sax"].location != NSNotFound
+               || [instrumentName rangeOfString:@"bass clarinet"].location != NSNotFound)
+        transposition = -14;
+      else if ([instrumentName rangeOfString:@"alto sax"].location != NSNotFound)
+        transposition = -9;
+      else if ([instrumentName rangeOfString:@"english horn"].location != NSNotFound
+               || [instrumentName rangeOfString:@"horn"].location != NSNotFound)
+        transposition = -7;
+      else if ([instrumentName rangeOfString:@"clarinet"].location != NSNotFound
+               || [instrumentName rangeOfString:@"trumpet"].location != NSNotFound)
+        transposition = -2;
+      else if ([instrumentName rangeOfString:@"piccolo"].location != NSNotFound)
+        transposition = 12;
+      else if ([instrumentName rangeOfString:@"double bass"].location != NSNotFound)
+        transposition = -12;
+      [instrument setTransposition:transposition];
       [part setInstrument:instrument];
 
       NSInteger minimumPitch = 127, maximumPitch = 0;

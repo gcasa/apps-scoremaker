@@ -46,6 +46,15 @@ NSString *const ScoreViewSelectionDidChangeNotification
 NSString *const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
 static NSArray *ScoreCopiedNotes = nil;
 
+static NSInteger
+ScoreViewModulo12 (NSInteger value) { return ((value % 12) + 12) % 12; }
+
+static NSInteger
+ScoreViewTonicPitchClass (NSInteger fifths, NSString *mode)
+{
+  return ScoreViewModulo12 (([mode isEqualToString:@"minor"] ? 9 : 0) + 7 * fifths);
+}
+
 static BOOL
 ScoreRectCollides (NSRect rect, NSArray *occupied)
 {
@@ -111,7 +120,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
     return YES;
   if ([note staffAssignment] == 2)
     return NO;
-  return [note pitch] >= 60;
+  return [self displayedPitchForNote:note] >= 60;
 }
 - (CGFloat)musicWidth
 {
@@ -125,6 +134,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   if (self)
     {
       _separateParts = YES;
+      _writtenPitch = YES;
       [self registerForDraggedTypes:[NSArray arrayWithObject:ScorePalettePasteboardType]];
     }
   return self;
@@ -139,6 +149,57 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   if (_separateParts == separate)
     return;
   _separateParts = separate;
+  [self reloadDocument];
+}
+
+- (NSInteger)instrumentTranspositionForTrack:(NSInteger)track
+{
+  if (!_writtenPitch || track < 0) return 0;
+  for (ScorePartDefinition *part in [_document parts])
+    if ([part legacyTrack] == track)
+      {
+        NSInteger transposition = [[part instrument] transposition];
+        if (transposition != 0) return transposition;
+        NSString *name = [[part name] lowercaseString];
+        if ([name rangeOfString:@"baritone sax"].location != NSNotFound) return -21;
+        if ([name rangeOfString:@"tenor sax"].location != NSNotFound
+            || [name rangeOfString:@"bass clarinet"].location != NSNotFound) return -14;
+        if ([name rangeOfString:@"alto sax"].location != NSNotFound) return -9;
+        if ([name rangeOfString:@"english horn"].location != NSNotFound
+            || [name rangeOfString:@"horn"].location != NSNotFound) return -7;
+        if ([name rangeOfString:@"clarinet"].location != NSNotFound
+            || [name rangeOfString:@"trumpet"].location != NSNotFound) return -2;
+        if ([name rangeOfString:@"piccolo"].location != NSNotFound) return 12;
+        if ([name rangeOfString:@"double bass"].location != NSNotFound) return -12;
+        return 0;
+      }
+  return 0;
+}
+
+- (NSInteger)displayedPitchForNote:(ScoreNote *)note
+{
+  return [note pitch] - [self instrumentTranspositionForTrack:[note track]];
+}
+
+- (NSInteger)displayedFifthsForMeasure:(ScoreMeasure *)measure track:(NSInteger)track
+{
+  NSInteger transposition = [self instrumentTranspositionForTrack:track];
+  if (!measure || transposition == 0) return measure ? [measure keySignatureFifths] : 0;
+  NSInteger target = ScoreViewModulo12 (
+    ScoreViewTonicPitchClass ([measure keySignatureFifths], [measure keyMode]) - transposition);
+  NSInteger best = 0, bestWeight = NSIntegerMax;
+  for (NSInteger fifths = -7; fifths <= 7; fifths++)
+    if (ScoreViewTonicPitchClass (fifths, [measure keyMode]) == target
+        && labs (fifths) < bestWeight)
+      { best = fifths; bestWeight = labs (fifths); }
+  return best;
+}
+
+- (BOOL)writtenPitch { return _writtenPitch; }
+- (void)setWrittenPitch:(BOOL)writtenPitch
+{
+  if (_writtenPitch == writtenPitch) return;
+  _writtenPitch = writtenPitch;
   [self reloadDocument];
 }
 
@@ -811,7 +872,14 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   NSUInteger endTick = [layout endTick];
 
   ScoreMeasure *openingMeasure = [_document measureContainingTick:startTick];
-  NSInteger openingFifths = openingMeasure ? [openingMeasure keySignatureFifths] : 0;
+  NSArray *tracks = _separateParts ? [self scoreTracks] : [NSArray arrayWithObject:@-1];
+  NSInteger openingFifths = 0;
+  for (NSNumber *trackNumber in tracks)
+    {
+      NSInteger candidate = [self displayedFifthsForMeasure:openingMeasure
+                                                       track:[trackNumber integerValue]];
+      if (labs (candidate) > labs (openingFifths)) openingFifths = candidate;
+    }
   BOOL drawsOpeningTime = [self positionOnPageForSystem:systemIndex] == 0;
   CGFloat keySignatureX = left + 39.0;
   CGFloat keySignatureWidth = labs (openingFifths) * 8.0;
@@ -820,7 +888,6 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                            drawsOpeningTime ? timeSignatureX + 38.0
                                             : keySignatureX + keySignatureWidth + 12.0);
   CGFloat musicRight = right - 18.0;
-  NSArray *tracks = _separateParts ? [self scoreTracks] : [NSArray arrayWithObject:@-1];
   CGFloat partStride = [self partGrandStaffHeight] + [self partSpacing];
   [self drawLoopSelectionAtY:y
                  systemStart:startTick
@@ -835,6 +902,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   for (NSUInteger partIndex = 0; partIndex < [tracks count]; partIndex++)
     {
       NSInteger track = [[tracks objectAtIndex:partIndex] integerValue];
+      NSInteger partOpeningFifths = [self displayedFifthsForMeasure:openingMeasure track:track];
       CGFloat trebleTop = y + partIndex * partStride;
       CGFloat bassTop = trebleTop + StaffGap;
       [self drawPartNameForTrack:track
@@ -856,8 +924,8 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
         [self drawTempoMarkAtX:musicLeft y:trebleTop - 30.0];
       if (drawsOpeningTime)
         [self drawTimeSignatureAtX:timeSignatureX trebleY:trebleTop bassY:bassTop];
-      if (openingMeasure && [openingMeasure keySignatureFifths] != 0)
-        [self drawKeySignature:[openingMeasure keySignatureFifths]
+      if (openingMeasure && partOpeningFifths != 0)
+        [self drawKeySignature:partOpeningFifths
                            atX:keySignatureX
                        trebleY:trebleTop
                          bassY:bassTop];
@@ -867,14 +935,16 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
           NSUInteger tick = [measure startTick];
           if (tick <= startTick) { previousMeasure = measure; continue; }
           if (tick >= endTick) break;
+          NSInteger previousFifths = [self displayedFifthsForMeasure:previousMeasure track:track];
+          NSInteger measureFifths = [self displayedFifthsForMeasure:measure track:track];
           if (previousMeasure &&
-              ([previousMeasure keySignatureFifths] != [measure keySignatureFifths] ||
+              (previousFifths != measureFifths ||
                ![[previousMeasure keyMode] isEqualToString:[measure keyMode]]))
             {
               CGFloat keyX = [self xForTick:tick start:startTick end:endTick
                                       left:musicLeft right:musicRight] + 7.0;
-              [self drawKeySignatureCancellationFrom:[previousMeasure keySignatureFifths]
-                                                   to:[measure keySignatureFifths]
+              [self drawKeySignatureCancellationFrom:previousFifths
+                                                   to:measureFifths
                                                   atX:keyX trebleY:trebleTop bassY:bassTop];
             }
           previousMeasure = measure;
@@ -1597,8 +1667,10 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                                         end:systemEnd
                                        left:left
                                       right:right];
-      CGFloat endStaff = [endNote pitch] >= 60 ? trebleY : bassY;
-      CGFloat endY = [self yForNote:endNote treble:([endNote pitch] >= 60) staffTop:endStaff];
+      CGFloat endStaff = [self displayedPitchForNote:endNote] >= 60 ? trebleY : bassY;
+      CGFloat endY = [self yForNote:endNote
+                              treble:([self displayedPitchForNote:endNote] >= 60)
+                            staffTop:endStaff];
       NSBezierPath *tie = [NSBezierPath bezierPath];
       [tie moveToPoint:NSMakePoint (x + 5.0, y + 5.0)];
       [tie curveToPoint:NSMakePoint (endX - 5.0, endY + 5.0)
@@ -1686,7 +1758,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
     {
       if ([candidate isRest] || [candidate startTick] != [note startTick] ||
           [candidate track] != [note track] || [candidate voice] != [note voice]
-          || (([candidate pitch] >= 60) != treble))
+          || (([self displayedPitchForNote:candidate] >= 60) != treble))
         continue;
       [chord addObject:candidate];
     }
@@ -1700,21 +1772,21 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                                                   toPitch:[lower pitch]
                                                accidental:[lower accidental]];
       NSInteger noteSteps = [self diatonicStepsFromPitch:0
-                                                 toPitch:[note pitch]
+                                                 toPitch:[self displayedPitchForNote:note]
                                               accidental:[note accidental]];
       if (noteSteps - lowerSteps <= 1)
         offset = (index % 2 == 0) ? 6.5 : 0.0;
     }
   NSInteger noteSteps = [self diatonicStepsFromPitch:0
-                                             toPitch:[note pitch]
+                                             toPitch:[self displayedPitchForNote:note]
                                           accidental:[note accidental]];
   for (ScoreNote *candidate in [_document notes])
     if (candidate != note && ![candidate isRest] && [candidate startTick] == [note startTick] &&
         [candidate track] == [note track] && [candidate voice] != [note voice]
-        && (([candidate pitch] >= 60) == treble))
+        && (([self displayedPitchForNote:candidate] >= 60) == treble))
       {
         NSInteger candidateSteps = [self diatonicStepsFromPitch:0
-                                                        toPitch:[candidate pitch]
+                                                        toPitch:[self displayedPitchForNote:candidate]
                                                      accidental:[candidate accidental]];
         if (labs (candidateSteps - noteSteps) <= 1)
           {
@@ -1748,7 +1820,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
           [[_displayedAccidentals objectForKey:[NSValue valueWithPointer:candidate]] integerValue]
             == NSIntegerMax ||
           [candidate startTick] != [note startTick] || [candidate track] != [note track]
-          || (([candidate pitch] >= 60) != treble))
+          || (([self displayedPitchForNote:candidate] >= 60) != treble))
         continue;
       [accidentals addObject:candidate];
     }
@@ -1761,7 +1833,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   for (NSUInteger i = 0; i < index; i++)
     {
       ScoreNote *other = [accidentals objectAtIndex:i];
-      if (labs ([other pitch] - [note pitch]) < 6)
+      if (labs ([self displayedPitchForNote:other] - [self displayedPitchForNote:note]) < 6)
         column++;
     }
   return (CGFloat)column * 9.0;
@@ -1795,9 +1867,9 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
       if (!endNote || [endNote startTick] >= systemEnd)
         continue;
 
-      BOOL treble = [startNote pitch] >= 60;
+      BOOL treble = [self displayedPitchForNote:startNote] >= 60;
       CGFloat startStaff = treble ? trebleY : bassY;
-      CGFloat endStaff = [endNote pitch] >= 60 ? trebleY : bassY;
+      CGFloat endStaff = [self displayedPitchForNote:endNote] >= 60 ? trebleY : bassY;
       CGFloat startX = [self engravedXForNote:startNote
                                         start:systemStart
                                           end:systemEnd
@@ -1810,7 +1882,8 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                                       right:right];
       CGFloat startY = [self yForNote:startNote treble:treble staffTop:startStaff] + 11.0;
       CGFloat endY =
-        [self yForNote:endNote treble:([endNote pitch] >= 60) staffTop:endStaff] + 11.0;
+        [self yForNote:endNote treble:([self displayedPitchForNote:endNote] >= 60)
+                 staffTop:endStaff] + 11.0;
       CGFloat bow = MAX (12.0, MIN (28.0, (endX - startX) * 0.18));
       NSBezierPath *slur = [NSBezierPath bezierPath];
       [slur moveToPoint:NSMakePoint (startX, startY)];
@@ -1827,7 +1900,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 {
   NSInteger bottomLinePitch = treble ? 64 : 43;
   NSInteger steps = [self diatonicStepsFromPitch:bottomLinePitch
-                                         toPitch:[note pitch]
+                                         toPitch:[self displayedPitchForNote:note]
                                       accidental:[note accidental]];
   CGFloat bottomY = staffTop + 4.0 * LineSpacing;
   return bottomY - ((CGFloat)steps * LineSpacing / 2.0);
