@@ -41,6 +41,11 @@ static CGFloat const InspectorWidth = 320.0;
 static CGFloat const InspectorPadding = 18.0;
 static CGFloat const PlaybackMonitorHeight = 150.0;
 static CGFloat const InspectorContentHeight = 1260.0;
+#if defined(__APPLE__)
+static NSBezelStyle const ScoreMakerPushButtonBezelStyle = NSBezelStylePush;
+#else
+static NSBezelStyle const ScoreMakerPushButtonBezelStyle = NSRoundedBezelStyle;
+#endif
 static NSString *const ScoreMakerInternalPatchPresetsKey = @"ScoreMakerInternalPatchPresets";
 static NSString *const ScoreMakerMIDIInstrumentProfilesKey = @"ScoreMakerMIDIInstrumentProfiles";
 static NSString *const ScoreMakerMIDIDeviceProfileBindingsKey = @"ScoreMakerMIDIDeviceProfileBindings";
@@ -1308,7 +1313,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #endif
   [_playButton setButtonType:NSMomentaryPushInButton];
-  [_playButton setBezelStyle:NSRoundedBezelStyle];
+  [_playButton setBezelStyle:ScoreMakerPushButtonBezelStyle];
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
@@ -1328,7 +1333,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #endif
   [_pauseButton setButtonType:NSMomentaryPushInButton];
-  [_pauseButton setBezelStyle:NSRoundedBezelStyle];
+  [_pauseButton setBezelStyle:ScoreMakerPushButtonBezelStyle];
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
@@ -1350,7 +1355,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #endif
   [_stopButton setButtonType:NSMomentaryPushInButton];
-  [_stopButton setBezelStyle:NSRoundedBezelStyle];
+  [_stopButton setBezelStyle:ScoreMakerPushButtonBezelStyle];
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
@@ -1521,7 +1526,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #endif
   [_addNoteButton setButtonType:NSMomentaryPushInButton];
-  [_addNoteButton setBezelStyle:NSRoundedBezelStyle];
+  [_addNoteButton setBezelStyle:ScoreMakerPushButtonBezelStyle];
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
@@ -1652,7 +1657,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   _transposeScoreButton = [[NSButton alloc]
     initWithFrame:NSMakeRect (InspectorPadding + 158.0, frame.size.height - 552.0, 124.0, 24.0)];
   [_transposeScoreButton setTitle:@"Transpose Score..."];
-  [_transposeScoreButton setBezelStyle:NSRoundedBezelStyle];
+  [_transposeScoreButton setBezelStyle:ScoreMakerPushButtonBezelStyle];
   [_transposeScoreButton setTarget:self];
   [_transposeScoreButton setAction:@selector (transposeScoreToKey:)];
   [_transposeScoreButton setAutoresizingMask:NSViewMinYMargin];
