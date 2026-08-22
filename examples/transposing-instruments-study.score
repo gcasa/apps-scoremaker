@@ -1,0 +1,265 @@
+/*
+ * Prism Transit
+ * An original concert-pitch test piece for every transposing instrument
+ * recognized by ScoreMaker. Toggle Score > Written Pitch to verify notation;
+ * playback should remain unchanged.
+ *
+ * Transpositions exercised:
+ *   Piccolo +12; B-flat clarinet/trumpet -2; horn/English horn -7;
+ *   alto sax -9; double bass -12; tenor sax/bass clarinet -14;
+ *   baritone sax -21.
+ */
+
+info tempo:108 timeSignature:4/4;
+string scoreTitle = "Prism Transit";
+string scoreComposer = "ScoreMaker Example";
+string scoreAnnotation = "An original eight-measure concert-pitch miniature testing every transposing instrument recognized by ScoreMaker. Toggle Written Pitch to compare written and concert notation.";
+
+part Piccolo;
+Piccolo program:72;
+part B_flat_Clarinet;
+B_flat_Clarinet program:71;
+part B_flat_Trumpet;
+B_flat_Trumpet program:56;
+part Horn_in_F;
+Horn_in_F program:60;
+part English_Horn;
+English_Horn program:69;
+part Alto_Sax;
+Alto_Sax program:65;
+part Tenor_Sax;
+Tenor_Sax program:66;
+part Baritone_Sax;
+Baritone_Sax program:67;
+part Bass_Clarinet;
+Bass_Clarinet program:71;
+part Double_Bass;
+Double_Bass program:43;
+
+BEGIN;
+
+/* Measure 1: C major, the prism opens. */
+t 0;
+Piccolo (0.5) keyNum:e6k velocity:82;
+B_flat_Clarinet (1) keyNum:g4k velocity:72;
+B_flat_Trumpet (1) keyNum:e4k velocity:76;
+Horn_in_F (2) keyNum:c4k velocity:68;
+English_Horn (2) keyNum:g3k velocity:66;
+Alto_Sax (1) keyNum:e4k velocity:70;
+Tenor_Sax (2) keyNum:c3k velocity:68;
+Baritone_Sax (2) keyNum:g2k velocity:66;
+Bass_Clarinet (2) keyNum:e3k velocity:66;
+Double_Bass (2) keyNum:c2k velocity:70;
+t 0.5;
+Piccolo (0.5) keyNum:g6k velocity:78;
+t 1;
+Piccolo (0.5) keyNum:a6k velocity:82;
+B_flat_Clarinet (1) keyNum:a4k velocity:74;
+B_flat_Trumpet (1) keyNum:g4k velocity:78;
+Alto_Sax (1) keyNum:f4k velocity:70;
+t 1.5;
+Piccolo (0.5) keyNum:g6k velocity:78;
+t 2;
+Piccolo (1) keyNum:e6k velocity:84;
+B_flat_Clarinet (2) keyNum:g4k velocity:72;
+B_flat_Trumpet (2) keyNum:c5k velocity:80;
+Horn_in_F (2) keyNum:e4k velocity:70;
+English_Horn (2) keyNum:c4k velocity:68;
+Alto_Sax (2) keyNum:e4k velocity:72;
+Tenor_Sax (2) keyNum:g3k velocity:68;
+Baritone_Sax (2) keyNum:c3k velocity:66;
+Bass_Clarinet (2) keyNum:g2k velocity:66;
+Double_Bass (2) keyNum:c2k velocity:72;
+t 3;
+Piccolo (1) keyNum:d6k velocity:78;
+
+/* Measure 2: A minor answer. */
+t 4;
+Piccolo (0.5) keyNum:c6k velocity:80;
+B_flat_Clarinet (1) keyNum:e4k velocity:72;
+B_flat_Trumpet (1) keyNum:c5k velocity:76;
+Horn_in_F (2) keyNum:a3k velocity:68;
+English_Horn (2) keyNum:e4k velocity:68;
+Alto_Sax (1) keyNum:c4k velocity:70;
+Tenor_Sax (2) keyNum:a2k velocity:68;
+Baritone_Sax (2) keyNum:e2k velocity:66;
+Bass_Clarinet (2) keyNum:c3k velocity:66;
+Double_Bass (2) keyNum:a1k velocity:72;
+t 4.5;
+Piccolo (0.5) keyNum:e6k velocity:78;
+t 5;
+Piccolo (0.5) keyNum:g6k velocity:82;
+B_flat_Clarinet (1) keyNum:g4k velocity:74;
+B_flat_Trumpet (1) keyNum:e5k velocity:78;
+Alto_Sax (1) keyNum:d4k velocity:70;
+t 5.5;
+Piccolo (0.5) keyNum:e6k velocity:78;
+t 6;
+Piccolo (1) keyNum:c6k velocity:82;
+B_flat_Clarinet (2) keyNum:e4k velocity:72;
+B_flat_Trumpet (2) keyNum:a4k velocity:78;
+Horn_in_F (2) keyNum:c4k velocity:70;
+English_Horn (2) keyNum:a3k velocity:68;
+Alto_Sax (2) keyNum:e4k velocity:72;
+Tenor_Sax (2) keyNum:e3k velocity:68;
+Baritone_Sax (2) keyNum:a2k velocity:66;
+Bass_Clarinet (2) keyNum:e3k velocity:66;
+Double_Bass (2) keyNum:a1k velocity:72;
+t 7;
+Piccolo (1) keyNum:b5k velocity:78;
+
+/* Measure 3: F major, warm middle voices. */
+t 8;
+Piccolo (1) keyNum:a5k velocity:78;
+B_flat_Clarinet (1) keyNum:c5k velocity:74;
+B_flat_Trumpet (1) keyNum:a4k velocity:76;
+Horn_in_F (1) keyNum:f4k velocity:72;
+English_Horn (2) keyNum:c4k velocity:70;
+Alto_Sax (2) keyNum:a3k velocity:70;
+Tenor_Sax (2) keyNum:f3k velocity:68;
+Baritone_Sax (2) keyNum:c3k velocity:66;
+Bass_Clarinet (2) keyNum:f2k velocity:66;
+Double_Bass (2) keyNum:f1k velocity:72;
+t 9;
+Piccolo (1) keyNum:c6k velocity:82;
+B_flat_Clarinet (1) keyNum:d5k velocity:76;
+B_flat_Trumpet (1) keyNum:c5k velocity:78;
+Horn_in_F (1) keyNum:g4k velocity:72;
+t 10;
+Piccolo (1) keyNum:d6k velocity:84;
+B_flat_Clarinet (1) keyNum:c5k velocity:74;
+B_flat_Trumpet (1) keyNum:a4k velocity:76;
+Horn_in_F (1) keyNum:a4k velocity:74;
+English_Horn (2) keyNum:f4k velocity:70;
+Alto_Sax (2) keyNum:c4k velocity:70;
+Tenor_Sax (2) keyNum:a3k velocity:68;
+Baritone_Sax (2) keyNum:f2k velocity:66;
+Bass_Clarinet (2) keyNum:c3k velocity:66;
+Double_Bass (2) keyNum:f1k velocity:72;
+t 11;
+Piccolo (1) keyNum:c6k velocity:80;
+B_flat_Clarinet (1) keyNum:a4k velocity:72;
+B_flat_Trumpet (1) keyNum:f4k velocity:74;
+Horn_in_F (1) keyNum:g4k velocity:70;
+
+/* Measure 4: G dominant and a rising handoff. */
+t 12;
+Baritone_Sax (1) keyNum:g2k velocity:70;
+Double_Bass (1) keyNum:g1k velocity:74;
+t 13;
+Bass_Clarinet (1) keyNum:b2k velocity:70;
+Double_Bass (1) keyNum:d2k velocity:72;
+t 14;
+Tenor_Sax (1) keyNum:d3k velocity:72;
+Baritone_Sax (2) keyNum:g2k velocity:68;
+Double_Bass (2) keyNum:g1k velocity:74;
+t 15;
+Alto_Sax (1) keyNum:f4k velocity:74;
+Bass_Clarinet (1) keyNum:b2k velocity:70;
+t 15.5;
+English_Horn (0.5) keyNum:a4k velocity:76;
+Horn_in_F (0.5) keyNum:d4k velocity:74;
+B_flat_Clarinet (0.5) keyNum:b4k velocity:78;
+B_flat_Trumpet (0.5) keyNum:g4k velocity:80;
+Piccolo (0.5) keyNum:d6k velocity:84;
+
+/* Measure 5: E minor, interlocking pairs. */
+t 16;
+Piccolo (1) keyNum:b5k velocity:80;
+B_flat_Clarinet (1) keyNum:g4k velocity:74;
+Horn_in_F (2) keyNum:e4k velocity:70;
+Alto_Sax (2) keyNum:b3k velocity:70;
+Baritone_Sax (2) keyNum:e2k velocity:68;
+Double_Bass (2) keyNum:e1k velocity:74;
+t 17;
+B_flat_Trumpet (1) keyNum:b4k velocity:80;
+English_Horn (1) keyNum:g4k velocity:72;
+Tenor_Sax (1) keyNum:e3k velocity:70;
+Bass_Clarinet (1) keyNum:b2k velocity:68;
+t 18;
+Piccolo (1) keyNum:e6k velocity:84;
+B_flat_Clarinet (1) keyNum:b4k velocity:76;
+Horn_in_F (2) keyNum:g4k velocity:72;
+Alto_Sax (2) keyNum:e4k velocity:72;
+Baritone_Sax (2) keyNum:e2k velocity:68;
+Double_Bass (2) keyNum:e1k velocity:74;
+t 19;
+B_flat_Trumpet (1) keyNum:g4k velocity:78;
+English_Horn (1) keyNum:e4k velocity:70;
+Tenor_Sax (1) keyNum:b3k velocity:70;
+Bass_Clarinet (1) keyNum:g3k velocity:68;
+
+/* Measure 6: D minor, melody passed downward. */
+t 20;
+Piccolo (0.5) keyNum:a6k velocity:84;
+Horn_in_F (2) keyNum:d4k velocity:70;
+English_Horn (2) keyNum:a3k velocity:70;
+Baritone_Sax (2) keyNum:d2k velocity:68;
+Double_Bass (2) keyNum:d1k velocity:74;
+t 20.5;
+B_flat_Clarinet (0.5) keyNum:f5k velocity:80;
+t 21;
+B_flat_Trumpet (0.5) keyNum:e5k velocity:80;
+t 21.5;
+Alto_Sax (0.5) keyNum:d5k velocity:76;
+t 22;
+English_Horn (0.5) keyNum:c5k velocity:76;
+Horn_in_F (2) keyNum:f4k velocity:72;
+Tenor_Sax (2) keyNum:d3k velocity:70;
+Baritone_Sax (2) keyNum:a2k velocity:68;
+Double_Bass (2) keyNum:d1k velocity:74;
+t 22.5;
+Tenor_Sax (0.5) keyNum:a3k velocity:74;
+t 23;
+Bass_Clarinet (0.5) keyNum:f3k velocity:72;
+t 23.5;
+Baritone_Sax (0.5) keyNum:d3k velocity:72;
+
+/* Measure 7: G dominant, ensemble crescendo. */
+t 24;
+Piccolo (1) keyNum:d6k velocity:82;
+B_flat_Clarinet (1) keyNum:b4k velocity:76;
+B_flat_Trumpet (1) keyNum:g4k velocity:80;
+Horn_in_F (2) keyNum:d4k velocity:72;
+English_Horn (2) keyNum:b3k velocity:70;
+Alto_Sax (2) keyNum:g3k velocity:72;
+Tenor_Sax (2) keyNum:d3k velocity:70;
+Baritone_Sax (2) keyNum:g2k velocity:70;
+Bass_Clarinet (2) keyNum:b2k velocity:68;
+Double_Bass (2) keyNum:g1k velocity:76;
+t 25;
+Piccolo (1) keyNum:f6k velocity:86;
+B_flat_Clarinet (1) keyNum:d5k velocity:80;
+B_flat_Trumpet (1) keyNum:b4k velocity:82;
+t 26;
+Piccolo (0.5) keyNum:e6k velocity:84;
+B_flat_Clarinet (1) keyNum:c5k velocity:78;
+B_flat_Trumpet (1) keyNum:a4k velocity:80;
+Horn_in_F (2) keyNum:f4k velocity:74;
+English_Horn (2) keyNum:d4k velocity:72;
+Alto_Sax (2) keyNum:b3k velocity:74;
+Tenor_Sax (2) keyNum:g3k velocity:72;
+Baritone_Sax (2) keyNum:d3k velocity:70;
+Bass_Clarinet (2) keyNum:g2k velocity:70;
+Double_Bass (2) keyNum:g1k velocity:76;
+t 26.5;
+Piccolo (0.5) keyNum:d6k velocity:82;
+t 27;
+Piccolo (1) keyNum:b5k velocity:80;
+B_flat_Clarinet (1) keyNum:b4k velocity:78;
+B_flat_Trumpet (1) keyNum:g4k velocity:82;
+
+/* Measure 8: C major arrival, all ten instruments sustained. */
+t 28;
+Piccolo (4) keyNum:e6k velocity:88;
+B_flat_Clarinet (4) keyNum:c5k velocity:82;
+B_flat_Trumpet (4) keyNum:g4k velocity:86;
+Horn_in_F (4) keyNum:e4k velocity:78;
+English_Horn (4) keyNum:c4k velocity:76;
+Alto_Sax (4) keyNum:g3k velocity:76;
+Tenor_Sax (4) keyNum:e3k velocity:74;
+Baritone_Sax (4) keyNum:c3k velocity:74;
+Bass_Clarinet (4) keyNum:g2k velocity:72;
+Double_Bass (4) keyNum:c2k velocity:78;
+
+END;

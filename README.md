@@ -122,6 +122,7 @@ The bundled `examples/key-signature-change.score` is a short engraving example t
 from G major to E-flat major, demonstrating an opening signature, cancellation naturals, and a
 mid-score flat signature.
 The bundled `examples/time-rotor-study.score` is an original CC0 electronic science-fiction title study in 6/8. It is intentionally not an arrangement of any television theme.
+The bundled `examples/transposing-instruments-study.score` is an original ten-part miniature that exercises every transposing instrument recognized by ScoreMaker; toggle **Score > Written Pitch** to compare written and concert notation while hearing identical playback.
 The bundled `examples/mozart-requiem/` collection contains fourteen independently openable complete multi-track scores, one for each commonly separated movement of Mozart's Requiem, K. 626.
 The bundled `examples/brandenburg-concertos/` collection contains all six of J. S. Bach's Brandenburg Concertos, BWV 1046–1051, as eighteen independently openable movement scores.
 
