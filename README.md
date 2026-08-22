@@ -169,7 +169,8 @@ available as one Undo step.
 Transposing instruments are shown at written pitch by default while playback remains at concert
 pitch. Deselect **Score > Written Pitch** to show the full score at concert pitch. ScoreMaker
 recognizes common B-flat, E-flat, and F instruments plus octave-transposing piccolo and double bass;
-the per-part transposition is retained in ScoreMaker project files.
+the per-part transposition is retained in ScoreMaker project files. Staff labels and published-part
+headers identify the instrument key or octave displacement so the active transposition is visible.
 
 Use **Import .ins…** in the routing matrix to import a Cakewalk instrument-definition file and
 associate one of its definitions with an attached MIDI output. ScoreMaker remembers the association

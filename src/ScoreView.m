@@ -152,9 +152,9 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   [self reloadDocument];
 }
 
-- (NSInteger)instrumentTranspositionForTrack:(NSInteger)track
+- (NSInteger)configuredInstrumentTranspositionForTrack:(NSInteger)track
 {
-  if (!_writtenPitch || track < 0) return 0;
+  if (track < 0) return 0;
   for (ScorePartDefinition *part in [_document parts])
     if ([part legacyTrack] == track)
       {
@@ -174,6 +174,39 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
         return 0;
       }
   return 0;
+}
+
+- (NSInteger)instrumentTranspositionForTrack:(NSInteger)track
+{
+  return _writtenPitch ? [self configuredInstrumentTranspositionForTrack:track] : 0;
+}
+
+- (NSString *)transpositionLabelForTrack:(NSInteger)track
+{
+  switch ([self configuredInstrumentTranspositionForTrack:track])
+    {
+    case -2: case -14: return @"in B♭";
+    case -9: case -21: return @"in E♭";
+    case -7: return @"in F";
+    case 12: return @"sounds 8va";
+    case -12: return @"sounds 8vb";
+    default:
+      {
+        NSInteger value = [self configuredInstrumentTranspositionForTrack:track];
+        return value == 0 ? nil
+          : [NSString stringWithFormat:@"sounds %+ld semitones", (long)value];
+      }
+    }
+}
+
+- (NSString *)displayNameForTrack:(NSInteger)track compact:(BOOL)compact
+{
+  NSString *name = [_document nameForTrack:track];
+  if (![name length]) name = [NSString stringWithFormat:@"Part %ld", (long)(track + 1)];
+  NSString *transposition = [self transpositionLabelForTrack:track];
+  if (![transposition length]) return name;
+  return compact ? [NSString stringWithFormat:@"%@ (%@)", name, transposition]
+                 : [NSString stringWithFormat:@"%@\n%@", name, transposition];
 }
 
 - (NSInteger)displayedPitchForNote:(ScoreNote *)note
@@ -714,10 +747,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   [title drawInRect:titleRect withAttributes:titleAttrs];
   if (_publicationTrack)
     {
-      NSString *partName = [_document nameForTrack:[_publicationTrack integerValue]];
-      if (![partName length])
-        partName =
-          [NSString stringWithFormat:@"Part %ld", (long)([_publicationTrack integerValue] + 1)];
+      NSString *partName = [self displayNameForTrack:[_publicationTrack integerValue] compact:YES];
       NSDictionary *partAttrs = [NSDictionary
         dictionaryWithObjectsAndKeys:[NSFont boldSystemFontOfSize:14.0], NSFontAttributeName,
                                      [NSColor blackColor], NSForegroundColorAttributeName, centered,
@@ -1133,19 +1163,13 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
       NSMutableArray *names = [NSMutableArray array];
       for (NSNumber *number in [self scoreTracks])
         {
-          NSString *partName = [_document nameForTrack:[number integerValue]];
-          [names addObject:[partName length]
-                             ? partName
-                             : [NSString
-                                 stringWithFormat:@"Part %ld", (long)([number integerValue] + 1)]];
+          [names addObject:[self displayNameForTrack:[number integerValue] compact:YES]];
         }
       name = [names componentsJoinedByString:@"\n"];
     }
   else
     {
-      name = [_document nameForTrack:track];
-      if ([name length] == 0)
-        name = [NSString stringWithFormat:@"Part %ld", (long)(track + 1)];
+      name = [self displayNameForTrack:track compact:NO];
     }
 
   NSMutableParagraphStyle *style = [[[NSMutableParagraphStyle alloc] init] autorelease];
