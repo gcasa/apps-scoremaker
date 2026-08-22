@@ -77,6 +77,25 @@ int
 main (void)
 {
   NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+  NSString *insSource = @".Patch Names\n[Preset A]\n0=Warm Piano\n1=Wide Piano\n"
+                         @"[Preset B]\n0=Analog Brass\n127=Noise Hit\n"
+                         @".Instrument Definitions\n[Test Synth]\nPatch[0]=Preset A\n"
+                         @"Patch[129]=Preset B\nBankSelMethod=0\n";
+  NSError *insError = nil;
+  NSArray *insDefinitions = [MidiParser instrumentDefinitionsFromINSString:insSource
+                                                                      error:&insError];
+  Require ([insDefinitions count] == 1, @".ins parser did not find the instrument definition");
+  NSDictionary *insInstrument = [insDefinitions objectAtIndex:0];
+  Require ([[insInstrument objectForKey:@"name"] isEqualToString:@"Test Synth"],
+           @".ins instrument name was not preserved");
+  NSArray *insBanks = [insInstrument objectForKey:@"banks"];
+  Require ([insBanks count] == 2
+             && [[[[insBanks objectAtIndex:1] objectForKey:@"patches"] objectAtIndex:127]
+                   isEqualToString:@"Noise Hit"],
+           @".ins banks or sparse patch names were not parsed");
+  NSString *patchOnlyINS = @".Patch Names\n[Legacy Module]\n10=Bell Pad\n";
+  Require ([[MidiParser instrumentDefinitionsFromINSString:patchOnlyINS error:&insError] count] == 1,
+           @"patch-only .ins file did not produce an importable profile");
   NSError *sourceError = nil;
   NSString *editableSource = @"/* retained editor comment */\n"
                               @"info tempo:96 timeSignature:3/4;\n"

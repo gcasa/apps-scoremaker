@@ -191,6 +191,12 @@ Open **Score > Routing Matrix…** to manage the complete ensemble in one window
 
 Select multiple rows to apply a device in bulk, assign sequential channels, or reset routes. Duplicate device/channel assignments are flagged. Missing hardware assignments remain saved and can reconnect when the device returns; fallback choices include the built-in synth, muting the part, or another MIDI device.
 
+Click **Import .ins…** to open a Cakewalk instrument-definition file. Choose an attached MIDI output
+and one of the definitions contained in the file. ScoreMaker remembers that device association and
+shows the definition's bank and patch names in every part routed to the device. Selecting a bank and
+patch sends bank-select MSB/LSB followed by the program change during playback. Parts without an
+assigned definition continue to use the General MIDI program list.
+
 ## 8. Editing MusicKit score source
 
 Choose **Score > Edit Score Source…** or click **Edit Source…** in the inspector. Each score has its own syntax-highlighted source window.

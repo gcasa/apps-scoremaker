@@ -34,4 +34,11 @@
 + (NSData *)dataForDocument:(ScoreDocument *)document error:(NSError **)error;
 /** Returns the ordered list of 128 General MIDI program names. */
 + (NSArray *)generalMidiProgramNames;
+/**
+ * Parses a Cakewalk instrument-definition (.ins) file. Each returned dictionary contains
+ * a name and an ordered banks array; each bank contains number, name, and a 128-entry patches
+ * array. Missing patch names are represented by NSNull.
+ */
++ (NSArray *)instrumentDefinitionsFromINSFileAtPath:(NSString *)path error:(NSError **)error;
++ (NSArray *)instrumentDefinitionsFromINSString:(NSString *)contents error:(NSError **)error;
 @end

@@ -251,6 +251,8 @@
 - (void)changeFont:(id)sender;
 /** Opens the persistent per-part MIDI routing matrix. */
 - (void)chooseMIDIOutput:(id)sender;
+/** Imports a Cakewalk .ins file and associates its patch names with a MIDI output. */
+- (void)importMIDIInstrumentDefinition:(id)sender;
 /** Enables or disables the real-time DSP playback engine. */
 - (void)toggleRealtimeDSP:(id)sender;
 /** Presents and assigns an installed Audio Unit instrument. */

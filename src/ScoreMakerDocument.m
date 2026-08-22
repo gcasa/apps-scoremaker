@@ -39,6 +39,9 @@ static CGFloat const InspectorPadding = 18.0;
 static CGFloat const PlaybackMonitorHeight = 150.0;
 static CGFloat const InspectorContentHeight = 1260.0;
 static NSString *const ScoreMakerInternalPatchPresetsKey = @"ScoreMakerInternalPatchPresets";
+static NSString *const ScoreMakerMIDIInstrumentProfilesKey = @"ScoreMakerMIDIInstrumentProfiles";
+static NSString *const ScoreMakerMIDIDeviceProfileBindingsKey = @"ScoreMakerMIDIDeviceProfileBindings";
+static NSString *const ScoreMakerMIDIBankNumberParameter = @"midiBankNumber";
 
 static ScorePartDefinition *
 ScoreMakerPartForTrack (ScoreDocument *document, NSInteger track)
@@ -818,7 +821,10 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 
 + (BOOL)autosavesInPlace
 {
-  return YES;
+  /* Score and imported music files must only be rewritten by an explicit
+   * Save operation.  Edits still mark the document dirty so Cocoa prompts
+   * before closing and preserves the normal undo workflow. */
+  return NO;
 }
 
 - (id)init
@@ -2669,6 +2675,122 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   return outputs;
 }
 
+- (NSString *)midiProfileBindingKeyForUniqueID:(NSInteger)uniqueID name:(NSString *)name
+{
+  if (uniqueID != 0) return [NSString stringWithFormat:@"id:%ld", (long)uniqueID];
+  return [NSString stringWithFormat:@"name:%@", [name lowercaseString] ?: @""];
+}
+
+- (NSDictionary *)midiInstrumentProfileForPart:(ScorePartDefinition *)part
+{
+  if (!part || [part midiOutputUniqueID] == 0) return nil;
+  NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+  NSDictionary *profiles = [defaults dictionaryForKey:ScoreMakerMIDIInstrumentProfilesKey];
+  NSDictionary *bindings = [defaults dictionaryForKey:ScoreMakerMIDIDeviceProfileBindingsKey];
+  NSString *profileName = [bindings objectForKey:
+    [self midiProfileBindingKeyForUniqueID:[part midiOutputUniqueID] name:[part midiOutputName]]];
+  if (!profileName && [[part midiOutputName] length])
+    profileName = [bindings objectForKey:
+      [self midiProfileBindingKeyForUniqueID:0 name:[part midiOutputName]]];
+  if (!profileName && [[part midiOutputName] length])
+    {
+      NSString *deviceName = [[part midiOutputName] lowercaseString];
+      for (NSString *candidate in profiles)
+        if ([deviceName rangeOfString:[candidate lowercaseString]].location != NSNotFound
+            || [[candidate lowercaseString] rangeOfString:deviceName].location != NSNotFound)
+          { profileName = candidate; break; }
+    }
+  return profileName ? [profiles objectForKey:profileName] : nil;
+}
+
+- (NSDictionary *)midiBankForPart:(ScorePartDefinition *)part profile:(NSDictionary *)profile
+{
+  NSArray *banks = [profile objectForKey:@"banks"];
+  if (![banks count]) return nil;
+  NSInteger selected = [[[[part instrument] parameters]
+    objectForKey:ScoreMakerMIDIBankNumberParameter] integerValue];
+  for (NSDictionary *bank in banks)
+    if ([[bank objectForKey:@"number"] integerValue] == selected) return bank;
+  return [banks objectAtIndex:0];
+}
+
+- (void)importMIDIInstrumentDefinition:(id)sender
+{
+  (void)sender;
+  NSOpenPanel *panel = [NSOpenPanel openPanel];
+  [panel setAllowsMultipleSelection:NO];
+  [panel setCanChooseDirectories:NO];
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+  [panel setAllowedFileTypes:@[ @"ins" ]];
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+  [panel setPrompt:@"Import"];
+  if ([panel runModal] != NSModalResponseOK) return;
+  NSError *error = nil;
+  NSArray *definitions = [MidiParser instrumentDefinitionsFromINSFileAtPath:
+    [[[panel URLs] objectAtIndex:0] path] error:&error];
+  if (!definitions)
+    { [[NSDocumentController sharedDocumentController] presentError:error]; return; }
+
+  NSArray *outputs = [self availableMIDIOutputs];
+  if (![outputs count])
+    {
+      NSAlert *alert = [[[NSAlert alloc] init] autorelease];
+      [alert setMessageText:@"No MIDI output devices are attached"];
+      [alert setInformativeText:@"Attach the instrument and import the .ins file again so ScoreMaker can associate its patch names with that device."];
+      [alert runModal]; return;
+    }
+  NSView *accessory = [[[NSView alloc] initWithFrame:NSMakeRect (0, 0, 420, 70)] autorelease];
+  NSPopUpButton *device = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (0, 40, 420, 26)
+                                                       pullsDown:NO] autorelease];
+  for (NSDictionary *output in outputs)
+    { [device addItemWithTitle:[output objectForKey:@"name"]]; [[device lastItem] setRepresentedObject:output]; }
+  NSPopUpButton *definition = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (0, 4, 420, 26)
+                                                           pullsDown:NO] autorelease];
+  for (NSDictionary *item in definitions)
+    { [definition addItemWithTitle:[item objectForKey:@"name"]]; [[definition lastItem] setRepresentedObject:item]; }
+  [accessory addSubview:device]; [accessory addSubview:definition];
+  NSAlert *chooser = [[[NSAlert alloc] init] autorelease];
+  [chooser setMessageText:@"Assign instrument definition"];
+  [chooser setInformativeText:@"Choose the attached MIDI output and the definition from this file."];
+  [chooser setAccessoryView:accessory];
+  [chooser addButtonWithTitle:@"Import and Assign"];
+  [chooser addButtonWithTitle:@"Cancel"];
+  if ([chooser runModal] != NSAlertFirstButtonReturn) return;
+
+  NSDictionary *chosenDefinition = [[definition selectedItem] representedObject];
+  NSDictionary *chosenDevice = [[device selectedItem] representedObject];
+  NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+  NSMutableDictionary *profiles = [NSMutableDictionary dictionaryWithDictionary:
+    [defaults dictionaryForKey:ScoreMakerMIDIInstrumentProfilesKey] ?: @{}];
+  [profiles setObject:chosenDefinition forKey:[chosenDefinition objectForKey:@"name"]];
+  [defaults setObject:profiles forKey:ScoreMakerMIDIInstrumentProfilesKey];
+  NSMutableDictionary *bindings = [NSMutableDictionary dictionaryWithDictionary:
+    [defaults dictionaryForKey:ScoreMakerMIDIDeviceProfileBindingsKey] ?: @{}];
+  NSString *profileName = [chosenDefinition objectForKey:@"name"];
+  [bindings setObject:profileName forKey:[self midiProfileBindingKeyForUniqueID:
+    [[chosenDevice objectForKey:@"uniqueID"] integerValue] name:[chosenDevice objectForKey:@"name"]]];
+  [bindings setObject:profileName forKey:[self midiProfileBindingKeyForUniqueID:0
+                                                                          name:[chosenDevice objectForKey:@"name"]]];
+  [defaults setObject:bindings forKey:ScoreMakerMIDIDeviceProfileBindingsKey];
+  NSDictionary *firstBank = [[chosenDefinition objectForKey:@"banks"] count]
+                              ? [[chosenDefinition objectForKey:@"banks"] objectAtIndex:0] : nil;
+  BOOL changedDocument = NO;
+  for (ScorePartDefinition *part in [[self scoreDocument] parts])
+    if ([part midiOutputUniqueID] == [[chosenDevice objectForKey:@"uniqueID"] integerValue])
+      {
+        [[[part instrument] parameters] setObject:[firstBank objectForKey:@"number"] ?: @0
+                                           forKey:ScoreMakerMIDIBankNumberParameter];
+        changedDocument = YES;
+      }
+  if (changedDocument) [self updateChangeCount:NSChangeDone];
+  [self refreshRoutingMatrix];
+}
+
 - (MIDIEndpointRef)resolvedMIDIEndpointWithUniqueID:(NSInteger)uniqueID name:(NSString *)name
 {
   if (uniqueID == 0)
@@ -2828,6 +2950,13 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [self registerUndoSnapshotWithName:@"Change MIDI Routing"];
   [part setMidiOutputUniqueID:uniqueID];
   [part setMidiOutputName:[name length] ? name : nil];
+  [[[part instrument] parameters] removeObjectForKey:ScoreMakerMIDIBankNumberParameter];
+  NSDictionary *profile = [self midiInstrumentProfileForPart:part];
+  NSDictionary *firstBank = [[profile objectForKey:@"banks"] count]
+                              ? [[profile objectForKey:@"banks"] objectAtIndex:0] : nil;
+  if (firstBank)
+    [[[part instrument] parameters] setObject:[firstBank objectForKey:@"number"]
+                                       forKey:ScoreMakerMIDIBankNumberParameter];
   [self updateChangeCount:NSChangeDone];
   [self commitUndoBaseline];
   [self refreshRoutingMatrix];
@@ -2862,7 +2991,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   if (row < 0 || row >= (NSInteger)[[[self scoreDocument] parts] count])
     return;
   ScorePartDefinition *part = [[[self scoreDocument] parts] objectAtIndex:(NSUInteger)row];
-  NSInteger program = [sender indexOfSelectedItem];
+  NSNumber *representedProgram = [[sender selectedItem] representedObject];
+  NSInteger program = representedProgram ? [representedProgram integerValue]
+                                         : [sender indexOfSelectedItem];
   if ([[[self scoreDocument] programForTrack:[part legacyTrack]] integerValue] == program)
     return;
   [self registerUndoSnapshotWithName:@"Change MIDI Program"];
@@ -2872,6 +3003,23 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [self updateChangeCount:NSChangeDone];
   [self commitUndoBaseline];
   [self refreshInspector];
+  [self restartPlaybackAfterRoutingChange];
+}
+
+- (void)routingBankChanged:(NSPopUpButton *)sender
+{
+  NSInteger row = [sender tag];
+  if (row < 0 || row >= (NSInteger)[[[self scoreDocument] parts] count]) return;
+  ScorePartDefinition *part = [[[self scoreDocument] parts] objectAtIndex:(NSUInteger)row];
+  NSInteger bank = [[[[sender selectedItem] representedObject] objectForKey:@"number"] integerValue];
+  NSInteger oldBank = [[[[part instrument] parameters]
+    objectForKey:ScoreMakerMIDIBankNumberParameter] integerValue];
+  if (bank == oldBank) return;
+  [self registerUndoSnapshotWithName:@"Change MIDI Bank"];
+  [[[part instrument] parameters] setObject:@(bank) forKey:ScoreMakerMIDIBankNumberParameter];
+  [self updateChangeCount:NSChangeDone];
+  [self commitUndoBaseline];
+  [self refreshRoutingMatrix];
   [self restartPlaybackAfterRoutingChange];
 }
 
@@ -3159,7 +3307,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   NSArray *programNames = [MidiParser generalMidiProgramNames];
   CGFloat rowHeight = 48.0;
   CGFloat headerHeight = 30.0;
-  CGFloat width = 1450.0;
+  CGFloat width = 1620.0;
   [_routingMatrixRowsView
     setFrameSize:NSMakeSize (width, headerHeight + MAX (rowHeight, rowHeight * [parts count]))];
   if (!_routingMatrixSelection)
@@ -3285,13 +3433,54 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
         [NSString stringWithFormat:@"MIDI channel for %@", partName]);
       [_routingMatrixRowsView addSubview:channel];
 
-      NSPopUpButton *program = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (546, y + 9, 216, 28)
+      NSDictionary *profile = [self midiInstrumentProfileForPart:part];
+      NSDictionary *selectedBank = [self midiBankForPart:part profile:profile];
+      if (profile)
+        {
+          NSPopUpButton *bank = [[[NSPopUpButton alloc]
+            initWithFrame:NSMakeRect (546, y + 9, 160, 28) pullsDown:NO] autorelease];
+          for (NSDictionary *item in [profile objectForKey:@"banks"])
+            {
+              [bank addItemWithTitle:[item objectForKey:@"name"]];
+              [[bank lastItem] setRepresentedObject:item];
+              if ([[item objectForKey:@"number"] integerValue]
+                    == [[selectedBank objectForKey:@"number"] integerValue])
+                [bank selectItem:[bank lastItem]];
+            }
+          [bank setTag:(NSInteger)row]; [bank setTarget:self];
+          [bank setAction:@selector (routingBankChanged:)];
+          ScoreMakerSetAccessibilityLabel (bank,
+            [NSString stringWithFormat:@"MIDI bank for %@", partName]);
+          [_routingMatrixRowsView addSubview:bank];
+        }
+      else
+        [_routingMatrixRowsView addSubview:[self routingLabelWithFrame:NSMakeRect (550, y + 14, 150, 20)
+                                                               text:@"General MIDI"
+                                                               font:[NSFont systemFontOfSize:12.0]
+                                                              color:[NSColor secondaryLabelColor]]];
+
+      NSPopUpButton *program = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (714, y + 9, 216, 28)
                                                            pullsDown:NO] autorelease];
-      for (NSUInteger index = 0; index < [programNames count]; index++)
-        [program addItemWithTitle:[NSString stringWithFormat:@"%lu · %@", (unsigned long)index + 1,
-                                                            [programNames objectAtIndex:index]]];
       NSInteger selectedProgram = [[[self scoreDocument] programForTrack:[part legacyTrack]] integerValue];
-      [program selectItemAtIndex:MIN ((NSInteger)127, MAX ((NSInteger)0, selectedProgram))];
+      NSArray *profilePatches = [selectedBank objectForKey:@"patches"];
+      BOOL foundSelectedProgram = NO;
+      for (NSUInteger index = 0; index < 128; index++)
+        {
+          id patchName = index < [profilePatches count] ? [profilePatches objectAtIndex:index] : nil;
+          if (patchName == [NSNull null]) patchName = nil;
+          if (!patchName && profile) continue;
+          [program addItemWithTitle:[NSString stringWithFormat:@"%lu · %@", (unsigned long)index + 1,
+            patchName ?: [programNames objectAtIndex:index]]];
+          [[program lastItem] setRepresentedObject:@(index)];
+          if ((NSInteger)index == selectedProgram)
+            { [program selectItem:[program lastItem]]; foundSelectedProgram = YES; }
+        }
+      if (!foundSelectedProgram)
+        {
+          [program addItemWithTitle:[NSString stringWithFormat:@"%ld · Unnamed Patch", (long)selectedProgram + 1]];
+          [[program lastItem] setRepresentedObject:@(selectedProgram)];
+          [program selectItem:[program lastItem]];
+        }
       [program setTag:(NSInteger)row];
       [program setTarget:self];
       [program setAction:@selector (routingProgramChanged:)];
@@ -3327,11 +3516,11 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       NSColor *statusColor = conflict ? [NSColor systemOrangeColor]
                                       : (connected ? [NSColor systemGreenColor]
                                                    : [NSColor systemRedColor]);
-      [_routingMatrixRowsView addSubview:[self routingLabelWithFrame:NSMakeRect (778, y + 14, 126, 20)
+      [_routingMatrixRowsView addSubview:[self routingLabelWithFrame:NSMakeRect (946, y + 14, 126, 20)
                                                                text:status
                                                                font:[NSFont systemFontOfSize:12.0]
                                                               color:statusColor]];
-      NSPopUpButton *fallback = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (914, y + 9, 154, 28)
+      NSPopUpButton *fallback = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (1082, y + 9, 154, 28)
                                                             pullsDown:NO] autorelease];
       [fallback addItemWithTitle:@"Built-in Synth"];
       [[fallback lastItem] setRepresentedObject:@{ @"mode" : @"builtin", @"uniqueID" : @0,
@@ -3372,8 +3561,8 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
         [NSString stringWithFormat:@"Fallback output for %@", partName]);
       [_routingMatrixRowsView addSubview:fallback];
 
-      NSArray *toggleSpecs = @[ @[ @"M", @0, @1080 ], @[ @"S", @1, @1114 ],
-                                 @[ @"Show", @2, @1148 ] ];
+      NSArray *toggleSpecs = @[ @[ @"M", @0, @1248 ], @[ @"S", @1, @1282 ],
+                                 @[ @"Show", @2, @1316 ] ];
       for (NSArray *spec in toggleSpecs)
         {
           NSInteger kind = [[spec objectAtIndex:1] integerValue];
@@ -3392,7 +3581,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
             [NSString stringWithFormat:@"%@ %@", toggleName, partName]);
           [_routingMatrixRowsView addSubview:toggle];
         }
-      NSSlider *gain = [[[NSSlider alloc] initWithFrame:NSMakeRect (1204, y + 10, 80, 24)] autorelease];
+      NSSlider *gain = [[[NSSlider alloc] initWithFrame:NSMakeRect (1372, y + 10, 80, 24)] autorelease];
       [gain setMinValue:0.0]; [gain setMaxValue:2.0]; [gain setDoubleValue:[part gain]];
       [gain setContinuous:NO]; [gain setTag:(NSInteger)row * 10 + 3]; [gain setTarget:self];
       [gain setAction:@selector (routingMixerSliderChanged:)];
@@ -3400,7 +3589,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       ScoreMakerSetAccessibilityLabel (gain,
         [NSString stringWithFormat:@"Volume for %@", partName]);
       [_routingMatrixRowsView addSubview:gain];
-      NSSlider *pan = [[[NSSlider alloc] initWithFrame:NSMakeRect (1292, y + 10, 70, 24)] autorelease];
+      NSSlider *pan = [[[NSSlider alloc] initWithFrame:NSMakeRect (1460, y + 10, 70, 24)] autorelease];
       [pan setMinValue:-1.0]; [pan setMaxValue:1.0]; [pan setDoubleValue:[part pan]];
       [pan setContinuous:NO]; [pan setTag:(NSInteger)row * 10 + 4]; [pan setTarget:self];
       [pan setAction:@selector (routingMixerSliderChanged:)];
@@ -3409,7 +3598,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
         [NSString stringWithFormat:@"Stereo pan for %@", partName]);
       [_routingMatrixRowsView addSubview:pan];
       NSTextField *group = [[[NSTextField alloc]
-        initWithFrame:NSMakeRect (1370, y + 10, 72, 24)] autorelease];
+        initWithFrame:NSMakeRect (1538, y + 10, 72, 24)] autorelease];
       [group setStringValue:[part groupName] ?: @""];
       [group setPlaceholderString:@"Group"];
       [group setTag:(NSInteger)row]; [group setTarget:self];
@@ -3478,7 +3667,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [scroll setHasHorizontalScroller:YES];
       [scroll setBorderType:NSBezelBorder];
       _routingMatrixRowsView = [[ScoreRoutingRowsView alloc]
-        initWithFrame:NSMakeRect (0, 0, 1450, 430)];
+        initWithFrame:NSMakeRect (0, 0, 1620, 430)];
       [scroll setDocumentView:_routingMatrixRowsView];
       [content addSubview:scroll];
       _routingMatrixSummaryLabel = [[self routingLabelWithFrame:NSMakeRect (20, 18, 280, 20)
@@ -3536,7 +3725,14 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [reset setAction:@selector (routingResetSelected:)];
       [reset setAutoresizingMask:NSViewMaxYMargin];
       [content addSubview:reset];
-      NSButton *refresh = [[[NSButton alloc] initWithFrame:NSMakeRect (834, 12, 130, 30)] autorelease];
+      NSButton *importINS = [[[NSButton alloc] initWithFrame:NSMakeRect (834, 12, 108, 30)] autorelease];
+      [importINS setTitle:@"Import .ins…"];
+      [importINS setToolTip:@"Import patch and bank names for an attached MIDI instrument"];
+      [importINS setTarget:self];
+      [importINS setAction:@selector (importMIDIInstrumentDefinition:)];
+      [importINS setAutoresizingMask:NSViewMinXMargin | NSViewMaxYMargin];
+      [content addSubview:importINS];
+      NSButton *refresh = [[[NSButton alloc] initWithFrame:NSMakeRect (948, 12, 130, 30)] autorelease];
       [refresh setTitle:@"Refresh Devices"];
       [refresh setTarget:self];
       [refresh setAction:@selector (chooseMIDIOutput:)];

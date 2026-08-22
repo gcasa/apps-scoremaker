@@ -18,6 +18,7 @@
  */
 
 #import "MidiParser.h"
+#import "MusicPlatformModel.h"
 #import <stdint.h>
 #import <math.h>
 
@@ -294,6 +295,129 @@ GeneralMidiProgramName (unsigned char program)
       [programs addObject:GeneralMidiProgramName ((unsigned char)program)];
     }
   return programs;
+}
+
++ (NSArray *)instrumentDefinitionsFromINSFileAtPath:(NSString *)path error:(NSError **)error
+{
+  NSStringEncoding encoding = NSUTF8StringEncoding;
+  NSString *contents = [NSString stringWithContentsOfFile:path usedEncoding:&encoding error:error];
+  if (!contents)
+    {
+      contents = [NSString stringWithContentsOfFile:path
+                                           encoding:NSISOLatin1StringEncoding
+                                              error:error];
+    }
+  return contents ? [self instrumentDefinitionsFromINSString:contents error:error] : nil;
+}
+
++ (NSArray *)instrumentDefinitionsFromINSString:(NSString *)contents error:(NSError **)error
+{
+  if (![contents length])
+    {
+      if (error) *error = ParserError (@"The instrument-definition file is empty.");
+      return nil;
+    }
+  NSMutableDictionary *patchSections = [NSMutableDictionary dictionary];
+  NSMutableArray *patchSectionOrder = [NSMutableArray array];
+  NSMutableDictionary *instrumentSections = [NSMutableDictionary dictionary];
+  NSMutableArray *instrumentOrder = [NSMutableArray array];
+  NSString *area = nil;
+  NSString *section = nil;
+  NSArray *lines = [contents componentsSeparatedByCharactersInSet:
+    [NSCharacterSet newlineCharacterSet]];
+  for (NSString *rawLine in lines)
+    {
+      NSString *line = [rawLine stringByTrimmingCharactersInSet:
+        [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+      if (![line length] || [line hasPrefix:@";"]) continue;
+      if ([line hasPrefix:@"."])
+        {
+          area = [[line substringFromIndex:1] lowercaseString];
+          section = nil;
+          continue;
+        }
+      if ([line hasPrefix:@"["] && [line hasSuffix:@"]"] && [line length] > 2)
+        {
+          section = [line substringWithRange:NSMakeRange (1, [line length] - 2)];
+          if ([area isEqualToString:@"patch names"])
+            {
+              if (![patchSections objectForKey:section])
+                {
+                  [patchSections setObject:[NSMutableDictionary dictionary] forKey:section];
+                  [patchSectionOrder addObject:section];
+                }
+            }
+          else if ([area isEqualToString:@"instrument definitions"])
+            {
+              if (![instrumentSections objectForKey:section])
+                {
+                  [instrumentSections setObject:[NSMutableDictionary dictionary] forKey:section];
+                  [instrumentOrder addObject:section];
+                }
+            }
+          continue;
+        }
+      NSRange equals = [line rangeOfString:@"="];
+      if (!section || equals.location == NSNotFound) continue;
+      NSString *key = [[line substringToIndex:equals.location]
+        stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+      NSString *value = [[line substringFromIndex:equals.location + 1]
+        stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+      if ([area isEqualToString:@"patch names"])
+        {
+          NSInteger program = [key integerValue];
+          if (program >= 0 && program < 128 && [key length])
+            [[patchSections objectForKey:section] setObject:value forKey:@(program)];
+        }
+      else if ([area isEqualToString:@"instrument definitions"]
+               && [key hasPrefix:@"Patch["] && [key hasSuffix:@"]"])
+        {
+          NSString *bankText = [key substringWithRange:NSMakeRange (6, [key length] - 7)];
+          [[instrumentSections objectForKey:section] setObject:value forKey:bankText];
+        }
+    }
+
+  NSMutableArray *definitions = [NSMutableArray array];
+  for (NSString *instrumentName in instrumentOrder)
+    {
+      NSDictionary *assignments = [instrumentSections objectForKey:instrumentName];
+      NSMutableArray *banks = [NSMutableArray array];
+      for (NSString *bankText in assignments)
+        {
+          NSString *patchSection = [assignments objectForKey:bankText];
+          NSDictionary *patchesByNumber = [patchSections objectForKey:patchSection];
+          if (!patchesByNumber) continue;
+          NSInteger bank = [bankText isEqualToString:@"*"] ? 0 : [bankText integerValue];
+          NSMutableArray *patches = [NSMutableArray arrayWithCapacity:128];
+          for (NSInteger program = 0; program < 128; program++)
+            [patches addObject:[patchesByNumber objectForKey:@(program)] ?: [NSNull null]];
+          [banks addObject:@{ @"number" : @(MAX (0, MIN (16383, bank))),
+                              @"name" : patchSection, @"patches" : patches }];
+        }
+      [banks sortUsingComparator:^NSComparisonResult (NSDictionary *left, NSDictionary *right) {
+        return [[left objectForKey:@"number"] compare:[right objectForKey:@"number"]];
+      }];
+      if ([banks count])
+        [definitions addObject:@{ @"name" : instrumentName, @"banks" : banks }];
+    }
+  /* Some useful .ins files contain only Patch Names. Expose each such section as a profile. */
+  if (![definitions count])
+    for (NSString *sectionName in patchSectionOrder)
+      {
+        NSDictionary *patchesByNumber = [patchSections objectForKey:sectionName];
+        NSMutableArray *patches = [NSMutableArray arrayWithCapacity:128];
+        for (NSInteger program = 0; program < 128; program++)
+          [patches addObject:[patchesByNumber objectForKey:@(program)] ?: [NSNull null]];
+        [definitions addObject:@{ @"name" : sectionName,
+                                  @"banks" : @[ @{ @"number" : @0, @"name" : sectionName,
+                                                    @"patches" : patches } ] }];
+      }
+  if (![definitions count])
+    {
+      if (error) *error = ParserError (@"No patch-name sections were found in the .ins file.");
+      return nil;
+    }
+  return definitions;
 }
 
 + (ScoreDocument *)parseFileAtPath:(NSString *)path error:(NSError **)error
@@ -726,7 +850,6 @@ GeneralMidiProgramName (unsigned char program)
       NSNumber *trackProgram = [document programForTrack:trackIndex];
       if (trackProgram)
         {
-          AppendVarLen (trackData, 0);
           unsigned char channel = 0;
           BOOL foundChannel = NO;
           noteEnumerator = [[document notes] objectEnumerator];
@@ -743,6 +866,24 @@ GeneralMidiProgramName (unsigned char program)
             {
               channel = (unsigned char)MIN (MAX (trackIndex, (NSInteger)0), (NSInteger)15);
             }
+          ScorePartDefinition *part = nil;
+          for (ScorePartDefinition *candidate in [document parts])
+            if ([candidate legacyTrack] == trackIndex) { part = candidate; break; }
+          NSNumber *bankNumber = [[[part instrument] parameters] objectForKey:@"midiBankNumber"];
+          if (bankNumber)
+            {
+              NSInteger bank = MAX ((NSInteger)0, MIN ((NSInteger)16383,
+                                                       [bankNumber integerValue]));
+              AppendVarLen (trackData, 0);
+              AppendByte (trackData, (unsigned char)(0xb0 | channel));
+              AppendByte (trackData, 0);
+              AppendByte (trackData, (unsigned char)((bank >> 7) & 0x7f));
+              AppendVarLen (trackData, 0);
+              AppendByte (trackData, (unsigned char)(0xb0 | channel));
+              AppendByte (trackData, 32);
+              AppendByte (trackData, (unsigned char)(bank & 0x7f));
+            }
+          AppendVarLen (trackData, 0);
           AppendByte (trackData, (unsigned char)(0xc0 | channel));
           AppendByte (
             trackData,

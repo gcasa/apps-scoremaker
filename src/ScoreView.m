@@ -265,6 +265,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 
   NSUInteger currentSystem = 0;
   NSArray *layouts = [self systemLayouts];
+  NSMutableIndexSet *damagedSystems = [NSMutableIndexSet indexSet];
   for (NSUInteger index = 0; index < [layouts count]; index++)
     {
       ScoreEngravingSystem *layout = [layouts objectAtIndex:index];
@@ -274,10 +275,37 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
           break;
         }
     }
-  [self setNeedsDisplayInRect:NSInsetRect (
-                                 NSMakeRect (0.0, [self yForSystem:currentSystem],
-                                             NSWidth ([self bounds]), [self systemHeight]),
-                                 0.0, -PlaybackCartoucheDamageInset)];
+  [damagedSystems addIndex:currentSystem];
+
+  /* A note may be engraved in more than one system.  When its active state
+   * changes, repaint every system containing it; otherwise the glow drawn in
+   * an earlier system survives after the playhead has moved on. */
+  if (wasShowingPlayback)
+    for (ScoreNote *note in [_document notes])
+      {
+        if ([note isRest])
+          continue;
+        NSUInteger noteEnd = [note startTick] + [note durationTicks];
+        BOOL wasPlaying = [note startTick] <= previousTick && previousTick < noteEnd;
+        BOOL isPlaying = [note startTick] <= tick && tick < noteEnd;
+        if (wasPlaying == isPlaying)
+          continue;
+        for (NSUInteger index = 0; index < [layouts count]; index++)
+          {
+            ScoreEngravingSystem *layout = [layouts objectAtIndex:index];
+            if ([note startTick] < [layout endTick] && noteEnd > [layout startTick])
+              [damagedSystems addIndex:index];
+          }
+      }
+  NSUInteger damagedSystem = [damagedSystems firstIndex];
+  while (damagedSystem != NSNotFound)
+    {
+      [self setNeedsDisplayInRect:NSInsetRect (
+                                     NSMakeRect (0.0, [self yForSystem:damagedSystem],
+                                                 NSWidth ([self bounds]), [self systemHeight]),
+                                     0.0, -PlaybackCartoucheDamageInset)];
+      damagedSystem = [damagedSystems indexGreaterThanIndex:damagedSystem];
+    }
 }
 
 - (void)clearPlayback
@@ -285,21 +313,38 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   if (_showPlayback)
     {
       _showPlayback = NO;
-      NSUInteger system = 0;
       NSArray *layouts = [self systemLayouts];
+      NSMutableIndexSet *damagedSystems = [NSMutableIndexSet indexSet];
       for (NSUInteger index = 0; index < [layouts count]; index++)
         {
           ScoreEngravingSystem *layout = [layouts objectAtIndex:index];
           if (_playbackTick >= [layout startTick] && _playbackTick < [layout endTick])
             {
-              system = index;
+              [damagedSystems addIndex:index];
               break;
             }
         }
-      [self setNeedsDisplayInRect:NSInsetRect (
-                                     NSMakeRect (0.0, [self yForSystem:system],
-                                                 NSWidth ([self bounds]), [self systemHeight]),
-                                     0.0, -PlaybackCartoucheDamageInset)];
+      for (ScoreNote *note in [_document notes])
+        {
+          NSUInteger noteEnd = [note startTick] + [note durationTicks];
+          if ([note isRest] || [note startTick] > _playbackTick || _playbackTick >= noteEnd)
+            continue;
+          for (NSUInteger index = 0; index < [layouts count]; index++)
+            {
+              ScoreEngravingSystem *layout = [layouts objectAtIndex:index];
+              if ([note startTick] < [layout endTick] && noteEnd > [layout startTick])
+                [damagedSystems addIndex:index];
+            }
+        }
+      NSUInteger system = [damagedSystems firstIndex];
+      while (system != NSNotFound)
+        {
+          [self setNeedsDisplayInRect:NSInsetRect (
+                                         NSMakeRect (0.0, [self yForSystem:system],
+                                                     NSWidth ([self bounds]), [self systemHeight]),
+                                         0.0, -PlaybackCartoucheDamageInset)];
+          system = [damagedSystems indexGreaterThanIndex:system];
+        }
     }
 }
 

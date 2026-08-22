@@ -154,6 +154,12 @@ Assignments are saved in ScoreMaker project files. Multiple physical destination
 is disconnected, that part falls back to the built-in synthesizer. GNUstep builds preserve these
 project assignments but continue to use their configured system MIDI player.
 
+Use **Import .ins…** in the routing matrix to import a Cakewalk instrument-definition file and
+associate one of its definitions with an attached MIDI output. ScoreMaker remembers the association
+by CoreMIDI device identity and name, replaces the General MIDI list with the imported banks and
+patch names, saves each part's bank choice, and sends standard bank-select messages before its
+program change.
+
 Choose **Score > Internal Synth Patch Editor...** to design the internal sound for the selected part and notation voice. Each voice explicitly selects a named patch, and each patch carries its own oscillator, amplitude envelope, pitch LFO, resonant filter, independent filter envelope, velocity modulation, and effects. Use **Filter...** for cutoff, resonance, filter ADSR, envelope amount, and velocity routing. Editing a named patch creates a custom voice patch until it is saved under a name. Voice-to-patch assignments are preserved in ScoreMaker project files; named patches saved with **Save Patch...** are stored in user preferences and can be selected in any score. The separate **Score > Effects...** chain remains the shared master bus.
 
 Use **Browse Patches...** to explore the 24 bundled factory sounds and saved user sounds by Lead, Bass, Pad, Pluck, Keys, Effects, or Uncategorized. The browser shows each patch's description, auditions a short velocity-sensitive phrase without changing the score, and assigns the chosen patch to the editor's selected score voice only when **Use Patch** is pressed. Factory patches are always available; saving under the same name creates a user override without modifying the built-in library.
