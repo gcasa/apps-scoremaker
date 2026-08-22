@@ -124,8 +124,16 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 }
 - (CGFloat)musicWidth
 {
-  return MAX (240.0, [self pageWidth] - PaperInset * 2.0 - [self leftMargin]
-                       - [self rightMargin] - PartLabelWidth);
+  /* Keep line breaking in lockstep with drawSystemAtY:.  The clef/key/time
+     preamble reserves 100 points after the part label, and the staff ends 18
+     points before the available right edge.  Using the wider paper-content
+     estimate here caused dense generated scores to be packed past the useful
+     right margin and visually run off the page. */
+  CGFloat staffLeft = [self leftMargin] + PartLabelWidth;
+  CGFloat staffRight = [self pageWidth] - PaperInset * 2.0 - [self rightMargin];
+  CGFloat musicLeft = staffLeft + 100.0;
+  CGFloat musicRight = staffRight - 18.0;
+  return MAX (240.0, musicRight - musicLeft);
 }
 
 - (id)initWithFrame:(NSRect)frame

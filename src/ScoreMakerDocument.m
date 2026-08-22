@@ -412,6 +412,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
 - (void)refreshScoreSourceEditorFromScoreIfClean;
 - (void)positionScoreSourceEditorBesideDocument;
 - (void)positionAuxiliaryWindowBesideDocument:(NSWindow *)auxiliaryWindow;
+- (void)positionRoutingMatrixBelowDocument;
 - (void)arrangeScoreAuxiliaryWindows;
 - (void)updatePauseButtonForPaused:(BOOL)paused;
 - (void)clearScoreSourceErrorHighlight;
@@ -1028,6 +1029,14 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [super updateChangeCount:change];
   if (!_applyingScoreSource && change == NSChangeDone)
     {
+      if ([[[[self scoreDocument] scorefileCompatibility]
+              objectForKey:@"algorithmicSource"] boolValue])
+        {
+          if (_scoreSourceStatusLabel && !_scoreSourceEditorDirty)
+            [_scoreSourceStatusLabel
+              setStringValue:@"Algorithmic source preserved; edit the program to change generated notes."];
+          return;
+        }
       _scoreSourceIsAuthoritative = NO;
       [self refreshScoreSourceEditorFromScoreIfClean];
     }
@@ -1159,6 +1168,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     [patchParent removeChildWindow:_patchEditorWindow];
   [_patchEditorWindow close];
   [_patchBrowserWindow close];
+  NSWindow *routingParent = [_routingMatrixWindow parentWindow];
+  if (routingParent)
+    [routingParent removeChildWindow:_routingMatrixWindow];
   [_routingMatrixWindow close];
   NSWindow *sourceParent = [_scoreSourceEditorWindow parentWindow];
   if (sourceParent)
@@ -3888,6 +3900,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [content addSubview:refresh];
     }
   [self refreshRoutingMatrix];
+  [self positionRoutingMatrixBelowDocument];
   [_routingMatrixWindow makeKeyAndOrderFront:self];
 }
 
@@ -7397,12 +7410,32 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     [documentWindow addChildWindow:auxiliaryWindow ordered:NSWindowAbove];
 }
 
+- (void)positionRoutingMatrixBelowDocument
+{
+  NSWindow *documentWindow = [self window];
+  if (!documentWindow || !_routingMatrixWindow)
+    return;
+  NSWindow *oldParent = [_routingMatrixWindow parentWindow];
+  if (oldParent && oldParent != documentWindow)
+    [oldParent removeChildWindow:_routingMatrixWindow];
+  NSRect documentFrame = [documentWindow frame];
+  NSRect routingFrame = [_routingMatrixWindow frame];
+  routingFrame.origin.x = NSMinX (documentFrame);
+  routingFrame.origin.y = NSMinY (documentFrame) - 10.0 - routingFrame.size.height;
+  [_routingMatrixWindow setFrame:routingFrame display:NO];
+  if ([_routingMatrixWindow parentWindow] != documentWindow)
+    [documentWindow addChildWindow:_routingMatrixWindow ordered:NSWindowAbove];
+}
+
 - (void)arrangeScoreAuxiliaryWindows
 {
   BOOL sourceVisible = _scoreSourceEditorWindow && [_scoreSourceEditorWindow isVisible];
   BOOL patchVisible = _patchEditorWindow && [_patchEditorWindow isVisible];
-  if (!sourceVisible && !patchVisible)
+  BOOL routingVisible = _routingMatrixWindow && [_routingMatrixWindow isVisible];
+  if (!sourceVisible && !patchVisible && !routingVisible)
     return;
+  if (routingVisible)
+    [self positionRoutingMatrixBelowDocument];
   if (sourceVisible)
     [self positionAuxiliaryWindowBesideDocument:_scoreSourceEditorWindow];
   if (patchVisible)

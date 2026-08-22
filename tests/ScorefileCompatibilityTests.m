@@ -1065,6 +1065,22 @@ main (void)
                                                       error:&validationError];
   Require (algorithmic && [algorithmicRanges count] == [[algorithmic notes] count],
            @"algorithmic notes did not retain source-trace mappings");
+  Require ([[[algorithmic scorefileCompatibility] objectForKey:@"algorithmicSource"] boolValue],
+           @"algorithmic ScoreFile was not identified as source-driven");
+  ScoreEngravingLayout *algorithmicLayout = [[[[ScoreEngraver alloc] init] autorelease]
+    layoutDocument:algorithmic musicWidth:648.0 minimumMeasureWidth:140.0];
+  Require ([[algorithmicLayout systems] count] > 1,
+           @"dense algorithmic score was allowed to crowd the right page edge");
+  ScoreNote *generatedAlgorithmicNote = [[algorithmic notes] objectAtIndex:0];
+  [generatedAlgorithmicNote setPitch:[generatedAlgorithmicNote pitch] + 1];
+  NSData *preservedAlgorithmicData = [ScorefileParser dataForDocument:algorithmic
+                                                                error:&validationError];
+  NSString *preservedAlgorithmicSource = [[[NSString alloc]
+    initWithData:preservedAlgorithmicData encoding:NSUTF8StringEncoding] autorelease];
+  Require ([preservedAlgorithmicSource rangeOfString:@"while (chord < 12)"].location != NSNotFound &&
+           [preservedAlgorithmicSource rangeOfString:@"Harmony (.44) freq:root"].location != NSNotFound &&
+           [preservedAlgorithmicSource rangeOfString:@"ScoreMaker Structure V2"].location != NSNotFound,
+           @"editing an evaluated algorithmic score flattened its source program");
   for (NSDictionary *mapping in algorithmicRanges)
     {
       NSRange range = [[mapping objectForKey:@"range"] rangeValue];

@@ -360,6 +360,12 @@ ScorePositionOnPageForSystem (NSArray *systems, NSUInteger targetSystem,
         }
       NSUInteger first = 0;
       CGFloat used = 0;
+      BOOL sourceDriven = [[[document scorefileCompatibility]
+                             objectForKey:@"algorithmicSource"] boolValue];
+      /* A mathematically exact fit still lets noteheads, accidentals, stems,
+         and the final barline crowd the right edge.  Keep a modest optical
+         inset when deciding whether another measure belongs on the system. */
+      CGFloat fittingWidth = MAX (minimum, musicWidth * 0.88);
       for (NSUInteger i = 0; i < [measures count]; i++)
         {
           ScoreMeasure *measure = [measures objectAtIndex:i];
@@ -369,8 +375,9 @@ ScorePositionOnPageForSystem (NSArray *systems, NSUInteger targetSystem,
                                         minimum:minimum
                                  notesByMeasure:notesByMeasure
                                        previous:previous];
-          BOOL forcedBreak = i > first && ([measure systemBreak] || [measure pageBreak]);
-          if (i > first && (forcedBreak || used + width > musicWidth))
+          BOOL forcedBreak = i > first &&
+            ([measure systemBreak] || [measure pageBreak] || sourceDriven);
+          if (i > first && (forcedBreak || used + width > fittingWidth))
             {
               [systems addObject:[self systemForDocument:document
                                                    first:first
@@ -379,7 +386,7 @@ ScorePositionOnPageForSystem (NSArray *systems, NSUInteger targetSystem,
               first = i;
               used = 0;
             }
-          used += MIN (width, musicWidth);
+          used += MIN (width, fittingWidth);
         }
       [systems addObject:[self systemForDocument:document
                                            first:first

@@ -1870,7 +1870,6 @@ ScorefileNamedNumericObject (NSString *declaration, NSString *kind)
   NSMutableDictionary *activeNotes = [NSMutableDictionary dictionary];
   NSMutableDictionary *partDefaults = [NSMutableDictionary dictionary];
   ScoreDocument *document = [[[ScoreDocument alloc] init] autorelease];
-  [[document scorefileCompatibility] setObject:raw forKey:@"originalSource"];
   [document setTitle:[title length] ? title : @"Untitled"];
   [document setTicksPerQuarter:480];
   NSDictionary *metadata = ScoreMakerMetadataFromScorefile (raw);
@@ -1883,6 +1882,9 @@ ScorefileNamedNumericObject (NSString *declaration, NSString *kind)
   if ([storedCompatibility isKindOfClass:[NSDictionary class]])
     [document setScorefileCompatibility:[NSMutableDictionary dictionaryWithDictionary:
                                           storedCompatibility]];
+  [[document scorefileCompatibility] setObject:raw forKey:@"originalSource"];
+  if (hasScript)
+    [[document scorefileCompatibility] setObject:@YES forKey:@"algorithmicSource"];
   if ([metadataTitle isKindOfClass:[NSString class]])
     [document setTitle:metadataTitle];
   if ([metadataTitleFont isKindOfClass:[NSString class]])
@@ -2544,6 +2546,27 @@ ScorefileNamedNumericObject (NSString *declaration, NSString *kind)
       if (error)
         *error = ScorefileError (@"There is no score to save.");
       return nil;
+    }
+
+  NSDictionary *compatibility = [document scorefileCompatibility];
+  NSString *algorithmicSource = [compatibility objectForKey:@"originalSource"];
+  if ([[compatibility objectForKey:@"algorithmicSource"] boolValue] &&
+      [algorithmicSource length])
+    {
+      NSMutableString *preserved = [NSMutableString stringWithString:
+        @"/* Written by ScoreMaker; algorithmic source preserved. */\n\n"];
+      NSString *metadataComment = ScoreMakerMetadataComment (document, error);
+      if (!metadataComment)
+        return nil;
+      [preserved appendString:metadataComment];
+      if ([[document measures] count] == 0)
+        [document buildDefaultMeasures];
+      NSString *structureComment = ScoreMakerStructureComment (document, error);
+      if (!structureComment)
+        return nil;
+      [preserved appendString:structureComment];
+      [preserved appendString:algorithmicSource];
+      return [preserved dataUsingEncoding:NSUTF8StringEncoding];
     }
 
   double tempoBPM = [document tempoMicrosecondsPerQuarter] > 0
