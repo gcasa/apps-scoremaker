@@ -1339,6 +1339,35 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                                         left:left
                                        right:right];
 
+      /* The end notes establish the beam slope, but an interior note can be
+       * much closer to that line.  Move the complete beam stack away from
+       * the noteheads before fixing the stem ends.  Account for the outer
+       * edge of secondary/tertiary beams, which is the edge nearest a head.
+       */
+      CGFloat beamAdjustment = 0.0;
+      beamNoteEnumerator = [group objectEnumerator];
+      while ((note = [beamNoteEnumerator nextObject]) != nil)
+        {
+          CGFloat x = [self engravedXForNote:note
+                                       start:systemStart
+                                         end:systemEnd
+                                        left:left
+                                       right:right];
+          CGFloat fraction = lastX > firstX ? (x - firstX) / (lastX - firstX) : 0.0;
+          CGFloat beamY = firstBeamY + fraction * (lastBeamY - firstBeamY);
+          CGFloat noteY = [self yForNote:note treble:treble staffTop:staffTop];
+          NSUInteger beamCount = MIN ((NSUInteger)3,
+                                      [self flagCountForDuration:[note durationTicks]]);
+          CGFloat beamInset = beamCount > 1 ? 4.0 * (1.8 + (CGFloat)beamCount) : 4.0;
+          CGFloat clearance = 6.0;
+          if (stemsUp)
+            beamAdjustment = MIN (beamAdjustment, noteY - clearance - beamInset - beamY);
+          else
+            beamAdjustment = MAX (beamAdjustment, noteY + clearance + beamInset - beamY);
+        }
+      firstBeamY += beamAdjustment;
+      lastBeamY += beamAdjustment;
+
       beamNoteEnumerator = [group objectEnumerator];
       while ((note = [beamNoteEnumerator nextObject]) != nil)
         {

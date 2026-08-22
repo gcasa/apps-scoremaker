@@ -7,6 +7,8 @@ ScoreMaker ChangeLog
 Summary: Added position-aware playback and introduced semantic voices and
 explicit measures without breaking MusicKit-style .score files.
 
+* Kept beam stacks clear of interior noteheads by compensating beam placement
+  for every note and every rendered beam level in a group.
 * Started playback at the selected note's tick, with beginning-of-score
   playback retained when no note is selected.
 * Kept playback audio, highlighting, scrolling, pause, resume, tempo changes,
