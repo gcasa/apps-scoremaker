@@ -41,18 +41,17 @@
 @property (nonatomic, copy) NSArray *ticks;
 /** Ordered NSNumber horizontal fractions corresponding to the tick anchors. */
 @property (nonatomic, copy) NSArray *fractions;
+
 /** Returns the normalized horizontal position for <var>tick</var>. */
 - (CGFloat)fractionForTick:(NSUInteger)tick;
 @end
 
 /** Returns the zero-based page containing a system, honoring forced page starts. */
-FOUNDATION_EXPORT NSUInteger ScorePageIndexForSystem (NSArray *systems,
-                                                       NSUInteger systemIndex,
-                                                       NSUInteger systemsPerPage);
+FOUNDATION_EXPORT NSUInteger ScorePageIndexForSystem (NSArray *systems, NSUInteger systemIndex,
+                                                      NSUInteger systemsPerPage);
 /** Returns the zero-based vertical position of a system on its assigned page. */
-FOUNDATION_EXPORT NSUInteger ScorePositionOnPageForSystem (NSArray *systems,
-                                                            NSUInteger systemIndex,
-                                                            NSUInteger systemsPerPage);
+FOUNDATION_EXPORT NSUInteger ScorePositionOnPageForSystem (NSArray *systems, NSUInteger systemIndex,
+                                                           NSUInteger systemsPerPage);
 
 /** Contains every engraved system and the normalized notation elements. */
 @interface ScoreEngravingLayout : NSObject
@@ -63,6 +62,7 @@ FOUNDATION_EXPORT NSUInteger ScorePositionOnPageForSystem (NSArray *systems,
 @property (nonatomic, copy) NSArray *systems;
 /** Array of ScoreNotationElement instances used by the layout. */
 @property (nonatomic, copy) NSArray *notationElements;
+
 /** Returns the system spanning <var>tick</var>, or <code>nil</code>. */
 - (ScoreEngravingSystem *)systemContainingTick:(NSUInteger)tick;
 @end
@@ -73,10 +73,12 @@ FOUNDATION_EXPORT NSUInteger ScorePositionOnPageForSystem (NSArray *systems,
   NSDictionary *_displayedAccidentals;
   ScoreDocument *_accidentalDocument;
 }
+
 /** Returns the preferred width for <var>measure</var>, never below <var>minimum</var>. */
 - (CGFloat)widthForMeasure:(ScoreMeasure *)measure
                   document:(ScoreDocument *)document
                    minimum:(CGFloat)minimum;
+
 /** Lays out <var>document</var> within the supplied music width. */
 - (ScoreEngravingLayout *)layoutDocument:(ScoreDocument *)document
                               musicWidth:(CGFloat)musicWidth

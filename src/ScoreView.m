@@ -47,7 +47,10 @@ NSString *const ScorePalettePasteboardType = @"com.scoremaker.palette-item";
 static NSArray *ScoreCopiedNotes = nil;
 
 static NSInteger
-ScoreViewModulo12 (NSInteger value) { return ((value % 12) + 12) % 12; }
+ScoreViewModulo12 (NSInteger value)
+{
+  return ((value % 12) + 12) % 12;
+}
 
 static NSInteger
 ScoreViewTonicPitchClass (NSInteger fifths, NSString *mode)
@@ -81,34 +84,42 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 - (CGFloat)pageWidth
 {
   return (_document && [_document pageLayout])
-           ? [[_document pageLayout] paperWidth] + 2.0 * PaperInset : 980.0;
+           ? [[_document pageLayout] paperWidth] + 2.0 * PaperInset
+           : 980.0;
 }
+
 - (CGFloat)leftMargin
 {
   return (_document && [_document pageLayout]) ? [[_document pageLayout] marginLeft] : 48.0;
 }
+
 - (CGFloat)rightMargin
 {
   return (_document && [_document pageLayout]) ? [[_document pageLayout] marginRight] : 48.0;
 }
+
 - (CGFloat)topMargin
 {
   return (_document && [_document pageLayout]) ? [[_document pageLayout] marginTop] : 48.0;
 }
+
 - (CGFloat)bottomMargin
 {
   return (_document && [_document pageLayout]) ? [[_document pageLayout] marginBottom] : 48.0;
 }
+
 - (CGFloat)partSpacing
 {
   return PartStaffSpacing;
 }
+
 - (CGFloat)systemSpacingAdjustment
 {
-  CGFloat spacing = (_document && [_document pageLayout])
-                      ? [[_document pageLayout] systemSpacing] : 24.0;
+  CGFloat spacing
+    = (_document && [_document pageLayout]) ? [[_document pageLayout] systemSpacing] : 24.0;
   return spacing - 24.0;
 }
+
 - (CGFloat)staffScale
 {
   return (_document && [_document pageLayout]) ? [[_document pageLayout] staffScale] : 1.0;
@@ -122,6 +133,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
     return NO;
   return [self displayedPitchForNote:note] >= 60;
 }
+
 - (CGFloat)musicWidth
 {
   /* Keep line breaking in lockstep with drawSystemAtY:.  The clef/key/time
@@ -152,6 +164,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 {
   return _separateParts;
 }
+
 - (void)setSeparateParts:(BOOL)separate
 {
   if (_separateParts == separate)
@@ -162,23 +175,32 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 
 - (NSInteger)configuredInstrumentTranspositionForTrack:(NSInteger)track
 {
-  if (track < 0) return 0;
+  if (track < 0)
+    return 0;
   for (ScorePartDefinition *part in [_document parts])
     if ([part legacyTrack] == track)
       {
         NSInteger transposition = [[part instrument] transposition];
-        if (transposition != 0) return transposition;
+        if (transposition != 0)
+          return transposition;
         NSString *name = [[part name] lowercaseString];
-        if ([name rangeOfString:@"baritone sax"].location != NSNotFound) return -21;
-        if ([name rangeOfString:@"tenor sax"].location != NSNotFound
-            || [name rangeOfString:@"bass clarinet"].location != NSNotFound) return -14;
-        if ([name rangeOfString:@"alto sax"].location != NSNotFound) return -9;
-        if ([name rangeOfString:@"english horn"].location != NSNotFound
-            || [name rangeOfString:@"horn"].location != NSNotFound) return -7;
-        if ([name rangeOfString:@"clarinet"].location != NSNotFound
-            || [name rangeOfString:@"trumpet"].location != NSNotFound) return -2;
-        if ([name rangeOfString:@"piccolo"].location != NSNotFound) return 12;
-        if ([name rangeOfString:@"double bass"].location != NSNotFound) return -12;
+        if ([name rangeOfString:@"baritone sax"].location != NSNotFound)
+          return -21;
+        if ([name rangeOfString:@"tenor sax"].location != NSNotFound ||
+            [name rangeOfString:@"bass clarinet"].location != NSNotFound)
+          return -14;
+        if ([name rangeOfString:@"alto sax"].location != NSNotFound)
+          return -9;
+        if ([name rangeOfString:@"english horn"].location != NSNotFound ||
+            [name rangeOfString:@"horn"].location != NSNotFound)
+          return -7;
+        if ([name rangeOfString:@"clarinet"].location != NSNotFound ||
+            [name rangeOfString:@"trumpet"].location != NSNotFound)
+          return -2;
+        if ([name rangeOfString:@"piccolo"].location != NSNotFound)
+          return 12;
+        if ([name rangeOfString:@"double bass"].location != NSNotFound)
+          return -12;
         return 0;
       }
   return 0;
@@ -193,16 +215,22 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 {
   switch ([self configuredInstrumentTranspositionForTrack:track])
     {
-    case -2: case -14: return @"in B♭";
-    case -9: case -21: return @"in E♭";
-    case -7: return @"in F";
-    case 12: return @"sounds 8va";
-    case -12: return @"sounds 8vb";
+    case -2:
+    case -14:
+      return @"in B♭";
+    case -9:
+    case -21:
+      return @"in E♭";
+    case -7:
+      return @"in F";
+    case 12:
+      return @"sounds 8va";
+    case -12:
+      return @"sounds 8vb";
     default:
       {
         NSInteger value = [self configuredInstrumentTranspositionForTrack:track];
-        return value == 0 ? nil
-          : [NSString stringWithFormat:@"sounds %+ld semitones", (long)value];
+        return value == 0 ? nil : [NSString stringWithFormat:@"sounds %+ld semitones", (long)value];
       }
     }
 }
@@ -210,9 +238,11 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 - (NSString *)displayNameForTrack:(NSInteger)track compact:(BOOL)compact
 {
   NSString *name = [_document nameForTrack:track];
-  if (![name length]) name = [NSString stringWithFormat:@"Part %ld", (long)(track + 1)];
+  if (![name length])
+    name = [NSString stringWithFormat:@"Part %ld", (long)(track + 1)];
   NSString *transposition = [self transpositionLabelForTrack:track];
-  if (![transposition length]) return name;
+  if (![transposition length])
+    return name;
   return compact ? [NSString stringWithFormat:@"%@ (%@)", name, transposition]
                  : [NSString stringWithFormat:@"%@\n%@", name, transposition];
 }
@@ -225,21 +255,30 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 - (NSInteger)displayedFifthsForMeasure:(ScoreMeasure *)measure track:(NSInteger)track
 {
   NSInteger transposition = [self instrumentTranspositionForTrack:track];
-  if (!measure || transposition == 0) return measure ? [measure keySignatureFifths] : 0;
+  if (!measure || transposition == 0)
+    return measure ? [measure keySignatureFifths] : 0;
   NSInteger target = ScoreViewModulo12 (
     ScoreViewTonicPitchClass ([measure keySignatureFifths], [measure keyMode]) - transposition);
   NSInteger best = 0, bestWeight = NSIntegerMax;
   for (NSInteger fifths = -7; fifths <= 7; fifths++)
     if (ScoreViewTonicPitchClass (fifths, [measure keyMode]) == target
         && labs (fifths) < bestWeight)
-      { best = fifths; bestWeight = labs (fifths); }
+      {
+        best = fifths;
+        bestWeight = labs (fifths);
+      }
   return best;
 }
 
-- (BOOL)writtenPitch { return _writtenPitch; }
+- (BOOL)writtenPitch
+{
+  return _writtenPitch;
+}
+
 - (void)setWrittenPitch:(BOOL)writtenPitch
 {
-  if (_writtenPitch == writtenPitch) return;
+  if (_writtenPitch == writtenPitch)
+    return;
   _writtenPitch = writtenPitch;
   [self reloadDocument];
 }
@@ -248,6 +287,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 {
   return _publicationTrack;
 }
+
 - (void)setPublicationTrack:(NSNumber *)track
 {
   if (_publicationTrack == track || [_publicationTrack isEqual:track])
@@ -295,7 +335,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   NSUInteger start = [self loopStartTick], end = [self loopEndTick];
   NSMutableArray *selection = [NSMutableArray array];
   for (ScoreNote *note in [_document notes])
-    if ([note startTick] < end && [note startTick] + [note durationTicks] > start)
+    if ([note startTick]<end && [note startTick] + [note durationTicks]> start)
       [selection addObject:note];
   return selection;
 }
@@ -315,9 +355,9 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 
 - (BOOL)hasLoopSelection
 {
-  return _selectedNote && _loopEndNote && _selectedNote != _loopEndNote
-         && [[_document notes] containsObject:_selectedNote]
-         && [[_document notes] containsObject:_loopEndNote];
+  return _selectedNote && _loopEndNote && _selectedNote != _loopEndNote &&
+         [[_document notes] containsObject:_selectedNote] &&
+         [[_document notes] containsObject:_loopEndNote];
 }
 
 - (NSUInteger)loopStartTick
@@ -331,8 +371,8 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 {
   if (![self hasLoopSelection])
     return 0;
-  ScoreNote *later = [_selectedNote startTick] > [_loopEndNote startTick] ? _selectedNote
-                                                                         : _loopEndNote;
+  ScoreNote *later =
+    [_selectedNote startTick] > [_loopEndNote startTick] ? _selectedNote : _loopEndNote;
   return [later startTick] + MAX ((NSUInteger)1, [later durationTicks]);
 }
 
@@ -359,10 +399,10 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
               break;
             }
         }
-      [self setNeedsDisplayInRect:NSInsetRect (
-                                     NSMakeRect (0.0, [self yForSystem:previousSystem],
-                                                 NSWidth ([self bounds]), [self systemHeight]),
-                                     0.0, -PlaybackCartoucheDamageInset)];
+      [self setNeedsDisplayInRect:NSInsetRect (NSMakeRect (0.0, [self yForSystem:previousSystem],
+                                                           NSWidth ([self bounds]),
+                                                           [self systemHeight]),
+                                               0.0, -PlaybackCartoucheDamageInset)];
     }
 
   NSUInteger currentSystem = 0;
@@ -402,10 +442,10 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   NSUInteger damagedSystem = [damagedSystems firstIndex];
   while (damagedSystem != NSNotFound)
     {
-      [self setNeedsDisplayInRect:NSInsetRect (
-                                     NSMakeRect (0.0, [self yForSystem:damagedSystem],
-                                                 NSWidth ([self bounds]), [self systemHeight]),
-                                     0.0, -PlaybackCartoucheDamageInset)];
+      [self setNeedsDisplayInRect:NSInsetRect (NSMakeRect (0.0, [self yForSystem:damagedSystem],
+                                                           NSWidth ([self bounds]),
+                                                           [self systemHeight]),
+                                               0.0, -PlaybackCartoucheDamageInset)];
       damagedSystem = [damagedSystems indexGreaterThanIndex:damagedSystem];
     }
 }
@@ -441,10 +481,10 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
       NSUInteger system = [damagedSystems firstIndex];
       while (system != NSNotFound)
         {
-          [self setNeedsDisplayInRect:NSInsetRect (
-                                         NSMakeRect (0.0, [self yForSystem:system],
-                                                     NSWidth ([self bounds]), [self systemHeight]),
-                                         0.0, -PlaybackCartoucheDamageInset)];
+          [self setNeedsDisplayInRect:NSInsetRect (NSMakeRect (0.0, [self yForSystem:system],
+                                                               NSWidth ([self bounds]),
+                                                               [self systemHeight]),
+                                                   0.0, -PlaybackCartoucheDamageInset)];
           system = [damagedSystems indexGreaterThanIndex:system];
         }
     }
@@ -540,8 +580,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 
 - (NSUInteger)positionOnPageForSystem:(NSUInteger)targetSystem
 {
-  return ScorePositionOnPageForSystem ([self systemLayouts], targetSystem,
-                                       [self systemsPerPage]);
+  return ScorePositionOnPageForSystem ([self systemLayouts], targetSystem, [self systemsPerPage]);
 }
 
 - (NSArray *)scoreTracks
@@ -558,9 +597,11 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
     {
       NSNumber *track = [NSNumber numberWithInteger:[part legacyTrack]];
       [trackSet removeObject:track];
-      if ([part visible]) [ordered addObject:track];
+      if ([part visible])
+        [ordered addObject:track];
     }
-  [ordered addObjectsFromArray:[[trackSet allObjects] sortedArrayUsingSelector:@selector (compare:)]];
+  [ordered
+    addObjectsFromArray:[[trackSet allObjects] sortedArrayUsingSelector:@selector (compare:)]];
   if ([ordered count] == 0)
     [ordered addObject:@0];
   return ordered;
@@ -575,25 +616,25 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 {
   NSUInteger parts = _separateParts ? MAX ((NSUInteger)1, [[self scoreTracks] count]) : 1;
   CGFloat base = [self partGrandStaffHeight] * parts + [self partSpacing] * (parts - 1)
-                 + (SinglePartSystemHeight - [self partGrandStaffHeight])
-                 + [self systemSpacingAdjustment];
+                 + (SinglePartSystemHeight - [self partGrandStaffHeight]) +
+                 [self systemSpacingAdjustment];
   return base * [self staffScale];
 }
 
 - (NSUInteger)systemsPerPage
 {
-  CGFloat available = [self paperHeight] - [self topMargin] - [self bottomMargin]
-                      - FirstSystemOffset;
+  CGFloat available =
+    [self paperHeight] - [self topMargin] - [self bottomMargin] - FirstSystemOffset;
   return MAX ((NSUInteger)1, (NSUInteger)floor (available / [self systemHeight]));
 }
 
 - (CGFloat)paperHeight
 {
   /* Keep unusually large ensembles on the paper instead of clipping staves. */
-  CGFloat requested = (_document && [_document pageLayout])
-                        ? [[_document pageLayout] paperHeight] : 1222.0;
-  return MAX (requested, [self topMargin] + FirstSystemOffset + [self systemHeight]
-                         + [self bottomMargin]);
+  CGFloat requested
+    = (_document && [_document pageLayout]) ? [[_document pageLayout] paperHeight] : 1222.0;
+  return MAX (requested,
+              [self topMargin] + FirstSystemOffset + [self systemHeight] + [self bottomMargin]);
 }
 
 - (CGFloat)pageOriginY:(NSUInteger)page
@@ -672,7 +713,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 
       for (NSUInteger page = 0; page < [self pageCount]; page++)
         {
-      NSRect paper = NSMakeRect (PaperInset, [self pageOriginY:page],
+          NSRect paper = NSMakeRect (PaperInset, [self pageOriginY:page],
                                      [self pageWidth] - 2.0 * PaperInset, [self paperHeight]);
           if (!NSIntersectsRect (dirtyRect, paper))
             continue;
@@ -701,8 +742,8 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   for (NSUInteger page = 0; page < [self pageCount]; page++)
     {
       CGFloat originY = [self pageOriginY:page];
-      NSRect paper = NSMakeRect (PaperInset, originY, [self pageWidth] - 2.0 * PaperInset,
-                                 [self paperHeight]);
+      NSRect paper
+        = NSMakeRect (PaperInset, originY, [self pageWidth] - 2.0 * PaperInset, [self paperHeight]);
       if (NSIntersectsRect (dirtyRect, paper))
         [self drawHeaderForPage:page atOriginY:originY];
     }
@@ -791,9 +832,8 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
         dictionaryWithObjectsAndKeys:composerFont, NSFontAttributeName, [NSColor blackColor],
                                      NSForegroundColorAttributeName, rightAligned,
                                      NSParagraphStyleAttributeName, nil];
-      NSRect composerRect
-        = NSMakeRect (pageWidth / 2.0, pageOriginY + topMargin + 10.0,
-                      pageWidth / 2.0 - rightMargin, 24.0);
+      NSRect composerRect = NSMakeRect (pageWidth / 2.0, pageOriginY + topMargin + 10.0,
+                                        pageWidth / 2.0 - rightMargin, 24.0);
       [composer drawInRect:composerRect withAttributes:composerAttrs];
     }
   if (page > 0 && [layout showHeaders] && [[layout headerText] length])
@@ -802,10 +842,9 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
         NSFontAttributeName : [NSFont systemFontOfSize:11.0],
         NSForegroundColorAttributeName : [NSColor darkGrayColor]
       };
-      [[layout headerText]
-        drawInRect:NSMakeRect (leftMargin, pageOriginY + 12.0,
-                               pageWidth - leftMargin - rightMargin, 18.0)
-        withAttributes:runningAttrs];
+      [[layout headerText] drawInRect:NSMakeRect (leftMargin, pageOriginY + 12.0,
+                                                  pageWidth - leftMargin - rightMargin, 18.0)
+                       withAttributes:runningAttrs];
     }
   if ([[layout footerText] length])
     {
@@ -817,9 +856,9 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
         NSParagraphStyleAttributeName : footerStyle
       };
       [[layout footerText]
-        drawInRect:NSMakeRect (leftMargin,
-                               pageOriginY + [self paperHeight] - [self bottomMargin] + 14.0,
-                               pageWidth - leftMargin - rightMargin, 16.0)
+            drawInRect:NSMakeRect (leftMargin,
+                                   pageOriginY + [self paperHeight] - [self bottomMargin] + 14.0,
+                                   pageWidth - leftMargin - rightMargin, 16.0)
         withAttributes:footerAttrs];
     }
 }
@@ -834,11 +873,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
       || ![[NSGraphicsContext currentContext] isDrawingToScreen])
     return;
 
-  CGFloat x = [self xForTick:_playbackTick
-                       start:systemStart
-                         end:systemEnd
-                        left:left
-                       right:right];
+  CGFloat x = [self xForTick:_playbackTick start:systemStart end:systemEnd left:left right:right];
   NSUInteger parts = _separateParts ? MAX ((NSUInteger)1, [[self scoreTracks] count]) : 1;
   CGFloat partStride = [self partGrandStaffHeight] + [self partSpacing];
   CGFloat top = y - PlaybackCartoucheVerticalInset;
@@ -868,16 +903,8 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 
   NSUInteger visibleStart = MAX (loopStart, systemStart);
   NSUInteger visibleEnd = MIN (loopEnd, systemEnd);
-  CGFloat x1 = [self xForTick:visibleStart
-                        start:systemStart
-                          end:systemEnd
-                         left:left
-                        right:right];
-  CGFloat x2 = [self xForTick:visibleEnd
-                        start:systemStart
-                          end:systemEnd
-                         left:left
-                        right:right];
+  CGFloat x1 = [self xForTick:visibleStart start:systemStart end:systemEnd left:left right:right];
+  CGFloat x2 = [self xForTick:visibleEnd start:systemStart end:systemEnd left:left right:right];
   NSUInteger parts = _separateParts ? MAX ((NSUInteger)1, [[self scoreTracks] count]) : 1;
   CGFloat partStride = [self partGrandStaffHeight] + [self partSpacing];
   CGFloat top = y - 11.0;
@@ -915,16 +942,17 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   for (NSNumber *trackNumber in tracks)
     {
       NSInteger candidate = [self displayedFifthsForMeasure:openingMeasure
-                                                       track:[trackNumber integerValue]];
-      if (labs (candidate) > labs (openingFifths)) openingFifths = candidate;
+                                                      track:[trackNumber integerValue]];
+      if (labs (candidate) > labs (openingFifths))
+        openingFifths = candidate;
     }
   BOOL drawsOpeningTime = [self positionOnPageForSystem:systemIndex] == 0;
   CGFloat keySignatureX = left + 39.0;
   CGFloat keySignatureWidth = labs (openingFifths) * 8.0;
   CGFloat timeSignatureX = openingFifths ? keySignatureX + keySignatureWidth + 7.0 : left + 58.0;
-  CGFloat musicLeft = MAX (left + 100.0,
-                           drawsOpeningTime ? timeSignatureX + 38.0
-                                            : keySignatureX + keySignatureWidth + 12.0);
+  CGFloat musicLeft
+    = MAX (left + 100.0,
+           drawsOpeningTime ? timeSignatureX + 38.0 : keySignatureX + keySignatureWidth + 12.0);
   CGFloat musicRight = right - 18.0;
   CGFloat partStride = [self partGrandStaffHeight] + [self partSpacing];
   [self drawLoopSelectionAtY:y
@@ -963,27 +991,35 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
       if (drawsOpeningTime)
         [self drawTimeSignatureAtX:timeSignatureX trebleY:trebleTop bassY:bassTop];
       if (openingMeasure && partOpeningFifths != 0)
-        [self drawKeySignature:partOpeningFifths
-                           atX:keySignatureX
-                       trebleY:trebleTop
-                         bassY:bassTop];
+        [self drawKeySignature:partOpeningFifths atX:keySignatureX trebleY:trebleTop bassY:bassTop];
       ScoreMeasure *previousMeasure = nil;
       for (ScoreMeasure *measure in [_document measures])
         {
           NSUInteger tick = [measure startTick];
-          if (tick <= startTick) { previousMeasure = measure; continue; }
-          if (tick >= endTick) break;
+          if (tick <= startTick)
+            {
+              previousMeasure = measure;
+              continue;
+            }
+          if (tick >= endTick)
+            break;
           NSInteger previousFifths = [self displayedFifthsForMeasure:previousMeasure track:track];
           NSInteger measureFifths = [self displayedFifthsForMeasure:measure track:track];
-          if (previousMeasure &&
-              (previousFifths != measureFifths ||
-               ![[previousMeasure keyMode] isEqualToString:[measure keyMode]]))
+          if (previousMeasure
+              && (previousFifths != measureFifths
+                  || ![[previousMeasure keyMode] isEqualToString:[measure keyMode]]))
             {
-              CGFloat keyX = [self xForTick:tick start:startTick end:endTick
-                                      left:musicLeft right:musicRight] + 7.0;
+              CGFloat keyX = [self xForTick:tick
+                                      start:startTick
+                                        end:endTick
+                                       left:musicLeft
+                                      right:musicRight]
+                             + 7.0;
               [self drawKeySignatureCancellationFrom:previousFifths
-                                                   to:measureFifths
-                                                  atX:keyX trebleY:trebleTop bassY:bassTop];
+                                                  to:measureFifths
+                                                 atX:keyX
+                                             trebleY:trebleTop
+                                               bassY:bassTop];
             }
           previousMeasure = measure;
         }
@@ -1003,17 +1039,22 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   [NSGraphicsContext restoreGraphicsState];
 }
 
-- (void)drawKeyAccidentals:(NSInteger)fifths symbol:(NSString *)symbol
-                       atX:(CGFloat)x trebleY:(CGFloat)trebleY bassY:(CGFloat)bassY
+- (void)drawKeyAccidentals:(NSInteger)fifths
+                    symbol:(NSString *)symbol
+                       atX:(CGFloat)x
+                   trebleY:(CGFloat)trebleY
+                     bassY:(CGFloat)bassY
 {
   NSInteger count = labs (fifths);
   NSInteger trebleSharpSteps[] = { 0, 3, -1, 2, 5, 1, 4 };
   NSInteger trebleFlatSteps[] = { 4, 1, 5, 2, 6, 3, 7 };
   NSInteger bassSharpSteps[] = { 2, 5, 1, 4, 7, 3, 6 };
   NSInteger bassFlatSteps[] = { -1, 3, 0, 4, 1, 5, 2 };
-  NSDictionary *attrs = [NSDictionary dictionaryWithObjectsAndKeys:
-    ([NSFont fontWithName:@"Times New Roman" size:18.0] ?: [NSFont systemFontOfSize:16.0]),
-    NSFontAttributeName, [NSColor blackColor], NSForegroundColorAttributeName, nil];
+  NSDictionary *attrs =
+    [NSDictionary dictionaryWithObjectsAndKeys:([NSFont fontWithName:@"Times New Roman" size:18.0]
+                                                  ?: [NSFont systemFontOfSize:16.0]),
+                                               NSFontAttributeName, [NSColor blackColor],
+                                               NSForegroundColorAttributeName, nil];
   for (NSInteger i = 0; i < count; i++)
     {
       NSInteger trebleStep = fifths > 0 ? trebleSharpSteps[i] : trebleFlatSteps[i];
@@ -1026,17 +1067,20 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 }
 
 - (void)drawKeySignatureCancellationFrom:(NSInteger)oldFifths
-                                       to:(NSInteger)newFifths
-                                      atX:(CGFloat)x
-                                  trebleY:(CGFloat)trebleY
-                                    bassY:(CGFloat)bassY
+                                      to:(NSInteger)newFifths
+                                     atX:(CGFloat)x
+                                 trebleY:(CGFloat)trebleY
+                                   bassY:(CGFloat)bassY
 {
   if (oldFifths)
     [self drawKeyAccidentals:oldFifths symbol:@"♮" atX:x trebleY:trebleY bassY:bassY];
   CGFloat newX = x + (oldFifths ? labs (oldFifths) * 8.0 + 4.0 : 0.0);
   if (newFifths)
-    [self drawKeyAccidentals:newFifths symbol:(newFifths > 0 ? @"♯" : @"♭")
-                         atX:newX trebleY:trebleY bassY:bassY];
+    [self drawKeyAccidentals:newFifths
+                      symbol:(newFifths > 0 ? @"♯" : @"♭")
+                         atX:newX
+                     trebleY:trebleY
+                       bassY:bassY];
 }
 
 - (void)drawKeySignature:(NSInteger)fifths
@@ -1044,8 +1088,11 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                  trebleY:(CGFloat)trebleY
                    bassY:(CGFloat)bassY
 {
-  [self drawKeyAccidentals:fifths symbol:(fifths > 0 ? @"♯" : @"♭")
-                       atX:x trebleY:trebleY bassY:bassY];
+  [self drawKeyAccidentals:fifths
+                    symbol:(fifths > 0 ? @"♯" : @"♭")
+                       atX:x
+                   trebleY:trebleY
+                     bassY:bassY];
 }
 
 - (void)drawTempoMarkAtX:(CGFloat)x y:(CGFloat)y
@@ -1094,15 +1141,15 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
     {
       NSArray *candidateDirectories = [NSArray
         arrayWithObjects:[[NSFileManager defaultManager] currentDirectoryPath],
-                         [[[NSBundle mainBundle] bundlePath] stringByDeletingLastPathComponent], nil];
+                         [[[NSBundle mainBundle] bundlePath] stringByDeletingLastPathComponent],
+                         nil];
       NSEnumerator *directoryEnumerator = [candidateDirectories objectEnumerator];
       NSString *directory = nil;
       while ((directory = [directoryEnumerator nextObject]) != nil)
         {
-          NSString *candidate =
-            [[directory stringByAppendingPathComponent:
-                         [NSString stringWithFormat:@"Resources/%@.png", name]]
-              stringByStandardizingPath];
+          NSString *candidate = [[directory
+            stringByAppendingPathComponent:[NSString stringWithFormat:@"Resources/%@.png", name]]
+            stringByStandardizingPath];
           if ([[NSFileManager defaultManager] fileExistsAtPath:candidate])
             {
               path = candidate;
@@ -1271,13 +1318,15 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
         }
       if ([[measure rehearsalMark] length])
         {
-          NSDictionary *attrs = @{ NSFontAttributeName : [NSFont boldSystemFontOfSize:12.0],
-                                   NSForegroundColorAttributeName : [NSColor blackColor] };
+          NSDictionary *attrs = @{
+            NSFontAttributeName : [NSFont boldSystemFontOfSize:12.0],
+            NSForegroundColorAttributeName : [NSColor blackColor]
+          };
           NSSize size = [[measure rehearsalMark] sizeWithAttributes:attrs];
           NSRect box = NSMakeRect (x + 4.0, top - 30.0, size.width + 12.0, size.height + 6.0);
           [[NSBezierPath bezierPathWithRoundedRect:box xRadius:2.0 yRadius:2.0] stroke];
           [[measure rehearsalMark] drawAtPoint:NSMakePoint (x + 10.0, top - 27.0)
-                                 withAttributes:attrs];
+                                withAttributes:attrs];
         }
       if ([[measure endingText] length])
         {
@@ -1287,8 +1336,10 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
           [NSBezierPath strokeLineFromPoint:NSMakePoint (x, endingY)
                                     toPoint:NSMakePoint (x, endingY + 12.0)];
           [[measure endingText] drawAtPoint:NSMakePoint (x + 5.0, endingY - 2.0)
-                              withAttributes:@{ NSFontAttributeName : [NSFont systemFontOfSize:10.0],
-                                                NSForegroundColorAttributeName : [NSColor blackColor] }];
+                             withAttributes:@{
+                               NSFontAttributeName : [NSFont systemFontOfSize:10.0],
+                               NSForegroundColorAttributeName : [NSColor blackColor]
+                             }];
         }
     }
 
@@ -1356,8 +1407,8 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
         {
           [self drawPlaybackHighlightAtX:x y:y voice:[note voice]];
         }
-      if ([[self selectedNotes] containsObject:note]
-          && [[NSGraphicsContext currentContext] isDrawingToScreen])
+      if ([[self selectedNotes] containsObject:note] &&
+          [[NSGraphicsContext currentContext] isDrawingToScreen])
         {
           [self drawSelectionAtX:x y:y];
         }
@@ -1458,8 +1509,8 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
           CGFloat fraction = lastX > firstX ? (x - firstX) / (lastX - firstX) : 0.0;
           CGFloat beamY = firstBeamY + fraction * (lastBeamY - firstBeamY);
           CGFloat noteY = [self yForNote:note treble:treble staffTop:staffTop];
-          NSUInteger beamCount = MIN ((NSUInteger)3,
-                                      [self flagCountForDuration:[note durationTicks]]);
+          NSUInteger beamCount
+            = MIN ((NSUInteger)3, [self flagCountForDuration:[note durationTicks]]);
           CGFloat beamInset = beamCount > 1 ? 4.0 * (1.8 + (CGFloat)beamCount) : 4.0;
           CGFloat clearance = 6.0;
           if (stemsUp)
@@ -1609,45 +1660,59 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
         {
           NSString *mark = [[note ornament] isEqualToString:@"trill-mark"] ? @"tr" : @"∿";
           NSFont *font = [NSFont fontWithName:@"Times New Roman Italic" size:12.0];
-          if (!font) font = [NSFont systemFontOfSize:12.0];
-          NSDictionary *attrs = @{ NSFontAttributeName : font,
-                                   NSForegroundColorAttributeName : [NSColor blackColor] };
+          if (!font)
+            font = [NSFont systemFontOfSize:12.0];
+          NSDictionary *attrs =
+            @{ NSFontAttributeName : font, NSForegroundColorAttributeName : [NSColor blackColor] };
           NSSize size = [mark sizeWithAttributes:attrs];
-          NSRect rect = ScorePlaceRect (NSMakeRect (x - size.width / 2.0, y - 38.0,
-                                                    size.width, size.height), occupied, -12.0);
+          NSRect rect = ScorePlaceRect (
+            NSMakeRect (x - size.width / 2.0, y - 38.0, size.width, size.height), occupied, -12.0);
           [mark drawAtPoint:rect.origin withAttributes:attrs];
         }
       if ([[note lyric] length])
         {
-          NSDictionary *lyricAttrs = @{ NSFontAttributeName : [NSFont systemFontOfSize:11.0],
-                                        NSForegroundColorAttributeName : [NSColor blackColor] };
+          NSDictionary *lyricAttrs = @{
+            NSFontAttributeName : [NSFont systemFontOfSize:11.0],
+            NSForegroundColorAttributeName : [NSColor blackColor]
+          };
           NSSize size = [[note lyric] sizeWithAttributes:lyricAttrs];
-          NSRect rect = ScorePlaceRect (NSMakeRect (x - size.width / 2.0, staff + 66.0,
-                                                    size.width, size.height), occupied, 13.0);
+          NSRect rect = ScorePlaceRect (
+            NSMakeRect (x - size.width / 2.0, staff + 66.0, size.width, size.height), occupied,
+            13.0);
           [[note lyric] drawAtPoint:rect.origin withAttributes:lyricAttrs];
         }
       if ([[note directionText] length])
         {
           NSFont *textFont = [NSFont fontWithName:@"Times New Roman Italic" size:11.0];
-          if (!textFont) textFont = [NSFont systemFontOfSize:11.0];
-          NSDictionary *textAttrs = @{ NSFontAttributeName : textFont,
-                                       NSForegroundColorAttributeName : [NSColor blackColor] };
+          if (!textFont)
+            textFont = [NSFont systemFontOfSize:11.0];
+          NSDictionary *textAttrs = @{
+            NSFontAttributeName : textFont,
+            NSForegroundColorAttributeName : [NSColor blackColor]
+          };
           [[note directionText] drawAtPoint:NSMakePoint (x - 4.0, staff - 34.0)
-                              withAttributes:textAttrs];
+                             withAttributes:textAttrs];
         }
       ScoreNote *spanEnd = nil;
       if ([[note hairpinStart] length] || [note pedalStart] || [note octaveShiftStart])
         for (NSUInteger j = i + 1; j < [notes count]; j++)
           {
             ScoreNote *candidate = [notes objectAtIndex:j];
-            if ([candidate track] != [note track] || [candidate voice] != [note voice]) continue;
+            if ([candidate track] != [note track] || [candidate voice] != [note voice])
+              continue;
             if (([[note hairpinStart] length] && [candidate hairpinEnd])
                 || ([note pedalStart] && [candidate pedalEnd])
                 || ([note octaveShiftStart] && [candidate octaveShiftEnd]))
-              { spanEnd = candidate; break; }
+              {
+                spanEnd = candidate;
+                break;
+              }
           }
-      CGFloat spanEndX = spanEnd ? [self engravedXForNote:spanEnd start:systemStart end:systemEnd
-                                                         left:left right:right]
+      CGFloat spanEndX = spanEnd ? [self engravedXForNote:spanEnd
+                                                    start:systemStart
+                                                      end:systemEnd
+                                                     left:left
+                                                    right:right]
                                  : MIN (right, x + 72.0);
       if ([[note hairpinStart] length])
         {
@@ -1701,8 +1766,8 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                                       right:right];
       CGFloat endStaff = [self displayedPitchForNote:endNote] >= 60 ? trebleY : bassY;
       CGFloat endY = [self yForNote:endNote
-                              treble:([self displayedPitchForNote:endNote] >= 60)
-                            staffTop:endStaff];
+                             treble:([self displayedPitchForNote:endNote] >= 60)
+                           staffTop:endStaff];
       NSBezierPath *tie = [NSBezierPath bezierPath];
       [tie moveToPoint:NSMakePoint (x + 5.0, y + 5.0)];
       [tie curveToPoint:NSMakePoint (endX - 5.0, endY + 5.0)
@@ -1770,14 +1835,14 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
       if (index > 0 && index != NSNotFound)
         {
           ScoreMeasure *previous = [[_document measures] objectAtIndex:index - 1];
-          if ([previous keySignatureFifths] != [measure keySignatureFifths] ||
-              ![[previous keyMode] isEqualToString:[measure keyMode]])
-            inset += 8.0 * (labs ([previous keySignatureFifths]) +
-                            labs ([measure keySignatureFifths])) + 12.0;
+          if ([previous keySignatureFifths] != [measure keySignatureFifths]
+              || ![[previous keyMode] isEqualToString:[measure keyMode]])
+            inset
+              += 8.0 * (labs ([previous keySignatureFifths]) + labs ([measure keySignatureFifths]))
+                 + 12.0;
         }
     }
-  return MIN (right - 2.0,
-              [self xForTick:tick start:start end:end left:left right:right] + inset);
+  return MIN (right - 2.0, [self xForTick:tick start:start end:end left:left right:right] + inset);
 }
 
 - (CGFloat)chordOffsetForNote:(ScoreNote *)note
@@ -1817,9 +1882,10 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
         [candidate track] == [note track] && [candidate voice] != [note voice]
         && (([self displayedPitchForNote:candidate] >= 60) == treble))
       {
-        NSInteger candidateSteps = [self diatonicStepsFromPitch:0
-                                                        toPitch:[self displayedPitchForNote:candidate]
-                                                     accidental:[candidate accidental]];
+        NSInteger candidateSteps =
+          [self diatonicStepsFromPitch:0
+                               toPitch:[self displayedPitchForNote:candidate]
+                            accidental:[candidate accidental]];
         if (labs (candidateSteps - noteSteps) <= 1)
           {
             offset += ([note voice] % 2) ? 6.5 : -6.5;
@@ -1842,7 +1908,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 - (CGFloat)accidentalColumnOffsetForNote:(ScoreNote *)note
 {
   if ([[_displayedAccidentals objectForKey:[NSValue valueWithPointer:note]] integerValue]
-        == NSIntegerMax)
+      == NSIntegerMax)
     return 0.0;
   NSMutableArray *accidentals = [NSMutableArray array];
   BOOL treble = [self isTrebleStaffForNote:note];
@@ -1850,8 +1916,8 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
     {
       if ([candidate isRest] ||
           [[_displayedAccidentals objectForKey:[NSValue valueWithPointer:candidate]] integerValue]
-            == NSIntegerMax ||
-          [candidate startTick] != [note startTick] || [candidate track] != [note track]
+            == NSIntegerMax
+          || [candidate startTick] != [note startTick] || [candidate track] != [note track]
           || (([self displayedPitchForNote:candidate] >= 60) != treble))
         continue;
       [accidentals addObject:candidate];
@@ -1913,9 +1979,10 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                                        left:left
                                       right:right];
       CGFloat startY = [self yForNote:startNote treble:treble staffTop:startStaff] + 11.0;
-      CGFloat endY =
-        [self yForNote:endNote treble:([self displayedPitchForNote:endNote] >= 60)
-                 staffTop:endStaff] + 11.0;
+      CGFloat endY = [self yForNote:endNote
+                             treble:([self displayedPitchForNote:endNote] >= 60)
+                           staffTop:endStaff]
+                     + 11.0;
       CGFloat bow = MAX (12.0, MIN (28.0, (endX - startX) * 0.18));
       NSBezierPath *slur = [NSBezierPath bezierPath];
       [slur moveToPoint:NSMakePoint (startX, startY)];
@@ -2008,8 +2075,7 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   NSInteger bottomLinePitch = treble ? 64 : 43;
   CGFloat scale = [self staffScale];
   CGFloat bottomY = staffTop + 4.0 * LineSpacing * scale;
-  NSInteger steps
-    = (NSInteger)llround ((bottomY - y) / ((LineSpacing * scale) / 2.0));
+  NSInteger steps = (NSInteger)llround ((bottomY - y) / ((LineSpacing * scale) / 2.0));
   NSInteger bottomOctave = bottomLinePitch / 12;
   NSInteger bottomDegree = [self scaleDegreeForPitchClass:(bottomLinePitch % 12)];
   NSInteger absoluteDegree = bottomOctave * 7 + bottomDegree + steps;
@@ -2354,9 +2420,8 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
                                                      end:systemEnd
                                                     left:left
                                                    right:right];
-      CGFloat baseNoteY = [note isRest]
-                            ? baseStaffTop + 2.0 * LineSpacing
-                            : [self yForNote:note treble:treble staffTop:baseStaffTop];
+      CGFloat baseNoteY = [note isRest] ? baseStaffTop + 2.0 * LineSpacing
+                                        : [self yForNote:note treble:treble staffTop:baseStaffTop];
       CGFloat noteY = systemY + (baseNoteY - systemY) * scale;
       NSRect hitRect = NSMakeRect (x - 14.0, noteY - 16.0 * scale, 28.0, 32.0 * scale);
       if (NSPointInRect (point, hitRect))
@@ -2403,15 +2468,25 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   CGFloat left = 0, right = 0, staffTop = 0;
   BOOL treble = YES;
   NSInteger track = [_draggedNote track];
-  if (![self scoreLayoutForPoint:point systemStart:&systemStart systemEnd:&systemEnd left:&left
-                           right:&right staffTop:&staffTop treble:&treble track:&track])
+  if (![self scoreLayoutForPoint:point
+                     systemStart:&systemStart
+                       systemEnd:&systemEnd
+                            left:&left
+                           right:&right
+                        staffTop:&staffTop
+                          treble:&treble
+                           track:&track])
     return;
-  NSUInteger tick = [self tickForPoint:point systemStart:systemStart systemEnd:systemEnd
-                                  left:left right:right];
+  NSUInteger tick = [self tickForPoint:point
+                           systemStart:systemStart
+                             systemEnd:systemEnd
+                                  left:left
+                                 right:right];
   NSUInteger quantum = MAX ((NSUInteger)1, [_document ticksPerQuarter] / 4);
   tick = ((tick + quantum / 2) / quantum) * quantum;
-  NSInteger pitch = [_draggedNote isRest] ? [_draggedNote pitch]
-                                           : [self pitchForY:point.y treble:treble staffTop:staffTop];
+  NSInteger pitch = [_draggedNote isRest]
+                      ? [_draggedNote pitch]
+                      : [self pitchForY:point.y treble:treble staffTop:staffTop];
   if (tick != [_draggedNote startTick] || pitch != [_draggedNote pitch]
       || track != [_draggedNote track])
     {
@@ -2451,18 +2526,21 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
 {
   [self copy:sender];
   NSArray *selection = [self selectedNotes];
-  if (![selection count]) return;
+  if (![selection count])
+    return;
   [[_document notes] removeObjectsInArray:selection];
   _selectedNote = nil;
   _loopEndNote = nil;
   [self updateTotalTicksFromNotes];
-  [[NSNotificationCenter defaultCenter] postNotificationName:ScoreViewDidEditScoreNotification object:self];
+  [[NSNotificationCenter defaultCenter] postNotificationName:ScoreViewDidEditScoreNotification
+                                                      object:self];
 }
 
 - (void)paste:(id)sender
 {
   (void)sender;
-  if (![ScoreCopiedNotes count]) return;
+  if (![ScoreCopiedNotes count])
+    return;
   NSUInteger sourceStart = NSUIntegerMax;
   for (ScoreNote *note in ScoreCopiedNotes)
     sourceStart = MIN (sourceStart, [note startTick]);
@@ -2474,13 +2552,15 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
       ScoreNote *note = [[source copy] autorelease];
       [note setStartTick:destination + [source startTick] - sourceStart];
       [[_document notes] addObject:note];
-      if (!first) first = note;
+      if (!first)
+        first = note;
     }
   [[_document notes] sortUsingSelector:@selector (compareScoreNote:)];
   _selectedNote = first;
   _loopEndNote = nil;
   [self updateTotalTicksFromNotes];
-  [[NSNotificationCenter defaultCenter] postNotificationName:ScoreViewDidEditScoreNotification object:self];
+  [[NSNotificationCenter defaultCenter] postNotificationName:ScoreViewDidEditScoreNotification
+                                                      object:self];
 }
 
 - (void)keyDown:(NSEvent *)event
@@ -2506,8 +2586,9 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
         }
       return;
     }
-  if (_selectedNote && ([event keyCode] == 126 || [event keyCode] == 125
-                        || [event keyCode] == 123 || [event keyCode] == 124))
+  if (_selectedNote
+      && ([event keyCode] == 126 || [event keyCode] == 125 || [event keyCode] == 123 ||
+          [event keyCode] == 124))
     {
       NSInteger pitchDelta = [event keyCode] == 126 ? 1 : ([event keyCode] == 125 ? -1 : 0);
       NSInteger tickDelta = [event keyCode] == 124 ? 1 : ([event keyCode] == 123 ? -1 : 0);
@@ -2517,35 +2598,36 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
           if (pitchDelta && ![note isRest])
             [note setPitch:MIN ((NSInteger)127, MAX ((NSInteger)0, [note pitch] + pitchDelta))];
           if (tickDelta)
-            [note setStartTick:tickDelta > 0 ? [note startTick] + quantum
-                                                : ([note startTick] >= quantum
-                                                     ? [note startTick] - quantum : 0)];
+            [note setStartTick:tickDelta > 0
+                                 ? [note startTick] + quantum
+                                 : ([note startTick] >= quantum ? [note startTick] - quantum : 0)];
         }
       [[_document notes] sortUsingSelector:@selector (compareScoreNote:)];
       [[NSNotificationCenter defaultCenter] postNotificationName:ScoreViewDidEditScoreNotification
                                                           object:self];
       return;
     }
-  unichar lower = [[characters lowercaseString] length]
-                    ? [[characters lowercaseString] characterAtIndex:0] : 0;
+  unichar lower =
+    [[characters lowercaseString] length] ? [[characters lowercaseString] characterAtIndex:0] : 0;
   if (lower >= 'a' && lower <= 'g'
       && !([event modifierFlags] & (NSEventModifierFlagCommand | NSEventModifierFlagControl)))
     {
       NSInteger pitchClasses[] = { 9, 11, 0, 2, 4, 5, 7 };
       NSInteger pitchClass = pitchClasses[lower - 'a'];
-      NSInteger referencePitch = _selectedNote && ![_selectedNote isRest]
-                                   ? [_selectedNote pitch] : 60;
+      NSInteger referencePitch
+        = _selectedNote && ![_selectedNote isRest] ? [_selectedNote pitch] : 60;
       NSInteger octaveBase = (referencePitch / 12) * 12;
       NSInteger pitch = octaveBase + pitchClass;
-      if (pitch - referencePitch > 6) pitch -= 12;
-      if (referencePitch - pitch > 6) pitch += 12;
+      if (pitch - referencePitch > 6)
+        pitch -= 12;
+      if (referencePitch - pitch > 6)
+        pitch += 12;
       ScoreNote *note = _selectedNote ? [[_selectedNote copy] autorelease]
                                       : [[[ScoreNote alloc] init] autorelease];
       [note setRest:NO];
       [note setPitch:MIN ((NSInteger)127, MAX ((NSInteger)0, pitch))];
-      [note setStartTick:_selectedNote
-                           ? [_selectedNote startTick] + [_selectedNote durationTicks]
-                           : [_document totalTicks]];
+      [note setStartTick:_selectedNote ? [_selectedNote startTick] + [_selectedNote durationTicks]
+                                       : [_document totalTicks]];
       if (!_selectedNote)
         {
           [note setDurationTicks:MAX ((NSUInteger)1, [_document ticksPerQuarter])];
@@ -2630,10 +2712,10 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
       if (!target || [target isRest])
         return NO;
 
-      if ([item isEqualToString:@"slur"] || [item isEqualToString:@"tie"]
-          || [item isEqualToString:@"crescendo"] || [item isEqualToString:@"diminuendo"]
-          || [item isEqualToString:@"pedal"] || [item isEqualToString:@"8va"]
-          || [item isEqualToString:@"8vb"])
+      if ([item isEqualToString:@"slur"] || [item isEqualToString:@"tie"] ||
+          [item isEqualToString:@"crescendo"] || [item isEqualToString:@"diminuendo"] ||
+          [item isEqualToString:@"pedal"] || [item isEqualToString:@"8va"] ||
+          [item isEqualToString:@"8vb"])
         {
           if (!_selectedNote || _selectedNote == target || [_selectedNote isRest] ||
               [_selectedNote startTick] >= [target startTick])
@@ -2725,8 +2807,8 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   NSUInteger duration = [note durationTicks];
   BOOL filled = duration < ([_document ticksPerQuarter] * 2);
   CGFloat noteScale = ([note isGrace] || [note isCue]) ? 0.72 : 1.0;
-  NSRect oval = NSMakeRect (x - 5.5 * noteScale, y - 4.0 * noteScale,
-                            11.0 * noteScale, 8.0 * noteScale);
+  NSRect oval
+    = NSMakeRect (x - 5.5 * noteScale, y - 4.0 * noteScale, 11.0 * noteScale, 8.0 * noteScale);
   NSBezierPath *head = [NSBezierPath bezierPathWithOvalInRect:oval];
   [[NSColor blackColor] setStroke];
   if (filled)
@@ -2740,8 +2822,8 @@ ScorePlaceRect (NSRect desired, NSMutableArray *occupied, CGFloat step)
   [head fill];
   [head stroke];
 
-  NSInteger accidental = [[_displayedAccidentals objectForKey:[NSValue valueWithPointer:note]]
-    integerValue];
+  NSInteger accidental =
+    [[_displayedAccidentals objectForKey:[NSValue valueWithPointer:note]] integerValue];
   if (accidental != NSIntegerMax)
     {
       NSString *symbol = accidental > 0 ? @"♯" : (accidental < 0 ? @"♭" : @"♮");

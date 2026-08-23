@@ -22,6 +22,7 @@
 @implementation ScoreNotationElement
 @synthesize kind = _kind, startTick = _startTick, endTick = _endTick;
 @synthesize track = _track, notationVoice = _notationVoice, value = _value, source = _source;
+
 - (void)dealloc
 {
   [_value release];
@@ -30,6 +31,7 @@
 @end
 
 @implementation ScoreNotationModel
+
 + (ScoreNotationElement *)element:(ScoreNotationKind)kind
                             start:(NSUInteger)start
                               end:(NSUInteger)end
@@ -82,11 +84,21 @@
                                     value:@"end"
                                    source:measure]];
       if ([[measure rehearsalMark] length])
-        [elements addObject:[self element:ScoreNotationRehearsalMark start:start end:start
-                                   track:-1 voice:0 value:[measure rehearsalMark] source:measure]];
+        [elements addObject:[self element:ScoreNotationRehearsalMark
+                                    start:start
+                                      end:start
+                                    track:-1
+                                    voice:0
+                                    value:[measure rehearsalMark]
+                                   source:measure]];
       if ([[measure endingText] length])
-        [elements addObject:[self element:ScoreNotationEnding start:start end:end
-                                   track:-1 voice:0 value:[measure endingText] source:measure]];
+        [elements addObject:[self element:ScoreNotationEnding
+                                    start:start
+                                      end:end
+                                    track:-1
+                                    voice:0
+                                    value:[measure endingText]
+                                   source:measure]];
     }
   for (ScoreNote *note in [document notes])
     {
@@ -151,42 +163,81 @@
                                     value:[note articulation]
                                    source:note]];
       if ([[note lyric] length])
-        [elements addObject:[self element:ScoreNotationLyric start:start end:start
-                                   track:[note track] voice:[note voice]
-                                   value:[note lyric] source:note]];
+        [elements addObject:[self element:ScoreNotationLyric
+                                    start:start
+                                      end:start
+                                    track:[note track]
+                                    voice:[note voice]
+                                    value:[note lyric]
+                                   source:note]];
       if ([[note ornament] length])
-        [elements addObject:[self element:ScoreNotationOrnament start:start end:start
-                                   track:[note track] voice:[note voice]
-                                   value:[note ornament] source:note]];
+        [elements addObject:[self element:ScoreNotationOrnament
+                                    start:start
+                                      end:start
+                                    track:[note track]
+                                    voice:[note voice]
+                                    value:[note ornament]
+                                   source:note]];
       if ([note isGrace])
-        [elements addObject:[self element:ScoreNotationGrace start:start end:start
-                                   track:[note track] voice:[note voice] value:nil source:note]];
+        [elements addObject:[self element:ScoreNotationGrace
+                                    start:start
+                                      end:start
+                                    track:[note track]
+                                    voice:[note voice]
+                                    value:nil
+                                   source:note]];
       if ([note isCue])
-        [elements addObject:[self element:ScoreNotationCue start:start end:end
-                                   track:[note track] voice:[note voice] value:nil source:note]];
+        [elements addObject:[self element:ScoreNotationCue
+                                    start:start
+                                      end:end
+                                    track:[note track]
+                                    voice:[note voice]
+                                    value:nil
+                                   source:note]];
       if ([note tremoloStrokes])
-        [elements addObject:[self element:ScoreNotationTremolo start:start end:end
-                                   track:[note track] voice:[note voice]
-                                   value:[NSString stringWithFormat:@"%lu",
-                                          (unsigned long)[note tremoloStrokes]] source:note]];
+        [elements
+          addObject:[self element:ScoreNotationTremolo
+                            start:start
+                              end:end
+                            track:[note track]
+                            voice:[note voice]
+                            value:[NSString
+                                    stringWithFormat:@"%lu", (unsigned long)[note tremoloStrokes]]
+                           source:note]];
       if ([[note hairpinStart] length] || [note hairpinEnd])
-        [elements addObject:[self element:ScoreNotationHairpin start:start end:end
-                                   track:[note track] voice:[note voice]
-                                   value:[note hairpinStart] ?: @"end" source:note]];
+        [elements addObject:[self element:ScoreNotationHairpin
+                                    start:start
+                                      end:end
+                                    track:[note track]
+                                    voice:[note voice]
+                                    value:[note hairpinStart] ?: @"end"
+                                   source:note]];
       if ([note pedalStart] || [note pedalEnd])
-        [elements addObject:[self element:ScoreNotationPedal start:start end:end
-                                   track:[note track] voice:[note voice]
-                                   value:[note pedalStart] ? @"start" : @"end" source:note]];
+        [elements addObject:[self element:ScoreNotationPedal
+                                    start:start
+                                      end:end
+                                    track:[note track]
+                                    voice:[note voice]
+                                    value:[note pedalStart] ? @"start" : @"end"
+                                   source:note]];
       if ([note octaveShiftStart] || [note octaveShiftEnd])
-        [elements addObject:[self element:ScoreNotationOctaveShift start:start end:end
-                                   track:[note track] voice:[note voice]
-                                   value:[note octaveShiftStart] > 0 ? @"8va"
-                                         : ([note octaveShiftStart] < 0 ? @"8vb" : @"end")
-                                  source:note]];
+        [elements addObject:[self element:ScoreNotationOctaveShift
+                                    start:start
+                                      end:end
+                                    track:[note track]
+                                    voice:[note voice]
+                                    value:[note octaveShiftStart] > 0
+                                            ? @"8va"
+                                            : ([note octaveShiftStart] < 0 ? @"8vb" : @"end")
+                                   source:note]];
       if ([[note directionText] length])
-        [elements addObject:[self element:ScoreNotationText start:start end:start
-                                   track:[note track] voice:[note voice]
-                                   value:[note directionText] source:note]];
+        [elements addObject:[self element:ScoreNotationText
+                                    start:start
+                                      end:start
+                                    track:[note track]
+                                    voice:[note voice]
+                                    value:[note directionText]
+                                   source:note]];
     }
   return elements;
 }

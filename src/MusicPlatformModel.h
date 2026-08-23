@@ -276,6 +276,7 @@ typedef NS_ENUM (NSInteger, ScoreStaffClef) {
 @property (nonatomic, retain) NSMutableArray *nodes;
 /** Mutable array of ScoreSynthesisConnection instances. */
 @property (nonatomic, retain) NSMutableArray *connections;
+
 /**
  * Validates identifiers, endpoints, and graph acyclicity. Returns
  * <code>YES</code> when the graph can be compiled.

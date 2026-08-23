@@ -21,6 +21,7 @@
 
 @implementation ScoreScheduledEvent
 @synthesize tick = _tick, time = _time, note = _note, noteOff = _noteOff;
+
 - (void)dealloc
 {
   [_note release];
@@ -29,12 +30,14 @@
 @end
 
 @implementation ScoreScheduler
+
 - (id)initWithDocument:(ScoreDocument *)document
 {
   if ((self = [super init]))
     _document = [document retain];
   return self;
 }
+
 - (NSArray *)orderedTempoEvents
 {
   return [[_document tempoEvents] sortedArrayUsingComparator:^NSComparisonResult (id a, id b) {
@@ -45,6 +48,7 @@
     return NSOrderedSame;
   }];
 }
+
 - (NSTimeInterval)timeForTick:(NSUInteger)tick
 {
   NSUInteger previousTick = 0;
@@ -63,6 +67,7 @@
             / (1000000.0 * MAX ((NSUInteger)1, [_document ticksPerQuarter]));
   return result;
 }
+
 - (NSUInteger)tickForTime:(NSTimeInterval)time
 {
   NSUInteger low = 0, high = MAX ((NSUInteger)1, [_document totalTicks]);
@@ -76,13 +81,17 @@
     }
   return low;
 }
+
 - (NSArray *)eventsFromTick:(NSUInteger)startTick throughTick:(NSUInteger)endTick
 {
   NSMutableArray *events = [NSMutableArray array];
   BOOL hasSolo = NO;
   for (ScorePartDefinition *part in [_document parts])
     if ([part soloed])
-      { hasSolo = YES; break; }
+      {
+        hasSolo = YES;
+        break;
+      }
   for (ScoreNote *note in [_document notes])
     {
       if ([note isRest])
@@ -90,7 +99,10 @@
       ScorePartDefinition *notePart = nil;
       for (ScorePartDefinition *part in [_document parts])
         if ([part legacyTrack] == [note track])
-          { notePart = part; break; }
+          {
+            notePart = part;
+            break;
+          }
       if (notePart && ([notePart muted] || (hasSolo && ![notePart soloed])))
         continue;
       NSUInteger offTick = [note startTick] + [note durationTicks];
@@ -122,6 +134,7 @@
     return NSOrderedSame;
   }];
 }
+
 - (void)dealloc
 {
   [_document release];
@@ -130,12 +143,14 @@
 @end
 
 @implementation ScoreMIDIRouter
+
 - (id)initWithDocument:(ScoreDocument *)document
 {
   if ((self = [super init]))
     _document = [document retain];
   return self;
 }
+
 - (NSArray *)destinationsForSource:(NSString *)source
                            channel:(NSInteger)channel
                              pitch:(NSInteger)pitch
@@ -166,6 +181,7 @@
       }
   return destinations;
 }
+
 - (void)dealloc
 {
   [_document release];
@@ -174,6 +190,7 @@
 @end
 
 @implementation ScoreInstrumentRegistry
+
 + (ScoreInstrumentRegistry *)sharedRegistry
 {
   static ScoreInstrumentRegistry *registry = nil;
@@ -181,21 +198,25 @@
     registry = [[ScoreInstrumentRegistry alloc] init];
   return registry;
 }
+
 - (id)init
 {
   if ((self = [super init]))
     _backends = [[NSMutableDictionary alloc] init];
   return self;
 }
+
 - (void)registerBackend:(id<ScoreInstrumentBackend>)backend
 {
   if ([[backend identifier] length])
     [_backends setObject:backend forKey:[backend identifier]];
 }
+
 - (id<ScoreInstrumentBackend>)backendForIdentifier:(NSString *)identifier
 {
   return [_backends objectForKey:identifier];
 }
+
 - (void)dealloc
 {
   [_backends release];
@@ -204,6 +225,7 @@
 @end
 
 @implementation ScoreSynthesisCompiler
+
 + (NSArray *)processingOrderForGraph:(ScoreSynthesisGraph *)graph error:(NSError **)error
 {
   if (![graph validateWithError:error])
@@ -258,6 +280,7 @@
 @end
 
 @implementation ScoreCompositionEvaluator
+
 + (BOOL)evaluateProgram:(ScoreCompositionProgram *)program
              inDocument:(ScoreDocument *)document
                   error:(NSError **)error

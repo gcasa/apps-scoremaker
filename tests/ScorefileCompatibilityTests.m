@@ -46,9 +46,9 @@ AudioPeakAtPath (NSString *path, NSError **error)
                                                      error:error] autorelease];
   if (!file)
     return 0.0f;
-  AVAudioPCMBuffer *buffer = [[[AVAudioPCMBuffer alloc]
-    initWithPCMFormat:[file processingFormat]
-        frameCapacity:(AVAudioFrameCount)[file length]] autorelease];
+  AVAudioPCMBuffer *buffer =
+    [[[AVAudioPCMBuffer alloc] initWithPCMFormat:[file processingFormat]
+                                   frameCapacity:(AVAudioFrameCount)[file length]] autorelease];
   if (![file readIntoBuffer:buffer error:error])
     return 0.0f;
   float peak = 0.0f;
@@ -78,29 +78,30 @@ main (void)
 {
   NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
   NSString *insSource = @".Patch Names\n[Preset A]\n0=Warm Piano\n1=Wide Piano\n"
-                         @"[Preset B]\n0=Analog Brass\n127=Noise Hit\n"
-                         @".Instrument Definitions\n[Test Synth]\nPatch[0]=Preset A\n"
-                         @"Patch[129]=Preset B\nBankSelMethod=0\n";
+                        @"[Preset B]\n0=Analog Brass\n127=Noise Hit\n"
+                        @".Instrument Definitions\n[Test Synth]\nPatch[0]=Preset A\n"
+                        @"Patch[129]=Preset B\nBankSelMethod=0\n";
   NSError *insError = nil;
   NSArray *insDefinitions = [MidiParser instrumentDefinitionsFromINSString:insSource
-                                                                      error:&insError];
+                                                                     error:&insError];
   Require ([insDefinitions count] == 1, @".ins parser did not find the instrument definition");
   NSDictionary *insInstrument = [insDefinitions objectAtIndex:0];
   Require ([[insInstrument objectForKey:@"name"] isEqualToString:@"Test Synth"],
            @".ins instrument name was not preserved");
   NSArray *insBanks = [insInstrument objectForKey:@"banks"];
-  Require ([insBanks count] == 2
-             && [[[[insBanks objectAtIndex:1] objectForKey:@"patches"] objectAtIndex:127]
-                   isEqualToString:@"Noise Hit"],
+  Require ([insBanks count] == 2 &&
+             [[[[insBanks objectAtIndex:1] objectForKey:@"patches"] objectAtIndex:127]
+               isEqualToString:@"Noise Hit"],
            @".ins banks or sparse patch names were not parsed");
   NSString *patchOnlyINS = @".Patch Names\n[Legacy Module]\n10=Bell Pad\n";
-  Require ([[MidiParser instrumentDefinitionsFromINSString:patchOnlyINS error:&insError] count] == 1,
+  Require ([[MidiParser instrumentDefinitionsFromINSString:patchOnlyINS error:&insError] count]
+             == 1,
            @"patch-only .ins file did not produce an importable profile");
   NSError *sourceError = nil;
   NSString *editableSource = @"/* retained editor comment */\n"
-                              @"info tempo:96 timeSignature:3/4;\n"
-                              @"part Editor_Part;\nBEGIN;\nt 0;\n"
-                              @"Editor_Part (1) keyNum:cs4k;\nEND;\n";
+                             @"info tempo:96 timeSignature:3/4;\n"
+                             @"part Editor_Part;\nBEGIN;\nt 0;\n"
+                             @"Editor_Part (1) keyNum:cs4k;\nEND;\n";
   NSArray *sourceRanges = nil;
   ScoreDocument *sourceDocument = [ScorefileParser parseString:editableSource
                                                 suggestedTitle:@"Editor Test"
@@ -108,8 +109,8 @@ main (void)
                                                          error:&sourceError];
   Require (sourceDocument != nil,
            [NSString stringWithFormat:@"could not parse editor source: %@", sourceError]);
-  ScoreNote *sourceNote = [[sourceDocument notes] count]
-                            ? [[sourceDocument notes] objectAtIndex:0] : nil;
+  ScoreNote *sourceNote =
+    [[sourceDocument notes] count] ? [[sourceDocument notes] objectAtIndex:0] : nil;
   Require ([[sourceDocument notes] count] == 1 && [sourceNote pitch] == 61,
            [NSString stringWithFormat:@"in-memory editor source produced %lu notes at pitch %ld",
                                       (unsigned long)[[sourceDocument notes] count],
@@ -117,30 +118,29 @@ main (void)
   Require ([sourceRanges count] == 1, @"source parser did not produce one note range");
   NSRange editorNoteRange = [[[sourceRanges objectAtIndex:0] objectForKey:@"range"] rangeValue];
   NSString *rangedStatement = [editableSource substringWithRange:editorNoteRange];
-  Require ([rangedStatement rangeOfString:@"Editor_Part (1) keyNum:cs4k;"].location
-             != NSNotFound,
+  Require ([rangedStatement rangeOfString:@"Editor_Part (1) keyNum:cs4k;"].location != NSNotFound,
            @"source parser returned an incorrect note character range");
   NSString *endSubstringSource = @"part Defender_of_the_Crown;\n"
-                                  @"Defender_of_the_Crown program:68;\n"
-                                  @"BEGIN;\nt 0;\n"
-                                  @"Defender_of_the_Crown (1) keyNum:f4k;\nEND;\n";
+                                 @"Defender_of_the_Crown program:68;\n"
+                                 @"BEGIN;\nt 0;\n"
+                                 @"Defender_of_the_Crown (1) keyNum:f4k;\nEND;\n";
   NSArray *endSubstringRanges = nil;
-  ScoreDocument *endSubstringDocument =
-    [ScorefileParser parseString:endSubstringSource
-                  suggestedTitle:@"END Substring"
-                 noteSourceRanges:&endSubstringRanges
-                           error:&sourceError];
+  ScoreDocument *endSubstringDocument = [ScorefileParser parseString:endSubstringSource
+                                                      suggestedTitle:@"END Substring"
+                                                    noteSourceRanges:&endSubstringRanges
+                                                               error:&sourceError];
   Require ([[endSubstringDocument notes] count] == 1 && [endSubstringRanges count] == 1,
            @"a part name containing END prevented source-note range mapping");
   Require ([ScorefileParser parseString:@"" suggestedTitle:@"Empty" error:&sourceError] == nil,
            @"empty editor source should fail validation");
   NSString *badTimeSource = @"part P;\nBEGIN;\nt one+;\nP (1) keyNum:c4k;\nEND;\n";
   sourceError = nil;
-  Require ([ScorefileParser parseString:badTimeSource suggestedTitle:@"Bad Time"
-                                  error:&sourceError] == nil,
+  Require ([ScorefileParser parseString:badTimeSource suggestedTitle:@"Bad Time" error:&sourceError]
+             == nil,
            @"invalid time expression should fail source validation");
   Require ([[sourceError userInfo] objectForKey:ScorefileErrorRangeKey] != nil &&
-             [[[sourceError userInfo] objectForKey:ScorefileErrorLineKey] unsignedIntegerValue] == 3,
+             [[[sourceError userInfo] objectForKey:ScorefileErrorLineKey] unsignedIntegerValue]
+               == 3,
            @"syntax error did not report its source range and line");
   NSRange badTimeRange = [[[sourceError userInfo] objectForKey:ScorefileErrorRangeKey] rangeValue];
   Require ([[badTimeSource substringWithRange:badTimeRange] rangeOfString:@"t one+;"].location
@@ -148,18 +148,20 @@ main (void)
            @"invalid time expression highlighted the wrong statement");
   sourceError = nil;
   Require ([ScorefileParser parseString:@"string scoreTitle = \"broken;"
-                         suggestedTitle:@"Bad Quote" error:&sourceError] == nil &&
-             [[sourceError userInfo] objectForKey:ScorefileErrorRangeKey] != nil,
+                         suggestedTitle:@"Bad Quote"
+                                  error:&sourceError]
+               == nil
+             && [[sourceError userInfo] objectForKey:ScorefileErrorRangeKey] != nil,
            @"unterminated string did not produce a ranged syntax error");
 
   NSString *frequencySource = @"part Detuned;\nBEGIN;\nt 0;\n"
-                               @"Detuned (1) freq:330.59;\nEND;\n";
+                              @"Detuned (1) freq:330.59;\nEND;\n";
   ScoreDocument *frequencyDocument = [ScorefileParser parseString:frequencySource
-                                                    suggestedTitle:@"Detuned"
-                                                             error:&sourceError];
+                                                   suggestedTitle:@"Detuned"
+                                                            error:&sourceError];
   ScoreNote *frequencyNote = [[frequencyDocument notes] objectAtIndex:0];
-  Require (fabs ([frequencyNote playbackFrequency] - 330.59) < 0.000001
-             && [frequencyNote pitch] == 64,
+  Require (fabs ([frequencyNote playbackFrequency] - 330.59) < 0.000001 &&
+             [frequencyNote pitch] == 64,
            @"scorefile frequency was not preserved alongside its notated MIDI pitch");
   NSData *frequencyScoreData = [ScorefileParser dataForDocument:frequencyDocument
                                                           error:&sourceError];
@@ -172,7 +174,10 @@ main (void)
   BOOL foundPitchBend = NO;
   for (NSUInteger i = 0; i < [frequencyMIDI length]; i++)
     if ((frequencyBytes[i] & 0xf0) == 0xe0)
-      { foundPitchBend = YES; break; }
+      {
+        foundPitchBend = YES;
+        break;
+      }
   Require (foundPitchBend, @"MIDI playback did not encode tuning for an exact frequency");
 
   ScoreDocument *highResolution = [[[ScoreDocument alloc] init] autorelease];
@@ -186,29 +191,29 @@ main (void)
   [[highResolution notes] addObject:highResolutionNote];
   [highResolution setTotalTicks:480];
   NSData *highResolutionData = [ScorefileParser dataForDocument:highResolution error:&sourceError];
-  NSString *highResolutionSource = [[[NSString alloc]
-    initWithData:highResolutionData encoding:NSUTF8StringEncoding] autorelease];
+  NSString *highResolutionSource =
+    [[[NSString alloc] initWithData:highResolutionData encoding:NSUTF8StringEncoding] autorelease];
   ScoreDocument *normalized = [ScorefileParser parseString:highResolutionSource
                                             suggestedTitle:@"Normalized MIDI"
                                                      error:&sourceError];
   ScoreNote *normalizedNote = [[normalized notes] objectAtIndex:0];
   Require ([normalizedNote track] == 2 && [normalizedNote voice] == 3,
            @"generated source did not restore the original MIDI track and voice");
-  Require (llround ((double)[highResolutionNote startTick] * 1000000.0 /
-                    (double)[highResolution ticksPerQuarter]) ==
-             llround ((double)[normalizedNote startTick] * 1000000.0 /
-                    (double)[normalized ticksPerQuarter]) &&
-             llround ((double)[highResolutionNote durationTicks] * 1000000.0 /
-                    (double)[highResolution ticksPerQuarter]) ==
-             llround ((double)[normalizedNote durationTicks] * 1000000.0 /
-                    (double)[normalized ticksPerQuarter]),
+  Require (llround ((double)[highResolutionNote startTick] * 1000000.0
+                    / (double)[highResolution ticksPerQuarter])
+               == llround ((double)[normalizedNote startTick] * 1000000.0
+                           / (double)[normalized ticksPerQuarter])
+             && llround ((double)[highResolutionNote durationTicks] * 1000000.0
+                         / (double)[highResolution ticksPerQuarter])
+                  == llround ((double)[normalizedNote durationTicks] * 1000000.0
+                              / (double)[normalized ticksPerQuarter]),
            @"generated source changed high-resolution MIDI note timing");
   ScoreMeasure *highResolutionMeasure = [[highResolution measures] objectAtIndex:0];
   ScoreMeasure *normalizedMeasure = [[normalized measures] objectAtIndex:0];
-  Require (llround ((double)[highResolutionMeasure durationTicks] * 1000000.0 /
-                    (double)[highResolution ticksPerQuarter]) ==
-             llround ((double)[normalizedMeasure durationTicks] * 1000000.0 /
-                    (double)[normalized ticksPerQuarter]),
+  Require (llround ((double)[highResolutionMeasure durationTicks] * 1000000.0
+                    / (double)[highResolution ticksPerQuarter])
+             == llround ((double)[normalizedMeasure durationTicks] * 1000000.0
+                         / (double)[normalized ticksPerQuarter]),
            @"generated source changed high-resolution measure timing");
 
   NSDirectoryEnumerator *examples = [[NSFileManager defaultManager] enumeratorAtPath:@"examples"];
@@ -247,9 +252,8 @@ main (void)
     }
 
   NSError *bachError = nil;
-  ScoreDocument *bach =
-    [ScorefileParser parseFileAtPath:@"examples/bach-fugue-bwv-1041.score"
-                               error:&bachError];
+  ScoreDocument *bach = [ScorefileParser parseFileAtPath:@"examples/bach-fugue-bwv-1041.score"
+                                                   error:&bachError];
   NSMutableSet *bachVelocities = [NSMutableSet set];
   for (ScoreNote *note in [bach notes])
     [bachVelocities addObject:[NSNumber numberWithUnsignedInteger:[note velocity]]];
@@ -291,43 +295,49 @@ main (void)
   [persistentInstrument setBackendIdentifier:@"audio-unit:1635085685:1935764848:1634758764"];
   NSData *pluginState = [@"opaque plugin state" dataUsingEncoding:NSUTF8StringEncoding];
   [[persistentInstrument parameters] setObject:pluginState forKey:@"stateData"];
-  NSDictionary *savedPatch = @{ @"waveform" : @"Saw",
-                                @"attack" : @0.03,
-                                @"decay" : @0.2,
-                                @"sustain" : @0.65,
-                                @"release" : @0.4,
-                                @"lfoRate" : @5.5,
-                                @"lfoDepth" : @0.25,
-                                @"lfoDelay" : @0.1 };
+  NSDictionary *savedPatch = @{
+    @"waveform" : @"Saw",
+    @"attack" : @0.03,
+    @"decay" : @0.2,
+    @"sustain" : @0.65,
+    @"release" : @0.4,
+    @"lfoRate" : @5.5,
+    @"lfoDepth" : @0.25,
+    @"lfoDelay" : @0.1
+  };
   [[persistentInstrument parameters] setObject:savedPatch forKey:@"internalSynthPatch"];
-  NSDictionary *voiceTwoPatch = @{ @"name" : @"Test Square Voice",
-                                    @"category" : @"Lead",
-                                    @"description" : @"A test lead with velocity filter movement.",
-                                    @"waveform" : @"Square",
-                                    @"attack" : @0.01,
-                                    @"decay" : @0.08,
-                                    @"sustain" : @0.5,
-                                    @"release" : @0.2,
-                                    @"lfoRate" : @6.0,
-                                    @"lfoDepth" : @0.0,
-                                    @"lfoDelay" : @0.0,
-                                    @"filterCutoff" : @1800.0,
-                                    @"filterResonance" : @0.55,
-                                    @"filterAttack" : @0.02,
-                                    @"filterDecay" : @0.18,
-                                    @"filterSustain" : @0.35,
-                                    @"filterRelease" : @0.3,
-                                    @"filterEnvelopeAmount" : @36.0,
-                                    @"velocityToAmplitude" : @0.8,
-                                    @"velocityToFilter" : @18.0,
-                                    @"effects" : @[
-                                      @{ @"type" : @"lowpass", @"cutoff" : @2400.0 },
-                                      @{ @"type" : @"delay", @"time" : @0.08,
-                                         @"feedback" : @0.25, @"mix" : @0.15 }
-                                    ] };
-  [[persistentInstrument parameters]
-    setObject:@{ @"1" : savedPatch, @"2" : voiceTwoPatch }
-       forKey:@"internalSynthPatches"];
+  NSDictionary *voiceTwoPatch = @{
+    @"name" : @"Test Square Voice",
+    @"category" : @"Lead",
+    @"description" : @"A test lead with velocity filter movement.",
+    @"waveform" : @"Square",
+    @"attack" : @0.01,
+    @"decay" : @0.08,
+    @"sustain" : @0.5,
+    @"release" : @0.2,
+    @"lfoRate" : @6.0,
+    @"lfoDepth" : @0.0,
+    @"lfoDelay" : @0.0,
+    @"filterCutoff" : @1800.0,
+    @"filterResonance" : @0.55,
+    @"filterAttack" : @0.02,
+    @"filterDecay" : @0.18,
+    @"filterSustain" : @0.35,
+    @"filterRelease" : @0.3,
+    @"filterEnvelopeAmount" : @36.0,
+    @"velocityToAmplitude" : @0.8,
+    @"velocityToFilter" : @18.0,
+    @"effects" : @[
+      @{@"type" : @"lowpass",
+        @"cutoff" : @2400.0},
+      @{@"type" : @"delay",
+        @"time" : @0.08,
+        @"feedback" : @0.25,
+        @"mix" : @0.15}
+    ]
+  };
+  [[persistentInstrument parameters] setObject:@{ @"1" : savedPatch, @"2" : voiceTwoPatch }
+                                        forKey:@"internalSynthPatches"];
   NSData *projectData = [ScoreProjectSerializer dataForDocument:platform error:&platformError];
   ScoreDocument *projectRoundTrip = [ScoreProjectSerializer documentFromData:projectData
                                                                        error:&platformError];
@@ -353,33 +363,32 @@ main (void)
   projectRoundTrip = [ScoreProjectSerializer documentFromData:projectData error:&platformError];
   restoredInstrument = [[[projectRoundTrip parts] objectAtIndex:0] instrument];
   ScorePartDefinition *restoredPart = [[projectRoundTrip parts] objectAtIndex:0];
-  Require ([restoredPart midiOutputUniqueID] == 4242
-             && [[restoredPart midiOutputName] isEqualToString:@"Studio MIDI Interface"],
+  Require ([restoredPart midiOutputUniqueID] == 4242 &&
+             [[restoredPart midiOutputName] isEqualToString:@"Studio MIDI Interface"],
            @"native project persistence lost the per-part MIDI output assignment");
-  Require ([[restoredPart midiFallbackMode] isEqualToString:@"device"]
-             && [restoredPart midiFallbackUniqueID] == 8484
-             && [[restoredPart midiFallbackName] isEqualToString:@"Backup MIDI Interface"],
+  Require ([[restoredPart midiFallbackMode] isEqualToString:@"device"] &&
+             [restoredPart midiFallbackUniqueID] == 8484 &&
+             [[restoredPart midiFallbackName] isEqualToString:@"Backup MIDI Interface"],
            @"native project persistence lost the per-part MIDI fallback assignment");
   Require ([restoredPart muted] && [restoredPart soloed]
              && fabs ([restoredPart gain] - 0.75) < 0.001
-             && fabs ([restoredPart pan] + 0.25) < 0.001
-             && [[restoredPart groupName] isEqualToString:@"Woodwinds"],
+             && fabs ([restoredPart pan] + 0.25) < 0.001 &&
+             [[restoredPart groupName] isEqualToString:@"Woodwinds"],
            @"native project persistence lost professional mixer and grouping state");
   Require (fabs ([[projectRoundTrip pageLayout] paperWidth] - 595.0) < 0.001
              && fabs ([[projectRoundTrip pageLayout] paperHeight] - 842.0) < 0.001
-             && fabs ([[projectRoundTrip pageLayout] staffScale] - 0.85) < 0.001
-             && [[[projectRoundTrip pageLayout] headerText]
-                  isEqualToString:@"Rehearsal score"],
+             && fabs ([[projectRoundTrip pageLayout] staffScale] - 0.85) < 0.001 &&
+             [[[projectRoundTrip pageLayout] headerText] isEqualToString:@"Rehearsal score"],
            @"native project persistence lost publication layout settings");
   ScoreDocument *reparsed = [[[ScoreDocument alloc] init] autorelease];
   [reparsed rebuildStructuredPartsFromLegacyTracks];
   [reparsed copyMIDIRoutingAssignmentsFromDocument:projectRoundTrip];
   ScorePartDefinition *reparsedPart = [[reparsed parts] objectAtIndex:0];
-  Require ([reparsedPart midiOutputUniqueID] == 4242
-             && [[reparsedPart midiOutputName] isEqualToString:@"Studio MIDI Interface"]
-             && [[reparsedPart midiFallbackMode] isEqualToString:@"device"]
-             && [reparsedPart midiFallbackUniqueID] == 8484
-             && [[reparsedPart midiFallbackName] isEqualToString:@"Backup MIDI Interface"],
+  Require ([reparsedPart midiOutputUniqueID] == 4242 &&
+             [[reparsedPart midiOutputName] isEqualToString:@"Studio MIDI Interface"] &&
+             [[reparsedPart midiFallbackMode] isEqualToString:@"device"] &&
+             [reparsedPart midiFallbackUniqueID] == 8484 &&
+             [[reparsedPart midiFallbackName] isEqualToString:@"Backup MIDI Interface"],
            @"reparsing score source lost the routing matrix fallback assignment");
   Require (
     [[restoredInstrument backendIdentifier]
@@ -389,19 +398,18 @@ main (void)
   Require ([[[restoredInstrument parameters] objectForKey:@"internalSynthPatch"]
              isEqualToDictionary:savedPatch],
            @"native project persistence lost the internal synthesizer patch");
-  NSDictionary *restoredVoiceTwo = [[[restoredInstrument parameters]
-    objectForKey:@"internalSynthPatches"] objectForKey:@"2"];
-  Require ([[restoredVoiceTwo objectForKey:@"name"] isEqualToString:@"Test Square Voice"]
-             && [[restoredVoiceTwo objectForKey:@"category"] isEqualToString:@"Lead"]
-             && [[restoredVoiceTwo objectForKey:@"description"] length] > 0
-             && [[restoredVoiceTwo objectForKey:@"waveform"] isEqualToString:@"Square"]
-             && [[restoredVoiceTwo objectForKey:@"effects"] count] == 2,
+  NSDictionary *restoredVoiceTwo =
+    [[[restoredInstrument parameters] objectForKey:@"internalSynthPatches"] objectForKey:@"2"];
+  Require ([[restoredVoiceTwo objectForKey:@"name"] isEqualToString:@"Test Square Voice"] &&
+             [[restoredVoiceTwo objectForKey:@"category"] isEqualToString:@"Lead"] &&
+             [[restoredVoiceTwo objectForKey:@"description"] length] > 0 &&
+             [[restoredVoiceTwo objectForKey:@"waveform"] isEqualToString:@"Square"] &&
+             [[restoredVoiceTwo objectForKey:@"effects"] count] == 2,
            @"native project persistence lost a voice-specific synthesizer patch");
-  NSDictionary *componentIdentity = @{
-    @"type" : @1635085685,
-    @"subtype" : @1935764848,
-    @"manufacturerCode" : @1634758764
-  };
+  NSDictionary *componentIdentity =
+    @{@"type" : @1635085685,
+      @"subtype" : @1935764848,
+      @"manufacturerCode" : @1634758764};
   Require ([[ScoreRealtimeDSP identifierForAudioUnitDescription:componentIdentity]
              isEqualToString:@"61756d75-73616d70-6170706c"],
            @"Audio Unit identity is not stable enough for relinking and preset storage");
@@ -450,43 +458,70 @@ main (void)
   for (NSString *factoryName in factoryPatches)
     {
       NSDictionary *factoryPatch = [factoryPatches objectForKey:factoryName];
-      Require ([[factoryPatch objectForKey:@"category"] length] > 0
-                 && [[factoryPatch objectForKey:@"description"] length] > 0
-                 && [offlineDSP configureInternalSynthPatch:factoryPatch forVoice:1
-                                                      error:&platformError],
+      Require ([[factoryPatch objectForKey:@"category"] length] > 0 &&
+                 [[factoryPatch objectForKey:@"description"] length] > 0 &&
+                 [offlineDSP configureInternalSynthPatch:factoryPatch
+                                                forVoice:1
+                                                   error:&platformError],
                [NSString stringWithFormat:@"invalid factory patch: %@", factoryName]);
     }
-  Require ([offlineDSP configureInternalSynthPatch:savedPatch error:&platformError]
-             && [[[[offlineDSP internalSynthPatch] objectForKey:@"waveform"] description]
-                   isEqualToString:@"Saw"],
+  Require ([offlineDSP configureInternalSynthPatch:savedPatch error:&platformError] &&
+             [[[[offlineDSP internalSynthPatch] objectForKey:@"waveform"] description]
+               isEqualToString:@"Saw"],
            @"internal oscillator, envelope, or LFO patch configuration failed");
-  Require ([offlineDSP configureInternalSynthPatch:voiceTwoPatch forVoice:2 error:&platformError]
-             && [[[[offlineDSP internalSynthPatchForVoice:2] objectForKey:@"waveform"] description]
-                   isEqualToString:@"Square"]
+  Require ([offlineDSP configureInternalSynthPatch:voiceTwoPatch forVoice:2 error:&platformError] &&
+             [[[[offlineDSP internalSynthPatchForVoice:2] objectForKey:@"waveform"] description]
+               isEqualToString:@"Square"]
              && [[offlineDSP internalSynthEffectsForVoice:2] count] == 2,
            @"voice-specific internal synthesizer patch configuration failed");
-  Require ([[[offlineDSP internalSynthPatchForVoice:2] objectForKey:@"filterEnvelopeAmount"]
-              floatValue] == 36.0f
-             && [[[offlineDSP internalSynthPatchForVoice:2] objectForKey:@"velocityToFilter"]
-                   floatValue] == 18.0f,
-           @"independent filter envelope or velocity modulation configuration failed");
+  Require (
+    [[[offlineDSP internalSynthPatchForVoice:2] objectForKey:@"filterEnvelopeAmount"] floatValue]
+        == 36.0f
+      && [[[offlineDSP internalSynthPatchForVoice:2] objectForKey:@"velocityToFilter"] floatValue]
+           == 18.0f,
+    @"independent filter envelope or velocity modulation configuration failed");
   NSArray *effects = @[
-    @{ @"type" : @"gain", @"decibels" : @-3.0 },
-    @{ @"type" : @"lowpass", @"cutoff" : @8000.0 },
-    @{ @"type" : @"compressor", @"threshold" : @-12.0, @"ratio" : @4.0 },
-    @{ @"type" : @"delay", @"time" : @0.08, @"feedback" : @0.25, @"mix" : @0.15 },
-    @{ @"type" : @"reverb", @"roomSize" : @0.2, @"mix" : @0.1 }
+    @{@"type" : @"gain",
+      @"decibels" : @-3.0},
+    @{@"type" : @"lowpass",
+      @"cutoff" : @8000.0},
+    @{@"type" : @"compressor",
+      @"threshold" : @-12.0,
+      @"ratio" : @4.0},
+    @{@"type" : @"delay",
+      @"time" : @0.08,
+      @"feedback" : @0.25,
+      @"mix" : @0.15},
+    @{@"type" : @"reverb",
+      @"roomSize" : @0.2,
+      @"mix" : @0.1}
   ];
-  Require ([offlineDSP configureEffects:effects error:&platformError]
-             && [[offlineDSP effectConfiguration] count] == 5,
+  Require ([offlineDSP configureEffects:effects error:&platformError] &&
+             [[offlineDSP effectConfiguration] count] == 5,
            @"real-time DSP effect chain configuration failed");
   NSString *renderPath =
     [NSTemporaryDirectory () stringByAppendingPathComponent:@"scoremaker-offline-render.caf"];
   NSArray *voiceEvents = @[
-    @{ @"time" : @0.0, @"pitch" : @60, @"voice" : @1, @"velocity" : @100, @"on" : @YES },
-    @{ @"time" : @0.0, @"pitch" : @67, @"voice" : @2, @"velocity" : @100, @"on" : @YES },
-    @{ @"time" : @0.05, @"pitch" : @60, @"voice" : @1, @"velocity" : @0, @"on" : @NO },
-    @{ @"time" : @0.05, @"pitch" : @67, @"voice" : @2, @"velocity" : @0, @"on" : @NO }
+    @{@"time" : @0.0,
+      @"pitch" : @60,
+      @"voice" : @1,
+      @"velocity" : @100,
+      @"on" : @YES},
+    @{@"time" : @0.0,
+      @"pitch" : @67,
+      @"voice" : @2,
+      @"velocity" : @100,
+      @"on" : @YES},
+    @{@"time" : @0.05,
+      @"pitch" : @60,
+      @"voice" : @1,
+      @"velocity" : @0,
+      @"on" : @NO},
+    @{@"time" : @0.05,
+      @"pitch" : @67,
+      @"voice" : @2,
+      @"velocity" : @0,
+      @"on" : @NO}
   ];
   Require ([offlineDSP renderEvents:voiceEvents
                            duration:0.12
@@ -500,12 +535,15 @@ main (void)
   float effectedPeak = AudioPeakAtPath (renderPath, &platformError);
   NSString *quietRenderPath =
     [NSTemporaryDirectory () stringByAppendingPathComponent:@"scoremaker-gain-effect.caf"];
-  Require ([offlineDSP configureEffects:@[ @{ @"type" : @"gain", @"decibels" : @-24.0 } ]
-                                    error:&platformError]
+  Require ([offlineDSP configureEffects:@[
+             @{@"type" : @"gain",
+               @"decibels" : @-24.0}
+           ]
+                                  error:&platformError]
              && [offlineDSP renderPitches:[NSArray arrayWithObjects:@60, @64, @67, nil]
-                                  duration:0.05
-                                     toURL:[NSURL fileURLWithPath:quietRenderPath]
-                                     error:&platformError],
+                                 duration:0.05
+                                    toURL:[NSURL fileURLWithPath:quietRenderPath]
+                                    error:&platformError],
            @"gain effect render failed");
   float quietPeak = AudioPeakAtPath (quietRenderPath, &platformError);
   Require (effectedPeak > 0.01f && quietPeak < effectedPeak * 0.25f,
@@ -668,8 +706,7 @@ main (void)
   [manyParts setProgram:@0 forTrack:0];
   for (NSInteger track = 1; track <= 8; track++)
     {
-      [manyParts setName:[NSString stringWithFormat:@"Part %ld", (long)track]
-                forTrack:track];
+      [manyParts setName:[NSString stringWithFormat:@"Part %ld", (long)track] forTrack:track];
       ScoreNote *partNote = [[[ScoreNote alloc] init] autorelease];
       [partNote setTrack:track];
       [partNote setPitch:59 + track];
@@ -682,8 +719,8 @@ main (void)
   NSMutableIndexSet *manyVoiceNumbers = [NSMutableIndexSet indexSet];
   for (ScoreNote *partNote in [manyParts notes])
     [manyVoiceNumbers addIndex:(NSUInteger)[partNote voice]];
-  Require ([manyVoiceNumbers count] == 8 && [manyVoiceNumbers firstIndex] == 1
-             && [manyVoiceNumbers lastIndex] == 8,
+  Require ([manyVoiceNumbers count] == 8 && [manyVoiceNumbers firstIndex] == 1 &&
+             [manyVoiceNumbers lastIndex] == 8,
            @"an empty part consumed voice 1 during many-part conversion");
   Require ([[voiceRoundTrip measures][0] keySignatureFifths] == 2 &&
              [[[voiceRoundTrip measures][0] keyMode] isEqualToString:@"minor"] &&
@@ -700,16 +737,16 @@ main (void)
              [[scoreFeatureNote hairpinStart] isEqualToString:@"crescendo"] &&
              [scoreFeatureNote pedalStart] && [scoreFeatureNote octaveShiftStart] == 1 &&
              [[scoreFeatureNote directionText] isEqualToString:@"dolce"] &&
-             [scoreFeatureNote staffAssignment] == 2 &&
-             [secondVoiceNote hairpinEnd] && [secondVoiceNote pedalEnd]
-             && [secondVoiceNote octaveShiftEnd] &&
+             [scoreFeatureNote staffAssignment] == 2 && [secondVoiceNote hairpinEnd] &&
+             [secondVoiceNote pedalEnd] && [secondVoiceNote octaveShiftEnd] &&
              [[[voiceRoundTrip measures][0] rehearsalMark] isEqualToString:@"A"] &&
              [[[voiceRoundTrip measures][0] endingText] isEqualToString:@"1."],
            @"scorefile note notation did not round trip");
   Require ([[voiceRoundTrip measures][1] systemBreak] && [[voiceRoundTrip measures][1] pageBreak],
            @"scorefile manual layout breaks did not round trip");
-  ScoreEngravingLayout *forcedLayout = [[[ScoreEngraver alloc] init]
-    layoutDocument:voiceRoundTrip musicWidth:2000.0 minimumMeasureWidth:60.0];
+  ScoreEngravingLayout *forcedLayout = [[[ScoreEngraver alloc] init] layoutDocument:voiceRoundTrip
+                                                                         musicWidth:2000.0
+                                                                minimumMeasureWidth:60.0];
   Require ([[forcedLayout systems] count] == 2,
            @"manual system/page break was not honored by engraving layout");
   Require ([[forcedLayout systems][1] startsNewPage],
@@ -729,16 +766,14 @@ main (void)
   ScoreNote *secondXMLNote = [[xmlRoundTrip notes] objectAtIndex:1];
   Require ([firstXMLNote voice] == 1 && [secondXMLNote voice] == 2,
            @"MusicXML voices did not round trip");
-  Require ([[firstXMLNote lyric] isEqualToString:@"Glo-"]
-             && [[firstXMLNote ornament] isEqualToString:@"trill-mark"]
-             && [firstXMLNote isGrace] && [firstXMLNote isCue]
-             && [firstXMLNote tremoloStrokes] == 2
-             && [[firstXMLNote hairpinStart] isEqualToString:@"crescendo"]
-             && [firstXMLNote pedalStart] && [firstXMLNote octaveShiftStart] == 1
-             && [[firstXMLNote directionText] isEqualToString:@"dolce"]
-             && [firstXMLNote staffAssignment] == 2
-             && [secondXMLNote hairpinEnd] && [secondXMLNote pedalEnd]
-             && [secondXMLNote octaveShiftEnd],
+  Require ([[firstXMLNote lyric] isEqualToString:@"Glo-"] &&
+             [[firstXMLNote ornament] isEqualToString:@"trill-mark"] && [firstXMLNote isGrace] &&
+             [firstXMLNote isCue] && [firstXMLNote tremoloStrokes] == 2 &&
+             [[firstXMLNote hairpinStart] isEqualToString:@"crescendo"] && [firstXMLNote pedalStart]
+             && [firstXMLNote octaveShiftStart] == 1 &&
+             [[firstXMLNote directionText] isEqualToString:@"dolce"] &&
+             [firstXMLNote staffAssignment] == 2 && [secondXMLNote hairpinEnd] &&
+             [secondXMLNote pedalEnd] && [secondXMLNote octaveShiftEnd],
            @"MusicXML extended notation did not round trip");
   Require ([[xmlRoundTrip measures][0] keySignatureFifths] == 2 &&
              [[[xmlRoundTrip measures][0] keyMode] isEqualToString:@"minor"] &&
@@ -750,7 +785,8 @@ main (void)
            @"MusicXML manual layout breaks did not round trip");
 
   NSData *midiKeys = [MidiParser dataForDocument:voices error:&error];
-  NSString *midiKeyPath = [NSTemporaryDirectory () stringByAppendingPathComponent:@"scoremaker-keys.mid"];
+  NSString *midiKeyPath =
+    [NSTemporaryDirectory () stringByAppendingPathComponent:@"scoremaker-keys.mid"];
   Require ([midiKeys writeToFile:midiKeyPath atomically:YES], @"could not write MIDI key test");
   ScoreDocument *midiKeyRoundTrip = [MidiParser parseFileAtPath:midiKeyPath error:&error];
   Require ([[midiKeyRoundTrip measures][0] keySignatureFifths] == 2 &&
@@ -780,15 +816,16 @@ main (void)
       [[accidentalScore notes] addObject:keyNote];
       [accidentalNotes addObject:keyNote];
     }
-  Require (ScoreDisplayedAccidentalForNote ([accidentalNotes objectAtIndex:0], accidentalScore)
-             == NSIntegerMax &&
-             ScoreDisplayedAccidentalForNote ([accidentalNotes objectAtIndex:1], accidentalScore) == 0 &&
-             ScoreDisplayedAccidentalForNote ([accidentalNotes objectAtIndex:2], accidentalScore)
-               == NSIntegerMax &&
-             ScoreDisplayedAccidentalForNote ([accidentalNotes objectAtIndex:3], accidentalScore) == 1 &&
-             ScoreDisplayedAccidentalForNote ([accidentalNotes objectAtIndex:4], accidentalScore)
-               == NSIntegerMax,
-           @"key-aware accidental carry or measure reset is incorrect");
+  Require (
+    ScoreDisplayedAccidentalForNote ([accidentalNotes objectAtIndex:0], accidentalScore)
+        == NSIntegerMax
+      && ScoreDisplayedAccidentalForNote ([accidentalNotes objectAtIndex:1], accidentalScore) == 0
+      && ScoreDisplayedAccidentalForNote ([accidentalNotes objectAtIndex:2], accidentalScore)
+           == NSIntegerMax
+      && ScoreDisplayedAccidentalForNote ([accidentalNotes objectAtIndex:3], accidentalScore) == 1
+      && ScoreDisplayedAccidentalForNote ([accidentalNotes objectAtIndex:4], accidentalScore)
+           == NSIntegerMax,
+    @"key-aware accidental carry or measure reset is incorrect");
   ScoreNote *xmlFeatureNote = [[xmlRoundTrip notes] objectAtIndex:0];
   Require ([xmlFeatureNote tieStart] && [xmlFeatureNote tupletActual] == 3 &&
              [[xmlFeatureNote dynamic] isEqualToString:@"mf"] &&
@@ -866,7 +903,8 @@ main (void)
   [tempoChange setTick:480];
   [tempoChange setMicrosecondsPerQuarter:1000000];
   [[timedScore tempoEvents] addObject:tempoChange];
-  ScoreScheduler *timedScheduler = [[[ScoreScheduler alloc] initWithDocument:timedScore] autorelease];
+  ScoreScheduler *timedScheduler =
+    [[[ScoreScheduler alloc] initWithDocument:timedScore] autorelease];
   Require (fabs ([timedScheduler timeForTick:960] - 1.5) < 0.0001 &&
              [timedScheduler tickForTime:1.5] == 960,
            @"tempo-map scheduling or inverse time conversion failed");
@@ -882,9 +920,10 @@ main (void)
   [[timedScore midiRoutes] addObject:route];
   ScoreMIDIRouter *router = [[[ScoreMIDIRouter alloc] initWithDocument:timedScore] autorelease];
   NSArray *routed = [router destinationsForSource:@"keyboard" channel:2 pitch:60 velocity:90];
-  Require ([routed count] == 1 && [[[routed objectAtIndex:0] objectForKey:@"pitch"] integerValue] == 127
-             && [[[routed objectAtIndex:0] objectForKey:@"velocity"] unsignedIntegerValue] == 127
-             && [[router destinationsForSource:@"other" channel:2 pitch:60 velocity:90] count] == 0,
+  Require ([routed count] == 1 &&
+             [[[routed objectAtIndex:0] objectForKey:@"pitch"] integerValue] == 127 &&
+             [[[routed objectAtIndex:0] objectForKey:@"velocity"] unsignedIntegerValue] == 127 &&
+             [[router destinationsForSource:@"other" channel:2 pitch:60 velocity:90] count] == 0,
            @"MIDI routing filters or value clamping failed");
 
   ScoreSynthesisGraph *invalidGraph = [[[ScoreSynthesisGraph alloc] init] autorelease];
@@ -900,8 +939,8 @@ main (void)
   ScoreCompositionProgram *invalidProgram = [[[ScoreCompositionProgram alloc] init] autorelease];
   [invalidProgram setSource:@"pattern unfinished\nnote 60 120\n"];
   Require (![ScoreCompositionEvaluator evaluateProgram:invalidProgram
-                                             inDocument:timedScore
-                                                  error:&validationError]
+                                            inDocument:timedScore
+                                                 error:&validationError]
              && [[invalidProgram diagnostics] count] > 0,
            @"composition evaluator accepted an unterminated pattern");
 
@@ -912,25 +951,27 @@ main (void)
                              "t beat; lead (noteUpdate 7) amp:0.75;\n"
                              "t 1; lead (noteOff 7); END;";
   ScoreDocument *advanced = [ScorefileParser parseString:advancedScore
-                                          suggestedTitle:@"Advanced" error:&validationError];
+                                          suggestedTitle:@"Advanced"
+                                                   error:&validationError];
   Require (advanced && [[advanced notes] count] == 2,
            @"math expressions or parameter-only noteUpdate parsing failed");
   ScoreNote *advancedFirst = [[advanced notes] objectAtIndex:0];
   ScoreNote *advancedSecond = [[advanced notes] objectAtIndex:1];
-  Require ([advancedFirst playbackFrequency] > 0.0 && [advancedFirst velocity] == 64 &&
-           [advancedSecond velocity] == 95 &&
-           fabs ([[[advancedFirst performanceParameters] objectForKey:@"bright"] doubleValue]
-                 - .8) < .000001 &&
-           [[advanced scorefileCompatibility] objectForKey:@"envelopes"] != nil,
-           @"tuning, synthesis parameters, envelopes, or update inheritance failed");
+  Require (
+    [advancedFirst playbackFrequency] > 0.0 && [advancedFirst velocity] == 64 &&
+      [advancedSecond velocity] == 95
+      && fabs ([[[advancedFirst performanceParameters] objectForKey:@"bright"] doubleValue] - .8)
+           < .000001
+      && [[advanced scorefileCompatibility] objectForKey:@"envelopes"] != nil,
+    @"tuning, synthesis parameters, envelopes, or update inheritance failed");
   NSData *advancedData = [ScorefileParser dataForDocument:advanced error:&validationError];
   NSString *advancedRoundTrip = [[[NSString alloc] initWithData:advancedData
                                                        encoding:NSUTF8StringEncoding] autorelease];
-  Require ([advancedRoundTrip rangeOfString:@"bearing:-0.25"].location != NSNotFound &&
-           [advancedRoundTrip rangeOfString:@"envelope shape"].location != NSNotFound &&
-           [[[advanced scorefileCompatibility] objectForKey:@"originalSource"]
-             isEqual:advancedScore],
-           @"advanced Scorefile constructs were not preserved during export");
+  Require (
+    [advancedRoundTrip rangeOfString:@"bearing:-0.25"].location != NSNotFound &&
+      [advancedRoundTrip rangeOfString:@"envelope shape"].location != NSNotFound &&
+      [[[advanced scorefileCompatibility] objectForKey:@"originalSource"] isEqual:advancedScore],
+    @"advanced Scorefile constructs were not preserved during export");
 
   NSString *scriptedScore = @"part aPart; aPart synthPatch:\"Fm1i\" synthPatchCount:4;\n"
                              "envelope ampFn = [(0,1)(.1,.7)|(1,0)]; BEGIN; t 0;\n"
@@ -942,57 +983,69 @@ main (void)
                              " t + .25; i = i + 1;\n"
                              "}\nEND;";
   ScoreDocument *scripted = [ScorefileParser parseString:scriptedScore
-                                          suggestedTitle:@"Scripted" error:&validationError];
+                                          suggestedTitle:@"Scripted"
+                                                   error:&validationError];
   Require (scripted && [[scripted notes] count] == 3,
            [NSString stringWithFormat:@"ScoreFile control flow failed: %@", validationError]);
   Require ([[[scripted notes] objectAtIndex:0] velocity] == 51 &&
-           [[[scripted notes] objectAtIndex:1] velocity] == 102 &&
-           fabs ([[[[[scripted notes] objectAtIndex:2] performanceParameters]
-                     objectForKey:@"bright"] doubleValue] - .6) < .000001 &&
-           [[[[scripted scorefileCompatibility] objectForKey:@"envelopesObjects"]
-              objectForKey:@"ampFn"] objectForKey:@"hasSustainPoint"] != nil,
+             [[[scripted notes] objectAtIndex:1] velocity] == 102
+             && fabs ([[[[[scripted notes] objectAtIndex:2] performanceParameters]
+                        objectForKey:@"bright"] doubleValue]
+                      - .6)
+                  < .000001
+             && [[[[scripted scorefileCompatibility] objectForKey:@"envelopesObjects"]
+                  objectForKey:@"ampFn"] objectForKey:@"hasSustainPoint"]
+                  != nil,
            @"conditionals, part defaults, or executable envelope metadata failed");
 
   NSString *randomProgram = @"part Random; BEGIN; t 0; int randomSeed = 4242; int i = 0;"
                              "while (i < 4) { Random (.1) freq:220 + ran * 110 amp:.5;"
                              "t + .1; i = i + 1; } END;";
   ScoreDocument *randomFirst = [ScorefileParser parseString:randomProgram
-                                             suggestedTitle:@"Random A" error:&validationError];
+                                             suggestedTitle:@"Random A"
+                                                      error:&validationError];
   ScoreDocument *randomSecond = [ScorefileParser parseString:randomProgram
-                                              suggestedTitle:@"Random B" error:&validationError];
+                                              suggestedTitle:@"Random B"
+                                                       error:&validationError];
   Require (randomFirst && randomSecond && [[randomFirst notes] count] == 4 &&
-           [[randomSecond notes] count] == 4,
+             [[randomSecond notes] count] == 4,
            @"deterministic random ScoreFile did not generate its notes");
   for (NSUInteger randomIndex = 0; randomIndex < 4; randomIndex++)
     Require (fabs ([[[randomFirst notes] objectAtIndex:randomIndex] playbackFrequency] -
-                   [[[randomSecond notes] objectAtIndex:randomIndex] playbackFrequency]) < 1e-12,
+                   [[[randomSecond notes] objectAtIndex:randomIndex] playbackFrequency])
+               < 1e-12,
              @"identical ScoreFile source produced different random values");
-  NSString *differentSeedProgram = [randomProgram
-    stringByReplacingOccurrencesOfString:@"randomSeed = 4242"
-                              withString:@"randomSeed = 4243"];
+  NSString *differentSeedProgram =
+    [randomProgram stringByReplacingOccurrencesOfString:@"randomSeed = 4242"
+                                             withString:@"randomSeed = 4243"];
   ScoreDocument *randomDifferent = [ScorefileParser parseString:differentSeedProgram
                                                  suggestedTitle:@"Random C"
                                                           error:&validationError];
   Require (fabs ([[[randomFirst notes] objectAtIndex:0] playbackFrequency] -
-                 [[[randomDifferent notes] objectAtIndex:0] playbackFrequency]) > 1e-9,
+                 [[[randomDifferent notes] objectAtIndex:0] playbackFrequency])
+             > 1e-9,
            @"an explicit randomSeed did not change the generated sequence");
 
   NSString *implicitRandom = @"part Random; BEGIN; t 0; Random (.1) freq:220 + ran * 10; END;";
   ScoreDocument *implicitFirst = [ScorefileParser parseString:implicitRandom
                                                suggestedTitle:@"Implicit A"
                                                         error:&validationError];
-  ScoreDocument *implicitSecond = [ScorefileParser parseString:
-    [@"/* comments do not perturb the musical seed */\n" stringByAppendingString:implicitRandom]
-                                                suggestedTitle:@"Implicit B"
-                                                         error:&validationError];
+  ScoreDocument *implicitSecond =
+    [ScorefileParser parseString:[@"/* comments do not perturb the musical seed */\n"
+                                   stringByAppendingString:implicitRandom]
+                  suggestedTitle:@"Implicit B"
+                           error:&validationError];
   Require (fabs ([[[implicitFirst notes] objectAtIndex:0] playbackFrequency] -
-                 [[[implicitSecond notes] objectAtIndex:0] playbackFrequency]) < 1e-12,
+                 [[[implicitSecond notes] objectAtIndex:0] playbackFrequency])
+             < 1e-12,
            @"comments unexpectedly changed the default deterministic random seed");
 
-  NSString *includeDirectory = [NSTemporaryDirectory () stringByAppendingPathComponent:
-    [NSString stringWithFormat:@"scoremaker-includes-%@", [[NSUUID UUID] UUIDString]]];
+  NSString *includeDirectory = [NSTemporaryDirectory ()
+    stringByAppendingPathComponent:[NSString stringWithFormat:@"scoremaker-includes-%@",
+                                                              [[NSUUID UUID] UUIDString]]];
   Require ([[NSFileManager defaultManager] createDirectoryAtPath:includeDirectory
-                                      withIntermediateDirectories:YES attributes:nil
+                                     withIntermediateDirectories:YES
+                                                      attributes:nil
                                                            error:&validationError],
            @"could not create include compatibility fixture");
   NSString *includeRoot = [includeDirectory stringByAppendingPathComponent:@"root.score"];
@@ -1000,44 +1053,55 @@ main (void)
   NSString *includeRootSource = @"part Included; BEGIN;\ninclude \"child.score\";\n"
                                  "t 1; Included (.5) keyNum:e4k; END;";
   NSString *includeChildSource = @"t 0; Included (.5) keyNum:c4k;";
-  Require ([includeRootSource writeToFile:includeRoot atomically:YES
-                                  encoding:NSUTF8StringEncoding error:&validationError] &&
-           [includeChildSource writeToFile:includeChild atomically:YES
-                                   encoding:NSUTF8StringEncoding error:&validationError],
+  Require ([includeRootSource writeToFile:includeRoot
+                               atomically:YES
+                                 encoding:NSUTF8StringEncoding
+                                    error:&validationError]
+             && [includeChildSource writeToFile:includeChild
+                                     atomically:YES
+                                       encoding:NSUTF8StringEncoding
+                                          error:&validationError],
            @"could not write include compatibility fixture");
   ScoreDocument *included = [ScorefileParser parseFileAtPath:includeRoot error:&validationError];
   Require (included && [[included notes] count] == 2 &&
-           [[[[included notes] objectAtIndex:0] provenance]
-             isEqual:[includeChild stringByStandardizingPath]] &&
-           [[[[included notes] objectAtIndex:1] provenance]
-             isEqual:[includeRoot stringByStandardizingPath]] &&
-           [[[included scorefileCompatibility] objectForKey:@"sourceFiles"]
-             containsObject:[includeChild stringByStandardizingPath]] &&
-           [[[included scorefileCompatibility] objectForKey:@"sourceFiles"]
-             containsObject:[includeRoot stringByStandardizingPath]],
+             [[[[included notes] objectAtIndex:0] provenance]
+               isEqual:[includeChild stringByStandardizingPath]]
+             && [[[[included notes] objectAtIndex:1] provenance]
+               isEqual:[includeRoot stringByStandardizingPath]]
+             && [[[included scorefileCompatibility] objectForKey:@"sourceFiles"]
+               containsObject:[includeChild stringByStandardizingPath]]
+             && [[[included scorefileCompatibility] objectForKey:@"sourceFiles"]
+               containsObject:[includeRoot stringByStandardizingPath]],
            @"included notes did not retain canonical per-file provenance");
 
   NSString *cycleA = [includeDirectory stringByAppendingPathComponent:@"cycle-a.score"];
   NSString *cycleB = [includeDirectory stringByAppendingPathComponent:@"cycle-b.score"];
-  [@"include \"cycle-b.score\";" writeToFile:cycleA atomically:YES
-                                      encoding:NSUTF8StringEncoding error:&validationError];
-  [@"include \"cycle-a.score\";" writeToFile:cycleB atomically:YES
-                                      encoding:NSUTF8StringEncoding error:&validationError];
+  [@"include \"cycle-b.score\";" writeToFile:cycleA
+                                  atomically:YES
+                                    encoding:NSUTF8StringEncoding
+                                       error:&validationError];
+  [@"include \"cycle-a.score\";" writeToFile:cycleB
+                                  atomically:YES
+                                    encoding:NSUTF8StringEncoding
+                                       error:&validationError];
   validationError = nil;
-  Require ([ScorefileParser parseFileAtPath:cycleA error:&validationError] == nil &&
-           [[[validationError localizedDescription] lowercaseString] rangeOfString:@"cycle"].location
-             != NSNotFound,
-           @"an include cycle did not produce an explicit diagnostic");
+  Require (
+    [ScorefileParser parseFileAtPath:cycleA error:&validationError] == nil &&
+      [[[validationError localizedDescription] lowercaseString] rangeOfString:@"cycle"].location
+        != NSNotFound,
+    @"an include cycle did not produce an explicit diagnostic");
 
   NSMutableString *tooManyIncludes = [NSMutableString string];
   for (NSUInteger includeIndex = 0; includeIndex < 129; includeIndex++)
     [tooManyIncludes appendString:@"include \"child.score\";\n"];
   NSString *includeBudgetPath = [includeDirectory stringByAppendingPathComponent:@"too-many.score"];
-  [tooManyIncludes writeToFile:includeBudgetPath atomically:YES
-                       encoding:NSUTF8StringEncoding error:&validationError];
+  [tooManyIncludes writeToFile:includeBudgetPath
+                    atomically:YES
+                      encoding:NSUTF8StringEncoding
+                         error:&validationError];
   validationError = nil;
   Require ([ScorefileParser parseFileAtPath:includeBudgetPath error:&validationError] == nil &&
-           [[validationError localizedDescription] rangeOfString:@"128"].location != NSNotFound,
+             [[validationError localizedDescription] rangeOfString:@"128"].location != NSNotFound,
            @"include-count budget was not enforced");
 
   NSMutableString *deepScript = [NSMutableString stringWithString:@"part Deep; BEGIN; int x = 1;"];
@@ -1048,16 +1112,17 @@ main (void)
     [deepScript appendString:@"}"];
   [deepScript appendString:@"END;"];
   validationError = nil;
-  Require ([ScorefileParser parseString:deepScript suggestedTitle:@"Too Deep"
-                                   error:&validationError] == nil &&
-           [[validationError localizedDescription] rangeOfString:@"128"].location != NSNotFound,
-           @"script-nesting budget was not enforced");
+  Require (
+    [ScorefileParser parseString:deepScript suggestedTitle:@"Too Deep" error:&validationError]
+        == nil
+      && [[validationError localizedDescription] rangeOfString:@"128"].location != NSNotFound,
+    @"script-nesting budget was not enforced");
   [[NSFileManager defaultManager] removeItemAtPath:includeDirectory error:NULL];
 
   NSString *algorithmicPath = @"examples/algorithmic-cycle-of-fifths.score";
   NSString *algorithmicSource = [NSString stringWithContentsOfFile:algorithmicPath
-                                                           encoding:NSUTF8StringEncoding
-                                                              error:&validationError];
+                                                          encoding:NSUTF8StringEncoding
+                                                             error:&validationError];
   NSArray *algorithmicRanges = nil;
   ScoreDocument *algorithmic = [ScorefileParser parseString:algorithmicSource
                                              suggestedTitle:@"Algorithmic Trace"
@@ -1067,38 +1132,63 @@ main (void)
            @"algorithmic notes did not retain source-trace mappings");
   Require ([[[algorithmic scorefileCompatibility] objectForKey:@"algorithmicSource"] boolValue],
            @"algorithmic ScoreFile was not identified as source-driven");
-  ScoreEngravingLayout *algorithmicLayout = [[[[ScoreEngraver alloc] init] autorelease]
-    layoutDocument:algorithmic musicWidth:648.0 minimumMeasureWidth:140.0];
+  NSString *printingScore = @"part Console; string label = \"root=\"; int root = 21; "
+                             "print label, root, \", doubled=\", max(root * 2, 0); "
+                             "BEGIN; Console (1) keyNum:root + 39; END;";
+  [ScorefileParser clearConsoleOutput];
+  ScoreDocument *printed = [ScorefileParser parseString:printingScore
+                                         suggestedTitle:@"Print Test"
+                                                  error:&validationError];
+  ScoreNote *printedNote
+    = printed && [[printed notes] count] ? [[printed notes] objectAtIndex:0] : nil;
+  Require (printed && [[printed notes] count] == 1 && [printedNote pitch] == 60,
+           @"ScoreFile print statement disrupted script evaluation");
+  Require ([[ScorefileParser consoleOutput] isEqualToString:@"root=21, doubled=42\n"],
+           @"ScoreFile print output was not retained for the application console");
+  validationError = nil;
+  Require ([ScorefileParser parseString:@"int x = 1; print missingName;"
+                         suggestedTitle:@"Bad Print"
+                                  error:&validationError]
+               == nil
+             && validationError != nil,
+           @"invalid ScoreFile print expression did not produce a diagnostic");
+  ScoreEngravingLayout *algorithmicLayout =
+    [[[[ScoreEngraver alloc] init] autorelease] layoutDocument:algorithmic
+                                                    musicWidth:648.0
+                                           minimumMeasureWidth:140.0];
   Require ([[algorithmicLayout systems] count] > 1,
            @"dense algorithmic score was allowed to crowd the right page edge");
   ScoreNote *generatedAlgorithmicNote = [[algorithmic notes] objectAtIndex:0];
   [generatedAlgorithmicNote setPitch:[generatedAlgorithmicNote pitch] + 1];
   NSData *preservedAlgorithmicData = [ScorefileParser dataForDocument:algorithmic
                                                                 error:&validationError];
-  NSString *preservedAlgorithmicSource = [[[NSString alloc]
-    initWithData:preservedAlgorithmicData encoding:NSUTF8StringEncoding] autorelease];
-  Require ([preservedAlgorithmicSource rangeOfString:@"while (chord < 12)"].location != NSNotFound &&
-           [preservedAlgorithmicSource rangeOfString:@"Harmony (.44) freq:root"].location != NSNotFound &&
-           [preservedAlgorithmicSource rangeOfString:@"ScoreMaker Structure V2"].location != NSNotFound,
-           @"editing an evaluated algorithmic score flattened its source program");
+  NSString *preservedAlgorithmicSource =
+    [[[NSString alloc] initWithData:preservedAlgorithmicData
+                           encoding:NSUTF8StringEncoding] autorelease];
+  Require (
+    [preservedAlgorithmicSource rangeOfString:@"while (chord < 12)"].location != NSNotFound &&
+      [preservedAlgorithmicSource rangeOfString:@"Harmony (.44) freq:root"].location != NSNotFound
+      &&
+      [preservedAlgorithmicSource rangeOfString:@"ScoreMaker Structure V2"].location != NSNotFound,
+    @"editing an evaluated algorithmic score flattened its source program");
   for (NSDictionary *mapping in algorithmicRanges)
     {
       NSRange range = [[mapping objectForKey:@"range"] rangeValue];
       NSString *origin = [algorithmicSource substringWithRange:range];
       Require ([origin rangeOfString:@"Harmony"].location != NSNotFound ||
-               [origin rangeOfString:@"Sparkle"].location != NSNotFound,
+                 [origin rangeOfString:@"Sparkle"].location != NSNotFound,
                @"generated note mapped to the wrong algorithmic source statement");
     }
 
-  Require ([MidiParser parseFileAtPath:@"/path/that/does/not/exist.mid" error:&validationError]
-             == nil
-             && [MusicXMLParser parseFileAtPath:@"/path/that/does/not/exist.musicxml"
-                                           error:&validationError] == nil
-             && [ScorefileParser parseFileAtPath:@"/path/that/does/not/exist.score"
-                                            error:&validationError] == nil,
-           @"file parsers did not reject missing input files");
-  Require ([layout systemContainingTick:NSUIntegerMax] == [[layout systems] lastObject]
-             && [layoutSystem fractionForTick:[layoutSystem endTick]] == 1.0,
+  Require (
+    [MidiParser parseFileAtPath:@"/path/that/does/not/exist.mid" error:&validationError] == nil &&
+      [MusicXMLParser parseFileAtPath:@"/path/that/does/not/exist.musicxml" error:&validationError]
+        == nil
+      && [ScorefileParser parseFileAtPath:@"/path/that/does/not/exist.score" error:&validationError]
+           == nil,
+    @"file parsers did not reject missing input files");
+  Require ([layout systemContainingTick:NSUIntegerMax] == [[layout systems] lastObject] &&
+             [layoutSystem fractionForTick:[layoutSystem endTick]] == 1.0,
            @"engraving layout boundary lookup failed");
 
   NSLog (@"PASS: complete application compatibility suite");

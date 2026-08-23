@@ -33,6 +33,8 @@ double root = c3;
 double level = .18;
 
 while (chord < 12) {
+	print chord;
+
     /* Move around the circle of fifths, folding roots into a useful register. */
     root = c3 * 1.5 ^ chord;
     while (root > c5) {

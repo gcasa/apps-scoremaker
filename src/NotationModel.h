@@ -99,6 +99,7 @@ typedef NS_ENUM (NSInteger, ScoreNotationKind) {
 
 /** Produces normalized notation elements from a complete score document. */
 @interface ScoreNotationModel : NSObject
+
 /** Returns the ordered normalized notation elements for <var>document</var>. */
 + (NSArray *)elementsForDocument:(ScoreDocument *)document;
 @end

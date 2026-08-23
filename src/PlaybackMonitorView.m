@@ -67,11 +67,12 @@ ScorePartColor (NSInteger track, BOOL darkVariant)
   _metronomeBeatDuration = 60.0 / (double)MAX ((NSUInteger)1, bpm);
   _metronomeBeatsPerMeasure = MAX ((NSUInteger)1, beatsPerMeasure);
   if (active && !_metronomeAnimationTimer)
-    _metronomeAnimationTimer = [[NSTimer scheduledTimerWithTimeInterval:1.0 / 30.0
-                                                                  target:self
-                                                                selector:@selector (updateMetronomeAnimation:)
-                                                                userInfo:nil
-                                                                 repeats:YES] retain];
+    _metronomeAnimationTimer =
+      [[NSTimer scheduledTimerWithTimeInterval:1.0 / 30.0
+                                        target:self
+                                      selector:@selector (updateMetronomeAnimation:)
+                                      userInfo:nil
+                                       repeats:YES] retain];
   if (!active)
     {
       [_metronomeAnimationTimer invalidate];
@@ -156,19 +157,23 @@ ScorePartColor (NSInteger track, BOOL darkVariant)
 {
   _target = target;
 }
+
 - (void)setAction:(SEL)action
 {
   _action = action;
 }
+
 - (NSInteger)inputPitch
 {
   return _inputPitch;
 }
+
 - (void)setInputPitch:(NSInteger)pitch
 {
   _inputPitch = pitch;
   [self setNeedsDisplay:YES];
 }
+
 - (void)resetInputPitch
 {
   if (_inputPitch != -1)
@@ -255,8 +260,7 @@ ScorePartColor (NSInteger track, BOOL darkVariant)
     {
       NSNumber *pitch = [NSNumber numberWithInteger:[note pitch]];
       [activePitches addObject:pitch];
-      [voicesByPitch setObject:[NSNumber numberWithInteger:[note voice]]
-                        forKey:pitch];
+      [voicesByPitch setObject:[NSNumber numberWithInteger:[note voice]] forKey:pitch];
       NSMutableSet *tracks = [tracksByPitch objectForKey:pitch];
       if (!tracks)
         {
@@ -289,17 +293,19 @@ ScorePartColor (NSInteger track, BOOL darkVariant)
       NSRect key = NSMakeRect (x, NSMinY (rect), whiteWidth, NSHeight (rect));
       BOOL active = [activePitches containsObject:[NSNumber numberWithInteger:pitch]];
       NSNumber *voice = [voicesByPitch objectForKey:[NSNumber numberWithInteger:pitch]];
-      NSArray *tracks = [[[tracksByPitch objectForKey:[NSNumber numberWithInteger:pitch]] allObjects]
-        sortedArrayUsingSelector:@selector (compare:)];
+      NSArray *tracks = [[[tracksByPitch objectForKey:[NSNumber numberWithInteger:pitch]]
+        allObjects] sortedArrayUsingSelector:@selector (compare:)];
       NSColor *activeColor = distinguishParts && [tracks count] > 0
                                ? ScorePartColor ([[tracks objectAtIndex:0] integerValue], NO)
                                : ScoreVoiceColor (voice ? [voice integerValue] : 1, NO);
       BOOL inControllerRange = _controllerRangeVisible && pitch >= _controllerFirstPitch
                                && pitch <= _controllerLastPitch;
       [(active ? activeColor
-               : (inControllerRange
-                    ? [NSColor colorWithCalibratedRed:0.88 green:0.93 blue:0.98 alpha:1.0]
-                    : [NSColor whiteColor])) setFill];
+               : (inControllerRange ? [NSColor colorWithCalibratedRed:0.88
+                                                                green:0.93
+                                                                 blue:0.98
+                                                                alpha:1.0]
+                                    : [NSColor whiteColor])) setFill];
       NSRectFill (key);
       if (active && distinguishParts && [tracks count] > 1)
         {
@@ -307,8 +313,8 @@ ScorePartColor (NSInteger track, BOOL darkVariant)
           for (NSUInteger partIndex = 0; partIndex < [tracks count]; partIndex++)
             {
               [ScorePartColor ([[tracks objectAtIndex:partIndex] integerValue], NO) setFill];
-              NSRectFill (NSMakeRect (NSMinX (key) + partIndex * segmentWidth,
-                                      NSMaxY (key) - 6.0, segmentWidth, 6.0));
+              NSRectFill (NSMakeRect (NSMinX (key) + partIndex * segmentWidth, NSMaxY (key) - 6.0,
+                                      segmentWidth, 6.0));
             }
         }
       if (pitch == 60)
@@ -347,17 +353,19 @@ ScorePartColor (NSInteger track, BOOL darkVariant)
       NSRect key = NSMakeRect (x, NSMinY (rect), blackWidth, blackHeight);
       BOOL active = [activePitches containsObject:[NSNumber numberWithInteger:pitch]];
       NSNumber *voice = [voicesByPitch objectForKey:[NSNumber numberWithInteger:pitch]];
-      NSArray *tracks = [[[tracksByPitch objectForKey:[NSNumber numberWithInteger:pitch]] allObjects]
-        sortedArrayUsingSelector:@selector (compare:)];
+      NSArray *tracks = [[[tracksByPitch objectForKey:[NSNumber numberWithInteger:pitch]]
+        allObjects] sortedArrayUsingSelector:@selector (compare:)];
       NSColor *activeColor = distinguishParts && [tracks count] > 0
                                ? ScorePartColor ([[tracks objectAtIndex:0] integerValue], YES)
                                : ScoreVoiceColor (voice ? [voice integerValue] : 1, YES);
       BOOL inControllerRange = _controllerRangeVisible && pitch >= _controllerFirstPitch
                                && pitch <= _controllerLastPitch;
       [(active ? activeColor
-               : (inControllerRange
-                    ? [NSColor colorWithCalibratedRed:0.16 green:0.23 blue:0.31 alpha:1.0]
-                    : [NSColor colorWithCalibratedWhite:0.08 alpha:1.0])) setFill];
+               : (inControllerRange ? [NSColor colorWithCalibratedRed:0.16
+                                                                green:0.23
+                                                                 blue:0.31
+                                                                alpha:1.0]
+                                    : [NSColor colorWithCalibratedWhite:0.08 alpha:1.0])) setFill];
       NSRectFill (key);
       if (active && distinguishParts && [tracks count] > 1)
         {
@@ -365,8 +373,8 @@ ScorePartColor (NSInteger track, BOOL darkVariant)
           for (NSUInteger partIndex = 0; partIndex < [tracks count]; partIndex++)
             {
               [ScorePartColor ([[tracks objectAtIndex:partIndex] integerValue], YES) setFill];
-              NSRectFill (NSMakeRect (NSMinX (key) + partIndex * segmentWidth,
-                                      NSMaxY (key) - 4.0, segmentWidth, 4.0));
+              NSRectFill (NSMakeRect (NSMinX (key) + partIndex * segmentWidth, NSMaxY (key) - 4.0,
+                                      segmentWidth, 4.0));
             }
         }
       [[NSColor blackColor] setStroke];
@@ -581,13 +589,14 @@ ScorePartColor (NSInteger track, BOOL darkVariant)
     {
       NSTimeInterval elapsed = [NSDate timeIntervalSinceReferenceDate] - _metronomeBeatTime;
       double progress = _metronomeBeatDuration > 0.0
-                          ? MIN (1.0, MAX (0.0, elapsed / _metronomeBeatDuration)) : 0.0;
+                          ? MIN (1.0, MAX (0.0, elapsed / _metronomeBeatDuration))
+                          : 0.0;
       CGFloat direction = (_metronomeBeat % 2 == 0) ? -1.0 : 1.0;
       CGFloat angle = direction * (1.0 - 2.0 * progress) * 0.52;
       NSPoint pivot = NSMakePoint (NSWidth ([self bounds]) - 34.0, 23.0);
       CGFloat armLength = 18.0;
-      NSPoint bob = NSMakePoint (pivot.x + sin (angle) * armLength,
-                                 pivot.y - cos (angle) * armLength);
+      NSPoint bob
+        = NSMakePoint (pivot.x + sin (angle) * armLength, pivot.y - cos (angle) * armLength);
       NSBezierPath *arm = [NSBezierPath bezierPath];
       [arm moveToPoint:pivot];
       [arm lineToPoint:bob];
@@ -598,12 +607,16 @@ ScorePartColor (NSInteger track, BOOL darkVariant)
                               ? [NSColor colorWithCalibratedRed:0.91 green:0.29 blue:0.22 alpha:1.0]
                               : [NSColor selectedControlColor];
       [pulseColor setFill];
-      [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect (bob.x - 4.0, bob.y - 4.0, 8.0, 8.0)] fill];
-      NSString *beatLabel = [NSString stringWithFormat:@"%lu/%lu",
-        (unsigned long)(_metronomeBeat + 1), (unsigned long)_metronomeBeatsPerMeasure];
+      [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect (bob.x - 4.0, bob.y - 4.0, 8.0, 8.0)]
+        fill];
+      NSString *beatLabel =
+        [NSString stringWithFormat:@"%lu/%lu", (unsigned long)(_metronomeBeat + 1),
+                                   (unsigned long)_metronomeBeatsPerMeasure];
       [beatLabel drawInRect:NSMakeRect (NSWidth ([self bounds]) - 72.0, 5.0, 36.0, 14.0)
-             withAttributes:@{ NSFontAttributeName : [NSFont boldSystemFontOfSize:9.0],
-                               NSForegroundColorAttributeName : pulseColor }];
+             withAttributes:@{
+               NSFontAttributeName : [NSFont boldSystemFontOfSize:9.0],
+               NSForegroundColorAttributeName : pulseColor
+             }];
     }
   NSArray *selectedActiveNotes = [self activeNotesForTrack:_selectedTrack];
   NSArray *keyboardActiveNotes = _showAllParts ? [self activeNotes] : selectedActiveNotes;

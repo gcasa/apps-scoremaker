@@ -209,6 +209,12 @@ Choose **Score > Edit Score Source…** or click **Edit Source…** in the inspe
 
 Edits in this window are isolated until **Apply** succeeds. Comments and compatible source statements are preserved when an authoritative `.score` source is saved.
 
+ScoreFile programs can write diagnostic information to the application console while they are
+interpreted using `print expression [, expression] ...;`. String literals, string variables, and
+numeric expressions are supported; comma-separated results are concatenated and each `print`
+statement ends the console line. For example, `print "root=", root;` writes the label followed by
+the current value of `root` to standard error.
+
 ## 9. Page layout, printing, and publication
 
 ### Page layout

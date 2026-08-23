@@ -23,12 +23,14 @@
  * Coordinates application startup, document commands, and the dynamically
  * populated Score menu.
  */
-@interface AppDelegate : NSObject <NSApplicationDelegate, NSMenuDelegate,
-                                  NSTableViewDataSource, NSTableViewDelegate>
+@interface AppDelegate
+    : NSObject <NSApplicationDelegate, NSMenuDelegate, NSTableViewDataSource, NSTableViewDelegate>
 {
   NSMenu *_recentDocumentsMenu;
   NSPanel *_infoPanel;
   NSPanel *_playlistPanel;
+  NSPanel *_consolePanel;
+  NSTextView *_consoleTextView;
   NSTableView *_playlistTable;
   NSTextField *_playlistDelayField;
   NSTextField *_playlistStatusField;
@@ -37,5 +39,6 @@
   NSTimer *_playlistDelayTimer;
   NSUInteger _playlistIndex;
   BOOL _playlistPlaying;
+  BOOL _applicationDidFinishLaunching;
 }
 @end

@@ -22,23 +22,28 @@
 
 /** Converts Standard MIDI files to and from the ScoreMaker document model. */
 @interface MidiParser : NSObject
+
 /**
  * Parses the MIDI file at <var>path</var>.
  * Returns a new score document, or <code>nil</code> and an error on failure.
  */
 + (ScoreDocument *)parseFileAtPath:(NSString *)path error:(NSError **)error;
+
 /**
  * Encodes <var>document</var> as a Standard MIDI file.
  * Returns the encoded bytes, or <code>nil</code> and an error on failure.
  */
 + (NSData *)dataForDocument:(ScoreDocument *)document error:(NSError **)error;
+
 /** Returns the ordered list of 128 General MIDI program names. */
 + (NSArray *)generalMidiProgramNames;
+
 /**
  * Parses a Cakewalk instrument-definition (.ins) file. Each returned dictionary contains
  * a name and an ordered banks array; each bank contains number, name, and a 128-entry patches
  * array. Missing patch names are represented by NSNull.
  */
 + (NSArray *)instrumentDefinitionsFromINSFileAtPath:(NSString *)path error:(NSError **)error;
+
 + (NSArray *)instrumentDefinitionsFromINSString:(NSString *)contents error:(NSError **)error;
 @end

@@ -10,11 +10,13 @@
 
 /** Reads and writes ScoreMaker's native project container format. */
 @interface ScoreProjectSerializer : NSObject
+
 /**
  * Serializes <var>document</var>, including platform-specific state, into a
  * native project container. Returns <code>nil</code> on failure.
  */
 + (NSData *)dataForDocument:(ScoreDocument *)document error:(NSError **)error;
+
 /**
  * Restores a score document from native project <var>data</var>.
  * Returns <code>nil</code> when the data is damaged or unsupported.

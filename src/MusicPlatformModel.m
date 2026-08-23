@@ -29,6 +29,7 @@ ScoreNewIdentifier (void)
 @synthesize identifier = _identifier, name = _name, backendIdentifier = _backendIdentifier;
 @synthesize program = _program, transposition = _transposition, lowestPitch = _lowestPitch;
 @synthesize highestPitch = _highestPitch, parameters = _parameters;
+
 - (id)init
 {
   if ((self = [super init]))
@@ -41,6 +42,7 @@ ScoreNewIdentifier (void)
     }
   return self;
 }
+
 - (id)copyWithZone:(NSZone *)zone
 {
   ScoreInstrumentDefinition *copy = [[ScoreInstrumentDefinition allocWithZone:zone] init];
@@ -54,6 +56,7 @@ ScoreNewIdentifier (void)
   copy.parameters = [[_parameters mutableCopy] autorelease];
   return copy;
 }
+
 - (void)dealloc
 {
   [_identifier release];
@@ -67,6 +70,7 @@ ScoreNewIdentifier (void)
 @implementation ScoreVoiceDefinition
 @synthesize identifier = _identifier, number = _number;
 @synthesize preferredStemDirection = _preferredStemDirection;
+
 - (id)init
 {
   if ((self = [super init]))
@@ -76,6 +80,7 @@ ScoreNewIdentifier (void)
     }
   return self;
 }
+
 - (id)copyWithZone:(NSZone *)zone
 {
   ScoreVoiceDefinition *copy = [[ScoreVoiceDefinition allocWithZone:zone] init];
@@ -84,6 +89,7 @@ ScoreNewIdentifier (void)
   copy.preferredStemDirection = _preferredStemDirection;
   return copy;
 }
+
 - (void)dealloc
 {
   [_identifier release];
@@ -93,6 +99,7 @@ ScoreNewIdentifier (void)
 
 @implementation ScoreStaffDefinition
 @synthesize identifier = _identifier, clef = _clef, voices = _voices;
+
 - (id)init
 {
   if ((self = [super init]))
@@ -102,6 +109,7 @@ ScoreNewIdentifier (void)
     }
   return self;
 }
+
 - (id)copyWithZone:(NSZone *)zone
 {
   ScoreStaffDefinition *copy = [[ScoreStaffDefinition allocWithZone:zone] init];
@@ -110,6 +118,7 @@ ScoreNewIdentifier (void)
   copy.voices = [[[NSMutableArray alloc] initWithArray:_voices copyItems:YES] autorelease];
   return copy;
 }
+
 - (void)dealloc
 {
   [_identifier release];
@@ -128,8 +137,17 @@ ScoreNewIdentifier (void)
 @synthesize midiFallbackMode = _midiFallbackMode, midiFallbackUniqueID = _midiFallbackUniqueID,
             midiFallbackName = _midiFallbackName;
 @synthesize synthesisGraph = _synthesisGraph;
-- (void)setGain:(CGFloat)value { _gain = MIN ((CGFloat)2.0, MAX ((CGFloat)0.0, value)); }
-- (void)setPan:(CGFloat)value { _pan = MIN ((CGFloat)1.0, MAX ((CGFloat)-1.0, value)); }
+
+- (void)setGain:(CGFloat)value
+{
+  _gain = MIN ((CGFloat)2.0, MAX ((CGFloat)0.0, value));
+}
+
+- (void)setPan:(CGFloat)value
+{
+  _pan = MIN ((CGFloat)1.0, MAX ((CGFloat)-1.0, value));
+}
+
 - (id)init
 {
   if ((self = [super init]))
@@ -143,6 +161,7 @@ ScoreNewIdentifier (void)
     }
   return self;
 }
+
 - (id)copyWithZone:(NSZone *)zone
 {
   ScorePartDefinition *copy = [[ScorePartDefinition allocWithZone:zone] init];
@@ -166,6 +185,7 @@ ScoreNewIdentifier (void)
   copy.synthesisGraph = [[_synthesisGraph copy] autorelease];
   return copy;
 }
+
 - (void)dealloc
 {
   [_identifier release];
@@ -189,6 +209,7 @@ ScoreNewIdentifier (void)
 @synthesize staffScale = _staffScale, systemSpacing = _systemSpacing;
 @synthesize showPageNumbers = _showPageNumbers, showHeaders = _showHeaders;
 @synthesize headerText = _headerText, footerText = _footerText;
+
 - (id)init
 {
   if ((self = [super init]))
@@ -205,34 +226,76 @@ ScoreNewIdentifier (void)
     }
   return self;
 }
-- (void)setPaperWidth:(CGFloat)value { _paperWidth = MAX (72.0, value); }
-- (void)setPaperHeight:(CGFloat)value { _paperHeight = MAX (72.0, value); }
-- (void)setMarginTop:(CGFloat)value { _marginTop = MAX (0.0, value); }
-- (void)setMarginRight:(CGFloat)value { _marginRight = MAX (0.0, value); }
-- (void)setMarginBottom:(CGFloat)value { _marginBottom = MAX (0.0, value); }
-- (void)setMarginLeft:(CGFloat)value { _marginLeft = MAX (0.0, value); }
-- (void)setStaffScale:(CGFloat)value { _staffScale = MIN (2.0, MAX (0.5, value)); }
-- (void)setSystemSpacing:(CGFloat)value { _systemSpacing = MAX (0.0, value); }
+
+- (void)setPaperWidth:(CGFloat)value
+{
+  _paperWidth = MAX (72.0, value);
+}
+
+- (void)setPaperHeight:(CGFloat)value
+{
+  _paperHeight = MAX (72.0, value);
+}
+
+- (void)setMarginTop:(CGFloat)value
+{
+  _marginTop = MAX (0.0, value);
+}
+
+- (void)setMarginRight:(CGFloat)value
+{
+  _marginRight = MAX (0.0, value);
+}
+
+- (void)setMarginBottom:(CGFloat)value
+{
+  _marginBottom = MAX (0.0, value);
+}
+
+- (void)setMarginLeft:(CGFloat)value
+{
+  _marginLeft = MAX (0.0, value);
+}
+
+- (void)setStaffScale:(CGFloat)value
+{
+  _staffScale = MIN (2.0, MAX (0.5, value));
+}
+
+- (void)setSystemSpacing:(CGFloat)value
+{
+  _systemSpacing = MAX (0.0, value);
+}
+
 - (id)copyWithZone:(NSZone *)zone
 {
   ScorePageLayout *copy = [[ScorePageLayout allocWithZone:zone] init];
-  copy.paperWidth = _paperWidth; copy.paperHeight = _paperHeight;
-  copy.marginTop = _marginTop; copy.marginRight = _marginRight;
-  copy.marginBottom = _marginBottom; copy.marginLeft = _marginLeft;
-  copy.staffScale = _staffScale; copy.systemSpacing = _systemSpacing;
-  copy.showPageNumbers = _showPageNumbers; copy.showHeaders = _showHeaders;
-  copy.headerText = _headerText; copy.footerText = _footerText;
+  copy.paperWidth = _paperWidth;
+  copy.paperHeight = _paperHeight;
+  copy.marginTop = _marginTop;
+  copy.marginRight = _marginRight;
+  copy.marginBottom = _marginBottom;
+  copy.marginLeft = _marginLeft;
+  copy.staffScale = _staffScale;
+  copy.systemSpacing = _systemSpacing;
+  copy.showPageNumbers = _showPageNumbers;
+  copy.showHeaders = _showHeaders;
+  copy.headerText = _headerText;
+  copy.footerText = _footerText;
   return copy;
 }
+
 - (void)dealloc
 {
-  [_headerText release]; [_footerText release];
+  [_headerText release];
+  [_footerText release];
   [super dealloc];
 }
 @end
 
 @implementation ScoreTempoEvent
 @synthesize tick = _tick, microsecondsPerQuarter = _microsecondsPerQuarter;
+
 - (id)copyWithZone:(NSZone *)zone
 {
   ScoreTempoEvent *copy = [[ScoreTempoEvent allocWithZone:zone] init];
@@ -247,6 +310,7 @@ ScoreNewIdentifier (void)
 @synthesize sourceChannel = _sourceChannel, destinationPartIdentifier = _destinationPartIdentifier;
 @synthesize destinationChannel = _destinationChannel, transposition = _transposition;
 @synthesize velocityScale = _velocityScale, enabled = _enabled;
+
 - (id)init
 {
   if ((self = [super init]))
@@ -259,6 +323,7 @@ ScoreNewIdentifier (void)
     }
   return self;
 }
+
 - (id)copyWithZone:(NSZone *)zone
 {
   ScoreMIDIRoute *copy = [[ScoreMIDIRoute allocWithZone:zone] init];
@@ -272,6 +337,7 @@ ScoreNewIdentifier (void)
   copy.enabled = _enabled;
   return copy;
 }
+
 - (void)dealloc
 {
   [_identifier release];
@@ -283,6 +349,7 @@ ScoreNewIdentifier (void)
 
 @implementation ScoreSynthesisNode
 @synthesize identifier = _identifier, typeIdentifier = _typeIdentifier, parameters = _parameters;
+
 - (id)init
 {
   if ((self = [super init]))
@@ -292,6 +359,7 @@ ScoreNewIdentifier (void)
     }
   return self;
 }
+
 - (id)copyWithZone:(NSZone *)zone
 {
   ScoreSynthesisNode *copy = [[ScoreSynthesisNode allocWithZone:zone] init];
@@ -300,6 +368,7 @@ ScoreNewIdentifier (void)
   copy.parameters = [[_parameters mutableCopy] autorelease];
   return copy;
 }
+
 - (void)dealloc
 {
   [_identifier release];
@@ -313,6 +382,7 @@ ScoreNewIdentifier (void)
 @synthesize sourceNodeIdentifier = _sourceNodeIdentifier, sourcePort = _sourcePort;
 @synthesize destinationNodeIdentifier = _destinationNodeIdentifier,
             destinationPort = _destinationPort;
+
 - (id)copyWithZone:(NSZone *)zone
 {
   ScoreSynthesisConnection *copy = [[ScoreSynthesisConnection allocWithZone:zone] init];
@@ -322,6 +392,7 @@ ScoreNewIdentifier (void)
   copy.destinationPort = _destinationPort;
   return copy;
 }
+
 - (void)dealloc
 {
   [_sourceNodeIdentifier release];
@@ -334,6 +405,7 @@ ScoreNewIdentifier (void)
 
 @implementation ScoreSynthesisGraph
 @synthesize nodes = _nodes, connections = _connections;
+
 - (id)init
 {
   if ((self = [super init]))
@@ -343,6 +415,7 @@ ScoreNewIdentifier (void)
     }
   return self;
 }
+
 - (BOOL)validateWithError:(NSError **)error
 {
   NSMutableSet *identifiers = [NSMutableSet set];
@@ -376,6 +449,7 @@ ScoreNewIdentifier (void)
       }
   return YES;
 }
+
 - (id)copyWithZone:(NSZone *)zone
 {
   ScoreSynthesisGraph *copy = [[ScoreSynthesisGraph allocWithZone:zone] init];
@@ -384,6 +458,7 @@ ScoreNewIdentifier (void)
                                                   copyItems:YES] autorelease];
   return copy;
 }
+
 - (void)dealloc
 {
   [_nodes release];
@@ -394,6 +469,7 @@ ScoreNewIdentifier (void)
 
 @implementation ScoreCompositionProgram
 @synthesize source = _source, diagnostics = _diagnostics;
+
 - (id)init
 {
   if ((self = [super init]))
@@ -403,6 +479,7 @@ ScoreNewIdentifier (void)
     }
   return self;
 }
+
 - (id)copyWithZone:(NSZone *)zone
 {
   ScoreCompositionProgram *copy = [[ScoreCompositionProgram allocWithZone:zone] init];
@@ -410,6 +487,7 @@ ScoreNewIdentifier (void)
   copy.diagnostics = [[_diagnostics mutableCopy] autorelease];
   return copy;
 }
+
 - (void)dealloc
 {
   [_source release];

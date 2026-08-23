@@ -103,23 +103,23 @@ typedef struct
   float *reverbLeft;
   float *reverbRight;
   NSUInteger reverbCapacity;
-  _Atomic(int) patchWaveform[SCORE_DSP_PATCHES];
-  _Atomic(float) patchAttack[SCORE_DSP_PATCHES];
-  _Atomic(float) patchDecay[SCORE_DSP_PATCHES];
-  _Atomic(float) patchSustain[SCORE_DSP_PATCHES];
-  _Atomic(float) patchRelease[SCORE_DSP_PATCHES];
-  _Atomic(float) patchLFORate[SCORE_DSP_PATCHES];
-  _Atomic(float) patchLFODepth[SCORE_DSP_PATCHES];
-  _Atomic(float) patchLFODelay[SCORE_DSP_PATCHES];
-  _Atomic(float) patchFilterCutoff[SCORE_DSP_PATCHES];
-  _Atomic(float) patchFilterResonance[SCORE_DSP_PATCHES];
-  _Atomic(float) patchFilterAttack[SCORE_DSP_PATCHES];
-  _Atomic(float) patchFilterDecay[SCORE_DSP_PATCHES];
-  _Atomic(float) patchFilterSustain[SCORE_DSP_PATCHES];
-  _Atomic(float) patchFilterRelease[SCORE_DSP_PATCHES];
-  _Atomic(float) patchFilterEnvelopeAmount[SCORE_DSP_PATCHES];
-  _Atomic(float) patchVelocityToAmplitude[SCORE_DSP_PATCHES];
-  _Atomic(float) patchVelocityToFilter[SCORE_DSP_PATCHES];
+  _Atomic (int) patchWaveform[SCORE_DSP_PATCHES];
+  _Atomic (float) patchAttack[SCORE_DSP_PATCHES];
+  _Atomic (float) patchDecay[SCORE_DSP_PATCHES];
+  _Atomic (float) patchSustain[SCORE_DSP_PATCHES];
+  _Atomic (float) patchRelease[SCORE_DSP_PATCHES];
+  _Atomic (float) patchLFORate[SCORE_DSP_PATCHES];
+  _Atomic (float) patchLFODepth[SCORE_DSP_PATCHES];
+  _Atomic (float) patchLFODelay[SCORE_DSP_PATCHES];
+  _Atomic (float) patchFilterCutoff[SCORE_DSP_PATCHES];
+  _Atomic (float) patchFilterResonance[SCORE_DSP_PATCHES];
+  _Atomic (float) patchFilterAttack[SCORE_DSP_PATCHES];
+  _Atomic (float) patchFilterDecay[SCORE_DSP_PATCHES];
+  _Atomic (float) patchFilterSustain[SCORE_DSP_PATCHES];
+  _Atomic (float) patchFilterRelease[SCORE_DSP_PATCHES];
+  _Atomic (float) patchFilterEnvelopeAmount[SCORE_DSP_PATCHES];
+  _Atomic (float) patchVelocityToAmplitude[SCORE_DSP_PATCHES];
+  _Atomic (float) patchVelocityToFilter[SCORE_DSP_PATCHES];
   float voiceGain[SCORE_DSP_PATCHES];
   float voiceLowpassCoefficient[SCORE_DSP_PATCHES];
   float voiceLowpassLeft[SCORE_DSP_PATCHES];
@@ -144,23 +144,25 @@ static ScoreDSPPatch
 ScoreDSPLoadPatch (ScoreDSPState *state, NSInteger voice)
 {
   NSUInteger index = (NSUInteger)MAX (1, MIN (SCORE_DSP_PATCHES, voice)) - 1;
-  return (ScoreDSPPatch){ atomic_load_explicit (&state->patchWaveform[index], memory_order_acquire),
-                          atomic_load_explicit (&state->patchAttack[index], memory_order_acquire),
-                          atomic_load_explicit (&state->patchDecay[index], memory_order_acquire),
-                          atomic_load_explicit (&state->patchSustain[index], memory_order_acquire),
-                          atomic_load_explicit (&state->patchRelease[index], memory_order_acquire),
-                          atomic_load_explicit (&state->patchLFORate[index], memory_order_acquire),
-                          atomic_load_explicit (&state->patchLFODepth[index], memory_order_acquire),
-                          atomic_load_explicit (&state->patchLFODelay[index], memory_order_acquire),
-                          atomic_load_explicit (&state->patchFilterCutoff[index], memory_order_acquire),
-                          atomic_load_explicit (&state->patchFilterResonance[index], memory_order_acquire),
-                          atomic_load_explicit (&state->patchFilterAttack[index], memory_order_acquire),
-                          atomic_load_explicit (&state->patchFilterDecay[index], memory_order_acquire),
-                          atomic_load_explicit (&state->patchFilterSustain[index], memory_order_acquire),
-                          atomic_load_explicit (&state->patchFilterRelease[index], memory_order_acquire),
-                          atomic_load_explicit (&state->patchFilterEnvelopeAmount[index], memory_order_acquire),
-                          atomic_load_explicit (&state->patchVelocityToAmplitude[index], memory_order_acquire),
-                          atomic_load_explicit (&state->patchVelocityToFilter[index], memory_order_acquire) };
+  return (ScoreDSPPatch){
+    atomic_load_explicit (&state->patchWaveform[index], memory_order_acquire),
+    atomic_load_explicit (&state->patchAttack[index], memory_order_acquire),
+    atomic_load_explicit (&state->patchDecay[index], memory_order_acquire),
+    atomic_load_explicit (&state->patchSustain[index], memory_order_acquire),
+    atomic_load_explicit (&state->patchRelease[index], memory_order_acquire),
+    atomic_load_explicit (&state->patchLFORate[index], memory_order_acquire),
+    atomic_load_explicit (&state->patchLFODepth[index], memory_order_acquire),
+    atomic_load_explicit (&state->patchLFODelay[index], memory_order_acquire),
+    atomic_load_explicit (&state->patchFilterCutoff[index], memory_order_acquire),
+    atomic_load_explicit (&state->patchFilterResonance[index], memory_order_acquire),
+    atomic_load_explicit (&state->patchFilterAttack[index], memory_order_acquire),
+    atomic_load_explicit (&state->patchFilterDecay[index], memory_order_acquire),
+    atomic_load_explicit (&state->patchFilterSustain[index], memory_order_acquire),
+    atomic_load_explicit (&state->patchFilterRelease[index], memory_order_acquire),
+    atomic_load_explicit (&state->patchFilterEnvelopeAmount[index], memory_order_acquire),
+    atomic_load_explicit (&state->patchVelocityToAmplitude[index], memory_order_acquire),
+    atomic_load_explicit (&state->patchVelocityToFilter[index], memory_order_acquire)
+  };
 }
 
 static void
@@ -175,15 +177,23 @@ ScoreDSPStorePatch (ScoreDSPState *state, NSInteger voice, ScoreDSPPatch patch)
   atomic_store_explicit (&state->patchLFORate[index], patch.lfoRate, memory_order_release);
   atomic_store_explicit (&state->patchLFODepth[index], patch.lfoDepth, memory_order_release);
   atomic_store_explicit (&state->patchLFODelay[index], patch.lfoDelay, memory_order_release);
-  atomic_store_explicit (&state->patchFilterCutoff[index], patch.filterCutoff, memory_order_release);
-  atomic_store_explicit (&state->patchFilterResonance[index], patch.filterResonance, memory_order_release);
-  atomic_store_explicit (&state->patchFilterAttack[index], patch.filterAttack, memory_order_release);
+  atomic_store_explicit (&state->patchFilterCutoff[index], patch.filterCutoff,
+                         memory_order_release);
+  atomic_store_explicit (&state->patchFilterResonance[index], patch.filterResonance,
+                         memory_order_release);
+  atomic_store_explicit (&state->patchFilterAttack[index], patch.filterAttack,
+                         memory_order_release);
   atomic_store_explicit (&state->patchFilterDecay[index], patch.filterDecay, memory_order_release);
-  atomic_store_explicit (&state->patchFilterSustain[index], patch.filterSustain, memory_order_release);
-  atomic_store_explicit (&state->patchFilterRelease[index], patch.filterRelease, memory_order_release);
-  atomic_store_explicit (&state->patchFilterEnvelopeAmount[index], patch.filterEnvelopeAmount, memory_order_release);
-  atomic_store_explicit (&state->patchVelocityToAmplitude[index], patch.velocityToAmplitude, memory_order_release);
-  atomic_store_explicit (&state->patchVelocityToFilter[index], patch.velocityToFilter, memory_order_release);
+  atomic_store_explicit (&state->patchFilterSustain[index], patch.filterSustain,
+                         memory_order_release);
+  atomic_store_explicit (&state->patchFilterRelease[index], patch.filterRelease,
+                         memory_order_release);
+  atomic_store_explicit (&state->patchFilterEnvelopeAmount[index], patch.filterEnvelopeAmount,
+                         memory_order_release);
+  atomic_store_explicit (&state->patchVelocityToAmplitude[index], patch.velocityToAmplitude,
+                         memory_order_release);
+  atomic_store_explicit (&state->patchVelocityToFilter[index], patch.velocityToFilter,
+                         memory_order_release);
 }
 
 static float
@@ -295,7 +305,8 @@ ScoreDSPApplyVoiceEffects (ScoreDSPState *state, NSUInteger index, float *left, 
       float wetLeft = state->voiceReverbLeft[index][position];
       float wetRight = state->voiceReverbRight[index][rightPosition];
       state->voiceReverbLeft[index][position] = l + wetRight * state->voiceReverbFeedback[index];
-      state->voiceReverbRight[index][rightPosition] = r + wetLeft * state->voiceReverbFeedback[index];
+      state->voiceReverbRight[index][rightPosition]
+        = r + wetLeft * state->voiceReverbFeedback[index];
       l = l * (1.0f - state->voiceReverbMix[index]) + wetLeft * state->voiceReverbMix[index];
       r = r * (1.0f - state->voiceReverbMix[index]) + wetRight * state->voiceReverbMix[index];
       state->voiceReverbIndex[index] = (position + 1) % reverbFrames;
@@ -340,8 +351,7 @@ ScoreDSPApplyEffects (ScoreDSPState *state, float *left, float *right)
     }
   if (state->reverbFrames && state->reverbLeft)
     {
-      NSUInteger rightIndex = (state->reverbIndex + state->reverbFrames / 7)
-                              % state->reverbFrames;
+      NSUInteger rightIndex = (state->reverbIndex + state->reverbFrames / 7) % state->reverbFrames;
       float wetLeft = state->reverbLeft[state->reverbIndex];
       float wetRight = state->reverbRight[rightIndex];
       state->reverbLeft[state->reverbIndex] = l + wetRight * state->reverbFeedback;
@@ -395,8 +405,7 @@ ScoreDSPApplyEvent (ScoreDSPState *s, ScoreDSPEvent e)
     }
   else
     for (int i = 0; i < SCORE_DSP_VOICES; i++)
-      if (s->voices[i].active && s->voices[i].pitch == e.pitch
-          && s->voices[i].track == e.track
+      if (s->voices[i].active && s->voices[i].pitch == e.pitch && s->voices[i].track == e.track
           && s->voices[i].notationVoice == e.notationVoice
           && (e.frequency <= 0.0 || fabs (s->voices[i].frequency - e.frequency) < 0.000001))
         s->voices[i].releasing = YES;
@@ -433,7 +442,8 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
           ScoreDSPVoice *v = &s->voices[i];
           if (!v->active)
             continue;
-          NSUInteger patchIndex = (NSUInteger)MAX (1, MIN (SCORE_DSP_PATCHES, v->notationVoice)) - 1;
+          NSUInteger patchIndex
+            = (NSUInteger)MAX (1, MIN (SCORE_DSP_PATCHES, v->notationVoice)) - 1;
           ScoreDSPPatch patch = patches[patchIndex];
           if (v->releasing)
             {
@@ -450,9 +460,8 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
             }
           else if (v->envelopeStage == 0)
             {
-              v->envelopeLevel += patch.attack > 0.0001f
-                                    ? 1.0f / (patch.attack * (float)s->sampleRate)
-                                    : 1.0f;
+              v->envelopeLevel
+                += patch.attack > 0.0001f ? 1.0f / (patch.attack * (float)s->sampleRate) : 1.0f;
               if (v->envelopeLevel >= 1.0f)
                 {
                   v->envelopeLevel = 1.0f;
@@ -462,8 +471,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
           else if (v->envelopeStage == 1)
             {
               v->envelopeLevel -= patch.decay > 0.0001f
-                                    ? (1.0f - patch.sustain)
-                                        / (patch.decay * (float)s->sampleRate)
+                                    ? (1.0f - patch.sustain) / (patch.decay * (float)s->sampleRate)
                                     : 1.0f;
               if (v->envelopeLevel <= patch.sustain)
                 {
@@ -474,17 +482,17 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
           if (v->releasing)
             {
               if (v->filterReleaseRate <= 0.0f)
-                v->filterReleaseRate = patch.filterRelease > 0.0001f
-                                          ? v->filterEnvelopeLevel
-                                              / (patch.filterRelease * (float)s->sampleRate)
-                                          : v->filterEnvelopeLevel;
+                v->filterReleaseRate
+                  = patch.filterRelease > 0.0001f
+                      ? v->filterEnvelopeLevel / (patch.filterRelease * (float)s->sampleRate)
+                      : v->filterEnvelopeLevel;
               v->filterEnvelopeLevel = MAX (0.0f, v->filterEnvelopeLevel - v->filterReleaseRate);
             }
           else if (v->filterEnvelopeStage == 0)
             {
               v->filterEnvelopeLevel += patch.filterAttack > 0.0001f
-                                           ? 1.0f / (patch.filterAttack * (float)s->sampleRate)
-                                           : 1.0f;
+                                          ? 1.0f / (patch.filterAttack * (float)s->sampleRate)
+                                          : 1.0f;
               if (v->filterEnvelopeLevel >= 1.0f)
                 {
                   v->filterEnvelopeLevel = 1.0f;
@@ -493,19 +501,17 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
             }
           else if (v->filterEnvelopeStage == 1)
             {
-              v->filterEnvelopeLevel -= patch.filterDecay > 0.0001f
-                                           ? (1.0f - patch.filterSustain)
-                                               / (patch.filterDecay * (float)s->sampleRate)
-                                           : 1.0f;
+              v->filterEnvelopeLevel
+                -= patch.filterDecay > 0.0001f
+                     ? (1.0f - patch.filterSustain) / (patch.filterDecay * (float)s->sampleRate)
+                     : 1.0f;
               if (v->filterEnvelopeLevel <= patch.filterSustain)
                 {
                   v->filterEnvelopeLevel = patch.filterSustain;
                   v->filterEnvelopeStage = 2;
                 }
             }
-          double hz = v->frequency > 0.0
-                        ? v->frequency
-                        : 440.0 * pow (2.0, (v->pitch - 69) / 12.0);
+          double hz = v->frequency > 0.0 ? v->frequency : 440.0 * pow (2.0, (v->pitch - 69) / 12.0);
           if ((double)v->ageFrames / s->sampleRate >= patch.lfoDelay && patch.lfoDepth != 0.0f)
             hz *= pow (2.0, sin (v->lfoPhase) * patch.lfoDepth / 12.0);
           double oscillator = 0.0;
@@ -524,8 +530,8 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
               oscillator = sin (v->phase);
               break;
             }
-          float velocityGain = (1.0f - patch.velocityToAmplitude)
-                               + patch.velocityToAmplitude * v->velocity;
+          float velocityGain
+            = (1.0f - patch.velocityToAmplitude) + patch.velocityToAmplitude * v->velocity;
           float cutoffSemitones = patch.filterEnvelopeAmount * v->filterEnvelopeLevel
                                   + patch.velocityToFilter * v->velocity;
           float filtered = (float)oscillator;
@@ -534,7 +540,8 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
             {
               float cutoff = patch.filterCutoff * powf (2.0f, cutoffSemitones / 12.0f);
               cutoff = MAX (20.0f, MIN ((float)s->sampleRate * 0.20f, cutoff));
-              float coefficient = MIN (0.9f, 2.0f * sinf ((float)M_PI * cutoff / (float)s->sampleRate));
+              float coefficient
+                = MIN (0.9f, 2.0f * sinf ((float)M_PI * cutoff / (float)s->sampleRate));
               float damping = 2.0f - 1.85f * patch.filterResonance;
               v->filterLow += coefficient * v->filterBand;
               float high = filtered - v->filterLow - damping * v->filterBand;
@@ -571,10 +578,15 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
 }
 
 @interface ScoreRealtimeDSP ()
+
 + (NSURL *)presetDirectoryForAudioUnit:(NSDictionary *)description create:(BOOL)create;
+
 + (void)recordAudioUnitFailure:(NSDictionary *)description;
+
 + (void)clearAudioUnitFailures:(NSDictionary *)description;
+
 - (void)audioEngineConfigurationChanged:(NSNotification *)notification;
+
 - (NSViewController *)legacyAudioUnitViewController;
 @end
 
@@ -594,6 +606,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   NSMutableDictionary *_internalSynthEffects;
   BOOL _running;
 }
+
 + (NSArray *)availableAudioUnitInstruments
 {
 #if defined(__APPLE__)
@@ -615,11 +628,12 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
                       [NSNumber numberWithUnsignedInt:description.componentManufacturer],
                       @"manufacturerCode",
                       [NSNumber numberWithBool:[[component configurationDictionary]
-                                                objectForKey:@"NSExtension"] != nil],
-                      @"isV3", [NSNumber numberWithBool:[component hasCustomView]], @"hasCustomView",
-                      [NSNumber numberWithBool:[component isSandboxSafe]], @"sandboxSafe",
-                      [NSNumber numberWithBool:[component passesAUVal]], @"passesAUVal",
-                      [component versionString] ?: @"", @"version", nil]];
+                                                 objectForKey:@"NSExtension"]
+                                               != nil],
+                      @"isV3", [NSNumber numberWithBool:[component hasCustomView]],
+                      @"hasCustomView", [NSNumber numberWithBool:[component isSandboxSafe]],
+                      @"sandboxSafe", [NSNumber numberWithBool:[component passesAUVal]],
+                      @"passesAUVal", [component versionString] ?: @"", @"version", nil]];
     }
   return [instruments
     sortedArrayUsingComparator:^NSComparisonResult (NSDictionary *left, NSDictionary *right) {
@@ -630,19 +644,22 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   return [NSArray array];
 #endif
 }
+
 + (NSString *)identifierForAudioUnitDescription:(NSDictionary *)description
 {
-  return [NSString stringWithFormat:@"%08x-%08x-%08x",
-                                    [[description objectForKey:@"type"] unsignedIntValue],
-                                    [[description objectForKey:@"subtype"] unsignedIntValue],
-                                    [[description objectForKey:@"manufacturerCode"] unsignedIntValue]];
+  return [NSString
+    stringWithFormat:@"%08x-%08x-%08x", [[description objectForKey:@"type"] unsignedIntValue],
+                     [[description objectForKey:@"subtype"] unsignedIntValue],
+                     [[description objectForKey:@"manufacturerCode"] unsignedIntValue]];
 }
+
 + (BOOL)isAudioUnitBlacklisted:(NSDictionary *)description
 {
-  NSArray *blacklist = [[NSUserDefaults standardUserDefaults]
-    arrayForKey:ScoreAudioUnitBlacklistDefaultsKey];
+  NSArray *blacklist =
+    [[NSUserDefaults standardUserDefaults] arrayForKey:ScoreAudioUnitBlacklistDefaultsKey];
   return [blacklist containsObject:[self identifierForAudioUnitDescription:description]];
 }
+
 + (void)setAudioUnit:(NSDictionary *)description blacklisted:(BOOL)blacklisted
 {
   NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
@@ -654,15 +671,18 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
     [items addObject:identifier];
   [defaults setObject:items forKey:ScoreAudioUnitBlacklistDefaultsKey];
 }
+
 + (NSArray *)blacklistedAudioUnitIdentifiers
 {
   return [[NSUserDefaults standardUserDefaults] arrayForKey:ScoreAudioUnitBlacklistDefaultsKey]
-         ?: [NSArray array];
+           ?: [NSArray array];
 }
+
 + (void)clearAudioUnitBlacklist
 {
   [[NSUserDefaults standardUserDefaults] removeObjectForKey:ScoreAudioUnitBlacklistDefaultsKey];
 }
+
 + (NSArray *)audioUnitCompatibilityReport
 {
   NSMutableArray *report = [NSMutableArray array];
@@ -683,6 +703,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
     }
   return report;
 }
+
 + (NSArray *)supportedEffectTypes
 {
   return @[
@@ -693,106 +714,426 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
     @{ @"identifier" : @"reverb", @"name" : @"Reverb" }
   ];
 }
+
 + (NSDictionary *)defaultInternalSynthPatch
 {
-  return @{ @"waveform" : @"Sine",
-            @"attack" : @0.01,
-            @"decay" : @0.12,
-            @"sustain" : @0.78,
-            @"release" : @0.28,
-            @"lfoRate" : @5.0,
-            @"lfoDepth" : @0.0,
-            @"lfoDelay" : @0.0,
-            @"filterCutoff" : @12000.0,
-            @"filterResonance" : @0.0,
-            @"filterAttack" : @0.01,
-            @"filterDecay" : @0.15,
-            @"filterSustain" : @0.0,
-            @"filterRelease" : @0.25,
-            @"filterEnvelopeAmount" : @0.0,
-            @"velocityToAmplitude" : @1.0,
-            @"velocityToFilter" : @0.0 };
+  return @{
+    @"waveform" : @"Sine",
+    @"attack" : @0.01,
+    @"decay" : @0.12,
+    @"sustain" : @0.78,
+    @"release" : @0.28,
+    @"lfoRate" : @5.0,
+    @"lfoDepth" : @0.0,
+    @"lfoDelay" : @0.0,
+    @"filterCutoff" : @12000.0,
+    @"filterResonance" : @0.0,
+    @"filterAttack" : @0.01,
+    @"filterDecay" : @0.15,
+    @"filterSustain" : @0.0,
+    @"filterRelease" : @0.25,
+    @"filterEnvelopeAmount" : @0.0,
+    @"velocityToAmplitude" : @1.0,
+    @"velocityToFilter" : @0.0
+  };
 }
+
 + (NSDictionary *)factoryInternalSynthPatches
 {
   NSArray *specifications = @[
-    @{ @"name" : @"Aurora Saw Lead", @"category" : @"Lead", @"description" : @"Bright, expressive saw lead with a velocity-opened filter.",
-       @"settings" : @{ @"waveform" : @"Saw", @"attack" : @0.015, @"release" : @0.22, @"filterCutoff" : @2600, @"filterResonance" : @0.28, @"filterEnvelopeAmount" : @30, @"velocityToFilter" : @18 } },
-    @{ @"name" : @"Velvet Square Lead", @"category" : @"Lead", @"description" : @"Rounded square-wave solo voice with gentle vibrato.",
-       @"settings" : @{ @"waveform" : @"Square", @"attack" : @0.035, @"release" : @0.38, @"lfoDepth" : @0.12, @"lfoDelay" : @0.3, @"filterCutoff" : @4200, @"filterResonance" : @0.18 } },
-    @{ @"name" : @"Singing Triangle", @"category" : @"Lead", @"description" : @"Clear lyrical lead that blooms after the note begins.",
-       @"settings" : @{ @"waveform" : @"Triangle", @"attack" : @0.06, @"release" : @0.55, @"lfoDepth" : @0.18, @"lfoDelay" : @0.45, @"filterCutoff" : @3400, @"filterEnvelopeAmount" : @22 } },
-    @{ @"name" : @"Copper Resonance", @"category" : @"Lead", @"description" : @"Focused resonant lead for articulated melodic lines.",
-       @"settings" : @{ @"waveform" : @"Saw", @"decay" : @0.22, @"sustain" : @0.66, @"filterCutoff" : @1450, @"filterResonance" : @0.7, @"filterDecay" : @0.28, @"filterSustain" : @0.22, @"filterEnvelopeAmount" : @42, @"velocityToFilter" : @24 } },
+    @{
+      @"name" : @"Aurora Saw Lead",
+      @"category" : @"Lead",
+      @"description" : @"Bright, expressive saw lead with a velocity-opened filter.",
+      @"settings" : @{
+        @"waveform" : @"Saw",
+        @"attack" : @0.015,
+        @"release" : @0.22,
+        @"filterCutoff" : @2600,
+        @"filterResonance" : @0.28,
+        @"filterEnvelopeAmount" : @30,
+        @"velocityToFilter" : @18
+      }
+    },
+    @{
+      @"name" : @"Velvet Square Lead",
+      @"category" : @"Lead",
+      @"description" : @"Rounded square-wave solo voice with gentle vibrato.",
+      @"settings" : @{
+        @"waveform" : @"Square",
+        @"attack" : @0.035,
+        @"release" : @0.38,
+        @"lfoDepth" : @0.12,
+        @"lfoDelay" : @0.3,
+        @"filterCutoff" : @4200,
+        @"filterResonance" : @0.18
+      }
+    },
+    @{
+      @"name" : @"Singing Triangle",
+      @"category" : @"Lead",
+      @"description" : @"Clear lyrical lead that blooms after the note begins.",
+      @"settings" : @{
+        @"waveform" : @"Triangle",
+        @"attack" : @0.06,
+        @"release" : @0.55,
+        @"lfoDepth" : @0.18,
+        @"lfoDelay" : @0.45,
+        @"filterCutoff" : @3400,
+        @"filterEnvelopeAmount" : @22
+      }
+    },
+    @{
+      @"name" : @"Copper Resonance",
+      @"category" : @"Lead",
+      @"description" : @"Focused resonant lead for articulated melodic lines.",
+      @"settings" : @{
+        @"waveform" : @"Saw",
+        @"decay" : @0.22,
+        @"sustain" : @0.66,
+        @"filterCutoff" : @1450,
+        @"filterResonance" : @0.7,
+        @"filterDecay" : @0.28,
+        @"filterSustain" : @0.22,
+        @"filterEnvelopeAmount" : @42,
+        @"velocityToFilter" : @24
+      }
+    },
 
-    @{ @"name" : @"Foundation Sub", @"category" : @"Bass", @"description" : @"Clean sine sub-bass with controlled release.",
-       @"settings" : @{ @"waveform" : @"Sine", @"attack" : @0.008, @"decay" : @0.12, @"sustain" : @0.9, @"release" : @0.16, @"filterCutoff" : @12000 } },
-    @{ @"name" : @"Solid Square Bass", @"category" : @"Bass", @"description" : @"Firm square bass with strong velocity response.",
-       @"settings" : @{ @"waveform" : @"Square", @"attack" : @0.006, @"decay" : @0.16, @"sustain" : @0.62, @"release" : @0.14, @"filterCutoff" : @1250, @"filterResonance" : @0.2, @"velocityToFilter" : @15 } },
-    @{ @"name" : @"Acid Etch Bass", @"category" : @"Bass", @"description" : @"Resonant saw bass with a short, animated filter envelope.",
-       @"settings" : @{ @"waveform" : @"Saw", @"attack" : @0.004, @"release" : @0.12, @"filterCutoff" : @620, @"filterResonance" : @0.82, @"filterAttack" : @0.003, @"filterDecay" : @0.2, @"filterSustain" : @0.08, @"filterEnvelopeAmount" : @54, @"velocityToFilter" : @20 } },
-    @{ @"name" : @"Plucked Round Bass", @"category" : @"Bass", @"description" : @"Short triangle bass suited to contrapuntal lines.",
-       @"settings" : @{ @"waveform" : @"Triangle", @"attack" : @0.003, @"decay" : @0.24, @"sustain" : @0.28, @"release" : @0.18, @"filterCutoff" : @1900, @"filterEnvelopeAmount" : @25 } },
+    @{
+      @"name" : @"Foundation Sub",
+      @"category" : @"Bass",
+      @"description" : @"Clean sine sub-bass with controlled release.",
+      @"settings" : @{
+        @"waveform" : @"Sine",
+        @"attack" : @0.008,
+        @"decay" : @0.12,
+        @"sustain" : @0.9,
+        @"release" : @0.16,
+        @"filterCutoff" : @12000
+      }
+    },
+    @{
+      @"name" : @"Solid Square Bass",
+      @"category" : @"Bass",
+      @"description" : @"Firm square bass with strong velocity response.",
+      @"settings" : @{
+        @"waveform" : @"Square",
+        @"attack" : @0.006,
+        @"decay" : @0.16,
+        @"sustain" : @0.62,
+        @"release" : @0.14,
+        @"filterCutoff" : @1250,
+        @"filterResonance" : @0.2,
+        @"velocityToFilter" : @15
+      }
+    },
+    @{
+      @"name" : @"Acid Etch Bass",
+      @"category" : @"Bass",
+      @"description" : @"Resonant saw bass with a short, animated filter envelope.",
+      @"settings" : @{
+        @"waveform" : @"Saw",
+        @"attack" : @0.004,
+        @"release" : @0.12,
+        @"filterCutoff" : @620,
+        @"filterResonance" : @0.82,
+        @"filterAttack" : @0.003,
+        @"filterDecay" : @0.2,
+        @"filterSustain" : @0.08,
+        @"filterEnvelopeAmount" : @54,
+        @"velocityToFilter" : @20
+      }
+    },
+    @{
+      @"name" : @"Plucked Round Bass",
+      @"category" : @"Bass",
+      @"description" : @"Short triangle bass suited to contrapuntal lines.",
+      @"settings" : @{
+        @"waveform" : @"Triangle",
+        @"attack" : @0.003,
+        @"decay" : @0.24,
+        @"sustain" : @0.28,
+        @"release" : @0.18,
+        @"filterCutoff" : @1900,
+        @"filterEnvelopeAmount" : @25
+      }
+    },
 
-    @{ @"name" : @"Warm Horizon Pad", @"category" : @"Pad", @"description" : @"Slow warm saw pad with a spacious tail.",
-       @"settings" : @{ @"waveform" : @"Saw", @"attack" : @1.1, @"decay" : @0.8, @"sustain" : @0.72, @"release" : @2.4, @"filterCutoff" : @1800, @"filterResonance" : @0.12, @"filterAttack" : @1.5, @"filterDecay" : @1.2, @"filterSustain" : @0.45, @"filterEnvelopeAmount" : @24 },
-       @"effects" : @[ @{ @"type" : @"reverb", @"roomSize" : @0.6, @"mix" : @0.32 } ] },
-    @{ @"name" : @"Glass Triangle Pad", @"category" : @"Pad", @"description" : @"Airy triangle pad with slow vibrato and delay.",
-       @"settings" : @{ @"waveform" : @"Triangle", @"attack" : @0.75, @"sustain" : @0.8, @"release" : @2.0, @"lfoDepth" : @0.08, @"lfoDelay" : @0.8, @"filterCutoff" : @6500 },
-       @"effects" : @[ @{ @"type" : @"delay", @"time" : @0.38, @"feedback" : @0.3, @"mix" : @0.2 }, @{ @"type" : @"reverb", @"roomSize" : @0.5, @"mix" : @0.25 } ] },
-    @{ @"name" : @"Slow Northern Light", @"category" : @"Pad", @"description" : @"Dark evolving square pad with a long filter rise.",
-       @"settings" : @{ @"waveform" : @"Square", @"attack" : @1.6, @"release" : @3.0, @"filterCutoff" : @720, @"filterResonance" : @0.32, @"filterAttack" : @2.2, @"filterDecay" : @1.5, @"filterSustain" : @0.65, @"filterEnvelopeAmount" : @40 },
-       @"effects" : @[ @{ @"type" : @"reverb", @"roomSize" : @0.7, @"mix" : @0.38 } ] },
-    @{ @"name" : @"Choral Triangle", @"category" : @"Pad", @"description" : @"Soft sustained pad for chorale-like writing.",
-       @"settings" : @{ @"waveform" : @"Triangle", @"attack" : @0.55, @"decay" : @0.6, @"sustain" : @0.86, @"release" : @1.8, @"lfoRate" : @4.2, @"lfoDepth" : @0.06, @"filterCutoff" : @3900 },
-       @"effects" : @[ @{ @"type" : @"reverb", @"roomSize" : @0.55, @"mix" : @0.28 } ] },
+    @{
+      @"name" : @"Warm Horizon Pad",
+      @"category" : @"Pad",
+      @"description" : @"Slow warm saw pad with a spacious tail.",
+      @"settings" : @{
+        @"waveform" : @"Saw",
+        @"attack" : @1.1,
+        @"decay" : @0.8,
+        @"sustain" : @0.72,
+        @"release" : @2.4,
+        @"filterCutoff" : @1800,
+        @"filterResonance" : @0.12,
+        @"filterAttack" : @1.5,
+        @"filterDecay" : @1.2,
+        @"filterSustain" : @0.45,
+        @"filterEnvelopeAmount" : @24
+      },
+      @"effects" : @[ @{ @"type" : @"reverb", @"roomSize" : @0.6, @"mix" : @0.32 } ]
+    },
+    @{
+      @"name" : @"Glass Triangle Pad",
+      @"category" : @"Pad",
+      @"description" : @"Airy triangle pad with slow vibrato and delay.",
+      @"settings" : @{
+        @"waveform" : @"Triangle",
+        @"attack" : @0.75,
+        @"sustain" : @0.8,
+        @"release" : @2.0,
+        @"lfoDepth" : @0.08,
+        @"lfoDelay" : @0.8,
+        @"filterCutoff" : @6500
+      },
+      @"effects" : @[
+        @{ @"type" : @"delay", @"time" : @0.38, @"feedback" : @0.3, @"mix" : @0.2 },
+        @{ @"type" : @"reverb", @"roomSize" : @0.5, @"mix" : @0.25 }
+      ]
+    },
+    @{
+      @"name" : @"Slow Northern Light",
+      @"category" : @"Pad",
+      @"description" : @"Dark evolving square pad with a long filter rise.",
+      @"settings" : @{
+        @"waveform" : @"Square",
+        @"attack" : @1.6,
+        @"release" : @3.0,
+        @"filterCutoff" : @720,
+        @"filterResonance" : @0.32,
+        @"filterAttack" : @2.2,
+        @"filterDecay" : @1.5,
+        @"filterSustain" : @0.65,
+        @"filterEnvelopeAmount" : @40
+      },
+      @"effects" : @[ @{ @"type" : @"reverb", @"roomSize" : @0.7, @"mix" : @0.38 } ]
+    },
+    @{
+      @"name" : @"Choral Triangle",
+      @"category" : @"Pad",
+      @"description" : @"Soft sustained pad for chorale-like writing.",
+      @"settings" : @{
+        @"waveform" : @"Triangle",
+        @"attack" : @0.55,
+        @"decay" : @0.6,
+        @"sustain" : @0.86,
+        @"release" : @1.8,
+        @"lfoRate" : @4.2,
+        @"lfoDepth" : @0.06,
+        @"filterCutoff" : @3900
+      },
+      @"effects" : @[ @{ @"type" : @"reverb", @"roomSize" : @0.55, @"mix" : @0.28 } ]
+    },
 
-    @{ @"name" : @"Crystal Bell Pluck", @"category" : @"Pluck", @"description" : @"Bright sine pluck with a delicate echo.",
-       @"settings" : @{ @"waveform" : @"Sine", @"attack" : @0.002, @"decay" : @0.42, @"sustain" : @0.0, @"release" : @0.32, @"velocityToAmplitude" : @1.0 },
-       @"effects" : @[ @{ @"type" : @"delay", @"time" : @0.24, @"feedback" : @0.24, @"mix" : @0.18 } ] },
-    @{ @"name" : @"Wooden Triangle Pluck", @"category" : @"Pluck", @"description" : @"Dry woody attack with a fast filter decay.",
-       @"settings" : @{ @"waveform" : @"Triangle", @"attack" : @0.002, @"decay" : @0.2, @"sustain" : @0.0, @"release" : @0.16, @"filterCutoff" : @1100, @"filterDecay" : @0.16, @"filterEnvelopeAmount" : @35, @"velocityToFilter" : @22 } },
-    @{ @"name" : @"Neon Sequence Pluck", @"category" : @"Pluck", @"description" : @"Crisp saw pluck designed for repeating figures.",
-       @"settings" : @{ @"waveform" : @"Saw", @"attack" : @0.001, @"decay" : @0.16, @"sustain" : @0.08, @"release" : @0.12, @"filterCutoff" : @1500, @"filterResonance" : @0.35, @"filterEnvelopeAmount" : @40 },
-       @"effects" : @[ @{ @"type" : @"delay", @"time" : @0.18, @"feedback" : @0.2, @"mix" : @0.12 } ] },
-    @{ @"name" : @"Soft Mallet", @"category" : @"Pluck", @"description" : @"Mellow sine mallet with natural velocity shading.",
-       @"settings" : @{ @"waveform" : @"Sine", @"attack" : @0.006, @"decay" : @0.32, @"sustain" : @0.04, @"release" : @0.28, @"filterCutoff" : @5200, @"velocityToAmplitude" : @0.9 } },
+    @{
+      @"name" : @"Crystal Bell Pluck",
+      @"category" : @"Pluck",
+      @"description" : @"Bright sine pluck with a delicate echo.",
+      @"settings" : @{
+        @"waveform" : @"Sine",
+        @"attack" : @0.002,
+        @"decay" : @0.42,
+        @"sustain" : @0.0,
+        @"release" : @0.32,
+        @"velocityToAmplitude" : @1.0
+      },
+      @"effects" :
+        @[ @{ @"type" : @"delay", @"time" : @0.24, @"feedback" : @0.24, @"mix" : @0.18 } ]
+    },
+    @{
+      @"name" : @"Wooden Triangle Pluck",
+      @"category" : @"Pluck",
+      @"description" : @"Dry woody attack with a fast filter decay.",
+      @"settings" : @{
+        @"waveform" : @"Triangle",
+        @"attack" : @0.002,
+        @"decay" : @0.2,
+        @"sustain" : @0.0,
+        @"release" : @0.16,
+        @"filterCutoff" : @1100,
+        @"filterDecay" : @0.16,
+        @"filterEnvelopeAmount" : @35,
+        @"velocityToFilter" : @22
+      }
+    },
+    @{
+      @"name" : @"Neon Sequence Pluck",
+      @"category" : @"Pluck",
+      @"description" : @"Crisp saw pluck designed for repeating figures.",
+      @"settings" : @{
+        @"waveform" : @"Saw",
+        @"attack" : @0.001,
+        @"decay" : @0.16,
+        @"sustain" : @0.08,
+        @"release" : @0.12,
+        @"filterCutoff" : @1500,
+        @"filterResonance" : @0.35,
+        @"filterEnvelopeAmount" : @40
+      },
+      @"effects" : @[ @{ @"type" : @"delay", @"time" : @0.18, @"feedback" : @0.2, @"mix" : @0.12 } ]
+    },
+    @{
+      @"name" : @"Soft Mallet",
+      @"category" : @"Pluck",
+      @"description" : @"Mellow sine mallet with natural velocity shading.",
+      @"settings" : @{
+        @"waveform" : @"Sine",
+        @"attack" : @0.006,
+        @"decay" : @0.32,
+        @"sustain" : @0.04,
+        @"release" : @0.28,
+        @"filterCutoff" : @5200,
+        @"velocityToAmplitude" : @0.9
+      }
+    },
 
-    @{ @"name" : @"Pure Sine Keys", @"category" : @"Keys", @"description" : @"Simple responsive sine keyboard tone.",
-       @"settings" : @{ @"waveform" : @"Sine", @"attack" : @0.012, @"decay" : @0.35, @"sustain" : @0.68, @"release" : @0.55 } },
-    @{ @"name" : @"Electric Triangle Keys", @"category" : @"Keys", @"description" : @"Warm electric-keyboard character with tremulous delay.",
-       @"settings" : @{ @"waveform" : @"Triangle", @"attack" : @0.01, @"decay" : @0.48, @"sustain" : @0.54, @"release" : @0.7, @"filterCutoff" : @4600 },
-       @"effects" : @[ @{ @"type" : @"delay", @"time" : @0.22, @"feedback" : @0.18, @"mix" : @0.12 } ] },
-    @{ @"name" : @"Bright Digital Keys", @"category" : @"Keys", @"description" : @"Present square keys for rhythmic accompaniment.",
-       @"settings" : @{ @"waveform" : @"Square", @"attack" : @0.006, @"decay" : @0.3, @"sustain" : @0.58, @"release" : @0.38, @"filterCutoff" : @5200, @"velocityToFilter" : @14 } },
-    @{ @"name" : @"Mellow Score Keys", @"category" : @"Keys", @"description" : @"Restrained triangle keys that sit behind notation playback.",
-       @"settings" : @{ @"waveform" : @"Triangle", @"attack" : @0.025, @"decay" : @0.5, @"sustain" : @0.62, @"release" : @0.8, @"filterCutoff" : @2600, @"velocityToAmplitude" : @0.75 } },
+    @{
+      @"name" : @"Pure Sine Keys",
+      @"category" : @"Keys",
+      @"description" : @"Simple responsive sine keyboard tone.",
+      @"settings" : @{
+        @"waveform" : @"Sine",
+        @"attack" : @0.012,
+        @"decay" : @0.35,
+        @"sustain" : @0.68,
+        @"release" : @0.55
+      }
+    },
+    @{
+      @"name" : @"Electric Triangle Keys",
+      @"category" : @"Keys",
+      @"description" : @"Warm electric-keyboard character with tremulous delay.",
+      @"settings" : @{
+        @"waveform" : @"Triangle",
+        @"attack" : @0.01,
+        @"decay" : @0.48,
+        @"sustain" : @0.54,
+        @"release" : @0.7,
+        @"filterCutoff" : @4600
+      },
+      @"effects" :
+        @[ @{ @"type" : @"delay", @"time" : @0.22, @"feedback" : @0.18, @"mix" : @0.12 } ]
+    },
+    @{
+      @"name" : @"Bright Digital Keys",
+      @"category" : @"Keys",
+      @"description" : @"Present square keys for rhythmic accompaniment.",
+      @"settings" : @{
+        @"waveform" : @"Square",
+        @"attack" : @0.006,
+        @"decay" : @0.3,
+        @"sustain" : @0.58,
+        @"release" : @0.38,
+        @"filterCutoff" : @5200,
+        @"velocityToFilter" : @14
+      }
+    },
+    @{
+      @"name" : @"Mellow Score Keys",
+      @"category" : @"Keys",
+      @"description" : @"Restrained triangle keys that sit behind notation playback.",
+      @"settings" : @{
+        @"waveform" : @"Triangle",
+        @"attack" : @0.025,
+        @"decay" : @0.5,
+        @"sustain" : @0.62,
+        @"release" : @0.8,
+        @"filterCutoff" : @2600,
+        @"velocityToAmplitude" : @0.75
+      }
+    },
 
-    @{ @"name" : @"Rising Filter Sweep", @"category" : @"Effects", @"description" : @"Long resonant rise for transitions and held notes.",
-       @"settings" : @{ @"waveform" : @"Saw", @"attack" : @0.2, @"sustain" : @0.8, @"release" : @1.2, @"filterCutoff" : @180, @"filterResonance" : @0.72, @"filterAttack" : @2.8, @"filterDecay" : @0.5, @"filterSustain" : @0.9, @"filterEnvelopeAmount" : @72 },
-       @"effects" : @[ @{ @"type" : @"reverb", @"roomSize" : @0.65, @"mix" : @0.3 } ] },
-    @{ @"name" : @"Pulsing Signal", @"category" : @"Effects", @"description" : @"Narrow square signal with pronounced delayed vibrato.",
-       @"settings" : @{ @"waveform" : @"Square", @"attack" : @0.02, @"release" : @0.45, @"lfoRate" : @7.5, @"lfoDepth" : @0.85, @"lfoDelay" : @0.18, @"filterCutoff" : @2400, @"filterResonance" : @0.5 } },
-    @{ @"name" : @"Deep Space Tone", @"category" : @"Effects", @"description" : @"Dark slow-moving tone with long echoes.",
-       @"settings" : @{ @"waveform" : @"Sine", @"attack" : @0.9, @"release" : @3.5, @"lfoRate" : @0.35, @"lfoDepth" : @0.4, @"filterCutoff" : @900, @"filterResonance" : @0.42 },
-       @"effects" : @[ @{ @"type" : @"delay", @"time" : @0.62, @"feedback" : @0.55, @"mix" : @0.34 }, @{ @"type" : @"reverb", @"roomSize" : @0.72, @"mix" : @0.42 } ] },
-    @{ @"name" : @"Distant Chime", @"category" : @"Effects", @"description" : @"Sparse high chime with an extended ambient tail.",
-       @"settings" : @{ @"waveform" : @"Triangle", @"attack" : @0.004, @"decay" : @0.7, @"sustain" : @0.0, @"release" : @1.4, @"filterCutoff" : @7800 },
-       @"effects" : @[ @{ @"type" : @"delay", @"time" : @0.48, @"feedback" : @0.42, @"mix" : @0.3 }, @{ @"type" : @"reverb", @"roomSize" : @0.7, @"mix" : @0.44 } ] }
+    @{
+      @"name" : @"Rising Filter Sweep",
+      @"category" : @"Effects",
+      @"description" : @"Long resonant rise for transitions and held notes.",
+      @"settings" : @{
+        @"waveform" : @"Saw",
+        @"attack" : @0.2,
+        @"sustain" : @0.8,
+        @"release" : @1.2,
+        @"filterCutoff" : @180,
+        @"filterResonance" : @0.72,
+        @"filterAttack" : @2.8,
+        @"filterDecay" : @0.5,
+        @"filterSustain" : @0.9,
+        @"filterEnvelopeAmount" : @72
+      },
+      @"effects" : @[ @{ @"type" : @"reverb", @"roomSize" : @0.65, @"mix" : @0.3 } ]
+    },
+    @{
+      @"name" : @"Pulsing Signal",
+      @"category" : @"Effects",
+      @"description" : @"Narrow square signal with pronounced delayed vibrato.",
+      @"settings" : @{
+        @"waveform" : @"Square",
+        @"attack" : @0.02,
+        @"release" : @0.45,
+        @"lfoRate" : @7.5,
+        @"lfoDepth" : @0.85,
+        @"lfoDelay" : @0.18,
+        @"filterCutoff" : @2400,
+        @"filterResonance" : @0.5
+      }
+    },
+    @{
+      @"name" : @"Deep Space Tone",
+      @"category" : @"Effects",
+      @"description" : @"Dark slow-moving tone with long echoes.",
+      @"settings" : @{
+        @"waveform" : @"Sine",
+        @"attack" : @0.9,
+        @"release" : @3.5,
+        @"lfoRate" : @0.35,
+        @"lfoDepth" : @0.4,
+        @"filterCutoff" : @900,
+        @"filterResonance" : @0.42
+      },
+      @"effects" : @[
+        @{ @"type" : @"delay", @"time" : @0.62, @"feedback" : @0.55, @"mix" : @0.34 },
+        @{ @"type" : @"reverb", @"roomSize" : @0.72, @"mix" : @0.42 }
+      ]
+    },
+    @{
+      @"name" : @"Distant Chime",
+      @"category" : @"Effects",
+      @"description" : @"Sparse high chime with an extended ambient tail.",
+      @"settings" : @{
+        @"waveform" : @"Triangle",
+        @"attack" : @0.004,
+        @"decay" : @0.7,
+        @"sustain" : @0.0,
+        @"release" : @1.4,
+        @"filterCutoff" : @7800
+      },
+      @"effects" : @[
+        @{ @"type" : @"delay", @"time" : @0.48, @"feedback" : @0.42, @"mix" : @0.3 },
+        @{ @"type" : @"reverb", @"roomSize" : @0.7, @"mix" : @0.44 }
+      ]
+    }
   ];
   NSMutableDictionary *library = [NSMutableDictionary dictionary];
   for (NSDictionary *specification in specifications)
     {
-      NSMutableDictionary *patch = [NSMutableDictionary dictionaryWithDictionary:[self defaultInternalSynthPatch]];
+      NSMutableDictionary *patch =
+        [NSMutableDictionary dictionaryWithDictionary:[self defaultInternalSynthPatch]];
       [patch addEntriesFromDictionary:[specification objectForKey:@"settings"]];
       [patch setObject:[specification objectForKey:@"name"] forKey:@"name"];
       [patch setObject:[specification objectForKey:@"category"] forKey:@"category"];
       [patch setObject:[specification objectForKey:@"description"] forKey:@"description"];
-      [patch setObject:[specification objectForKey:@"effects"] ?: [NSArray array] forKey:@"effects"];
+      [patch setObject:[specification objectForKey:@"effects"] ?: [NSArray array]
+                forKey:@"effects"];
       [library setObject:patch forKey:[specification objectForKey:@"name"]];
     }
   return library;
 }
+
 + (NSArray *)relinkCandidatesForAudioUnit:(NSDictionary *)description
 {
   NSMutableArray *candidates = [NSMutableArray array];
@@ -803,8 +1144,8 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
       NSInteger score = 0;
       if (manufacturer && [[candidate objectForKey:@"manufacturer"] isEqualToString:manufacturer])
         score += 2;
-      if (name && [[candidate objectForKey:@"name"] localizedCaseInsensitiveCompare:name]
-                    == NSOrderedSame)
+      if (name &&
+          [[candidate objectForKey:@"name"] localizedCaseInsensitiveCompare:name] == NSOrderedSame)
         score += 4;
       if (score)
         {
@@ -818,12 +1159,14 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   }];
   return candidates;
 }
+
 + (NSURL *)presetDirectoryForAudioUnit:(NSDictionary *)description create:(BOOL)create
 {
-  NSURL *base = [[[NSFileManager defaultManager]
-    URLsForDirectory:NSApplicationSupportDirectory inDomains:NSUserDomainMask] firstObject];
+  NSURL *base = [[[NSFileManager defaultManager] URLsForDirectory:NSApplicationSupportDirectory
+                                                        inDomains:NSUserDomainMask] firstObject];
   NSURL *directory = [[[base URLByAppendingPathComponent:@"ScoreMaker" isDirectory:YES]
-    URLByAppendingPathComponent:@"Audio Unit Presets" isDirectory:YES]
+    URLByAppendingPathComponent:@"Audio Unit Presets"
+                    isDirectory:YES]
     URLByAppendingPathComponent:[self identifierForAudioUnitDescription:description]
                     isDirectory:YES];
   if (create)
@@ -833,19 +1176,21 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
                                                    error:NULL];
   return directory;
 }
+
 + (NSArray *)userPresetsForAudioUnit:(NSDictionary *)description
 {
   NSArray *files = [[NSFileManager defaultManager]
-    contentsOfDirectoryAtURL:[self presetDirectoryForAudioUnit:description create:NO]
-  includingPropertiesForKeys:nil
-                     options:NSDirectoryEnumerationSkipsHiddenFiles
-                       error:NULL];
+      contentsOfDirectoryAtURL:[self presetDirectoryForAudioUnit:description create:NO]
+    includingPropertiesForKeys:nil
+                       options:NSDirectoryEnumerationSkipsHiddenFiles
+                         error:NULL];
   NSMutableArray *names = [NSMutableArray array];
   for (NSURL *url in files)
     if ([[url pathExtension] isEqualToString:@"aupreset"])
       [names addObject:[[url lastPathComponent] stringByDeletingPathExtension]];
   return [names sortedArrayUsingSelector:@selector (localizedCaseInsensitiveCompare:)];
 }
+
 + (BOOL)removeUserPreset:(NSString *)name
             forAudioUnit:(NSDictionary *)description
                    error:(NSError **)error
@@ -853,23 +1198,26 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   if (![name length])
     {
       if (error)
-        *error = [NSError errorWithDomain:@"ScoreMakerDSP"
-                                     code:10
-                                 userInfo:@{
-                                   NSLocalizedDescriptionKey : @"Select an Audio Unit preset to delete."
-                                 }];
+        *error =
+          [NSError errorWithDomain:@"ScoreMakerDSP"
+                              code:10
+                          userInfo:@{
+                            NSLocalizedDescriptionKey : @"Select an Audio Unit preset to delete."
+                          }];
       return NO;
     }
   NSURL *url = [[self presetDirectoryForAudioUnit:description create:NO]
-    URLByAppendingPathComponent:[[name lastPathComponent] stringByAppendingPathExtension:@"aupreset"]];
+    URLByAppendingPathComponent:[[name lastPathComponent]
+                                  stringByAppendingPathExtension:@"aupreset"]];
   return [[NSFileManager defaultManager] removeItemAtURL:url error:error];
 }
+
 + (void)recordAudioUnitFailure:(NSDictionary *)description
 {
   NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
   NSMutableDictionary *failures = [NSMutableDictionary
     dictionaryWithDictionary:[defaults dictionaryForKey:ScoreAudioUnitFailureDefaultsKey]
-                             ?: [NSDictionary dictionary]];
+                               ?: [NSDictionary dictionary]];
   NSString *identifier = [self identifierForAudioUnitDescription:description];
   NSUInteger count = [[failures objectForKey:identifier] unsignedIntegerValue] + 1;
   [failures setObject:[NSNumber numberWithUnsignedInteger:count] forKey:identifier];
@@ -877,15 +1225,17 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   if (count >= 3)
     [self setAudioUnit:description blacklisted:YES];
 }
+
 + (void)clearAudioUnitFailures:(NSDictionary *)description
 {
   NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
   NSMutableDictionary *failures = [NSMutableDictionary
     dictionaryWithDictionary:[defaults dictionaryForKey:ScoreAudioUnitFailureDefaultsKey]
-                             ?: [NSDictionary dictionary]];
+                               ?: [NSDictionary dictionary]];
   [failures removeObjectForKey:[self identifierForAudioUnitDescription:description]];
   [defaults setObject:failures forKey:ScoreAudioUnitFailureDefaultsKey];
 }
+
 - (id)init
 {
   if ((self = [super init]))
@@ -906,6 +1256,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
     }
   return self;
 }
+
 - (BOOL)startWithError:(NSError **)error
 {
 #if defined(__APPLE__)
@@ -915,11 +1266,10 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
     {
       _engine = [[AVAudioEngine alloc] init];
       _engineEffectNodes = [[NSMutableArray alloc] init];
-      [[NSNotificationCenter defaultCenter]
-        addObserver:self
-           selector:@selector (audioEngineConfigurationChanged:)
-               name:AVAudioEngineConfigurationChangeNotification
-             object:_engine];
+      [[NSNotificationCenter defaultCenter] addObserver:self
+                                               selector:@selector (audioEngineConfigurationChanged:)
+                                                   name:AVAudioEngineConfigurationChangeNotification
+                                                 object:_engine];
       [_engine attachNode:_instrument];
       AVAudioNode *previous = _instrument;
       for (NSDictionary *effect in _effectConfiguration)
@@ -930,13 +1280,15 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
           AVAudioUnitEffect *node = nil;
           if ([type isEqualToString:@"gain"])
             {
-              AVAudioUnitEQ *equalizer = [[[AVAudioUnitEQ alloc] initWithNumberOfBands:0] autorelease];
+              AVAudioUnitEQ *equalizer =
+                [[[AVAudioUnitEQ alloc] initWithNumberOfBands:0] autorelease];
               [equalizer setGlobalGain:[[effect objectForKey:@"decibels"] floatValue]];
               node = equalizer;
             }
           else if ([type isEqualToString:@"lowpass"])
             {
-              AVAudioUnitEQ *equalizer = [[[AVAudioUnitEQ alloc] initWithNumberOfBands:1] autorelease];
+              AVAudioUnitEQ *equalizer =
+                [[[AVAudioUnitEQ alloc] initWithNumberOfBands:1] autorelease];
               AVAudioUnitEQFilterParameters *band = [[equalizer bands] objectAtIndex:0];
               [band setFilterType:AVAudioUnitEQFilterTypeLowPass];
               [band setFrequency:MAX (20.0f, MIN (20000.0f,
@@ -947,22 +1299,21 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
           else if ([type isEqualToString:@"delay"])
             {
               AVAudioUnitDelay *delay = [[[AVAudioUnitDelay alloc] init] autorelease];
-              [delay setDelayTime:MAX (0.0, MIN (2.0, [[effect objectForKey:@"time"] doubleValue]))];
-              [delay setFeedback:MAX (0.0f, MIN (95.0f,
-                                                 [[effect objectForKey:@"feedback"] floatValue]
-                                                   * 100.0f))];
-              [delay setWetDryMix:MAX (0.0f, MIN (100.0f,
-                                                  [[effect objectForKey:@"mix"] floatValue]
-                                                    * 100.0f))];
+              [delay
+                setDelayTime:MAX (0.0, MIN (2.0, [[effect objectForKey:@"time"] doubleValue]))];
+              [delay
+                setFeedback:MAX (0.0f, MIN (95.0f, [[effect objectForKey:@"feedback"] floatValue]
+                                                     * 100.0f))];
+              [delay setWetDryMix:MAX (0.0f, MIN (100.0f, [[effect objectForKey:@"mix"] floatValue]
+                                                            * 100.0f))];
               node = delay;
             }
           else if ([type isEqualToString:@"reverb"])
             {
               AVAudioUnitReverb *reverb = [[[AVAudioUnitReverb alloc] init] autorelease];
               [reverb loadFactoryPreset:AVAudioUnitReverbPresetMediumHall];
-              [reverb setWetDryMix:MAX (0.0f, MIN (100.0f,
-                                                   [[effect objectForKey:@"mix"] floatValue]
-                                                     * 100.0f))];
+              [reverb setWetDryMix:MAX (0.0f, MIN (100.0f, [[effect objectForKey:@"mix"] floatValue]
+                                                             * 100.0f))];
               node = reverb;
             }
           if (!node)
@@ -1013,6 +1364,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   return NO;
 #endif
 }
+
 - (void)useInternalSynthesizer
 {
 #if defined(__APPLE__)
@@ -1026,6 +1378,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   _generalMIDIProgram = -1;
 #endif
 }
+
 - (BOOL)useGeneralMIDIProgram:(NSInteger)program error:(NSError **)error
 {
 #if defined(__APPLE__)
@@ -1033,8 +1386,9 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   if (_instrument && !_instrumentDescription && _generalMIDIProgram == program)
     return YES;
 
-  NSURL *soundBankURL = [NSURL fileURLWithPath:
-    @"/System/Library/Components/CoreAudio.component/Contents/Resources/gs_instruments.dls"];
+  NSURL *soundBankURL = [NSURL
+    fileURLWithPath:
+      @"/System/Library/Components/CoreAudio.component/Contents/Resources/gs_instruments.dls"];
   AVAudioUnitSampler *sampler = [[[AVAudioUnitSampler alloc] init] autorelease];
   NSError *loadError = nil;
   if (![sampler loadSoundBankInstrumentAtURL:soundBankURL
@@ -1058,13 +1412,16 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
 #else
   (void)program;
   if (error)
-    *error = [NSError errorWithDomain:@"ScoreMakerDSP"
-                                 code:12
-                             userInfo:@{ NSLocalizedDescriptionKey :
-                                           @"General MIDI live audition is unavailable." }];
+    *error =
+      [NSError errorWithDomain:@"ScoreMakerDSP"
+                          code:12
+                      userInfo:@{
+                        NSLocalizedDescriptionKey : @"General MIDI live audition is unavailable."
+                      }];
   return NO;
 #endif
 }
+
 - (void)loadAudioUnitInstrument:(NSDictionary *)description
                      completion:(ScoreAudioUnitLoadCompletion)completion
 {
@@ -1072,12 +1429,13 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   if ([[self class] isAudioUnitBlacklisted:description])
     {
       if (completion)
-        completion (NO, [NSError errorWithDomain:@"ScoreMakerDSP"
-                                             code:4
-                                         userInfo:@{
-                                           NSLocalizedDescriptionKey :
-                                             @"This Audio Unit is blacklisted after repeated failures."
-                                         }]);
+        completion (NO,
+                    [NSError errorWithDomain:@"ScoreMakerDSP"
+                                        code:4
+                                    userInfo:@{
+                                      NSLocalizedDescriptionKey :
+                                        @"This Audio Unit is blacklisted after repeated failures."
+                                    }]);
       return;
     }
   AudioComponentDescription component
@@ -1096,12 +1454,14 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
       completed = YES;
       [[self class] recordAudioUnitFailure:description];
       if (completion)
-        completion (NO, [NSError errorWithDomain:@"ScoreMakerDSP"
-                                             code:5
-                                         userInfo:@{
-                                           NSLocalizedDescriptionKey :
-                                             @"Audio Unit validation timed out. It may be unstable or incompatible."
-                                         }]);
+        completion (
+          NO, [NSError
+                errorWithDomain:@"ScoreMakerDSP"
+                           code:5
+                       userInfo:@{
+                         NSLocalizedDescriptionKey :
+                           @"Audio Unit validation timed out. It may be unstable or incompatible."
+                       }]);
     });
   [AVAudioUnit
     instantiateWithComponentDescription:component
@@ -1155,6 +1515,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   (void)completion;
 #endif
 }
+
 - (NSDictionary *)audioUnitInstrumentDescription
 {
 #if defined(__APPLE__)
@@ -1163,6 +1524,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   return nil;
 #endif
 }
+
 - (NSDictionary *)audioUnitFullState
 {
 #if defined(__APPLE__)
@@ -1171,6 +1533,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   return nil;
 #endif
 }
+
 - (NSArray *)audioUnitParameters
 {
 #if defined(__APPLE__)
@@ -1190,6 +1553,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   return [NSArray array];
 #endif
 }
+
 - (BOOL)setAudioUnitParameter:(uint64_t)address value:(double)value error:(NSError **)error
 {
 #if defined(__APPLE__)
@@ -1197,11 +1561,12 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   if (!parameter)
     {
       if (error)
-        *error = [NSError errorWithDomain:@"ScoreMakerDSP"
-                                     code:6
-                                 userInfo:@{
-                                   NSLocalizedDescriptionKey : @"The Audio Unit parameter is unavailable."
-                                 }];
+        *error =
+          [NSError errorWithDomain:@"ScoreMakerDSP"
+                              code:6
+                          userInfo:@{
+                            NSLocalizedDescriptionKey : @"The Audio Unit parameter is unavailable."
+                          }];
       return NO;
     }
   [parameter setValue:(AUValue)value originator:nil];
@@ -1213,17 +1578,18 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   return NO;
 #endif
 }
+
 - (void)requestAudioUnitViewController:(ScoreAudioUnitViewCompletion)completion
 {
 #if defined(__APPLE__)
   if (!_instrument)
     {
       if (completion)
-        completion (nil, [NSError errorWithDomain:@"ScoreMakerDSP"
-                                              code:7
-                                          userInfo:@{
-                                            NSLocalizedDescriptionKey : @"No Audio Unit is loaded."
-                                          }]);
+        completion (
+          nil,
+          [NSError errorWithDomain:@"ScoreMakerDSP"
+                              code:7
+                          userInfo:@{ NSLocalizedDescriptionKey : @"No Audio Unit is loaded." }]);
       return;
     }
   [[_instrument AUAudioUnit]
@@ -1237,6 +1603,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   (void)completion;
 #endif
 }
+
 - (NSViewController *)legacyAudioUnitViewController
 {
 #if defined(__APPLE__)
@@ -1245,15 +1612,17 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   UInt32 size = 0;
   Boolean writable = false;
   AudioUnit audioUnit = [_instrument audioUnit];
-  if (AudioUnitGetPropertyInfo (audioUnit, kAudioUnitProperty_CocoaUI,
-                                kAudioUnitScope_Global, 0, &size, &writable) != noErr
+  if (AudioUnitGetPropertyInfo (audioUnit, kAudioUnitProperty_CocoaUI, kAudioUnitScope_Global, 0,
+                                &size, &writable)
+        != noErr
       || size < sizeof (AudioUnitCocoaViewInfo))
     return nil;
   AudioUnitCocoaViewInfo *info = malloc (size);
   if (!info)
     return nil;
-  if (AudioUnitGetProperty (audioUnit, kAudioUnitProperty_CocoaUI, kAudioUnitScope_Global, 0,
-                            info, &size) != noErr)
+  if (AudioUnitGetProperty (audioUnit, kAudioUnitProperty_CocoaUI, kAudioUnitScope_Global, 0, info,
+                            &size)
+      != noErr)
     {
       free (info);
       return nil;
@@ -1282,6 +1651,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   return nil;
 #endif
 }
+
 - (BOOL)saveUserPreset:(NSString *)name error:(NSError **)error
 {
 #if defined(__APPLE__)
@@ -1290,11 +1660,12 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   if (!state || !description || ![name length])
     {
       if (error)
-        *error = [NSError errorWithDomain:@"ScoreMakerDSP"
-                                     code:8
-                                 userInfo:@{
-                                   NSLocalizedDescriptionKey : @"Enter a name for the Audio Unit preset."
-                                 }];
+        *error =
+          [NSError errorWithDomain:@"ScoreMakerDSP"
+                              code:8
+                          userInfo:@{
+                            NSLocalizedDescriptionKey : @"Enter a name for the Audio Unit preset."
+                          }];
       return NO;
     }
   NSDictionary *preset = @{ @"version" : @1, @"description" : description, @"state" : state };
@@ -1315,6 +1686,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   return NO;
 #endif
 }
+
 - (BOOL)loadUserPreset:(NSString *)name error:(NSError **)error
 {
 #if defined(__APPLE__)
@@ -1322,17 +1694,16 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   if (!description || ![name length])
     {
       if (error)
-        *error = [NSError errorWithDomain:@"ScoreMakerDSP"
-                                     code:9
-                                 userInfo:@{
-                                   NSLocalizedDescriptionKey : @"Select an Audio Unit preset to load."
-                                 }];
+        *error = [NSError
+          errorWithDomain:@"ScoreMakerDSP"
+                     code:9
+                 userInfo:@{ NSLocalizedDescriptionKey : @"Select an Audio Unit preset to load." }];
       return NO;
     }
   NSString *filename = [[[name lastPathComponent] stringByDeletingPathExtension]
     stringByAppendingPathExtension:@"aupreset"];
-  NSURL *url = [[[self class] presetDirectoryForAudioUnit:description create:NO]
-    URLByAppendingPathComponent:filename];
+  NSURL *url = [[[self class] presetDirectoryForAudioUnit:description
+                                                   create:NO] URLByAppendingPathComponent:filename];
   NSData *data = [NSData dataWithContentsOfURL:url options:0 error:error];
   if (!data)
     return NO;
@@ -1351,10 +1722,11 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   return NO;
 #endif
 }
+
 - (BOOL)configureEffects:(NSArray *)effects error:(NSError **)error
 {
-  NSSet *supported = [NSSet setWithObjects:@"gain", @"lowpass", @"compressor", @"delay",
-                                           @"reverb", nil];
+  NSSet *supported =
+    [NSSet setWithObjects:@"gain", @"lowpass", @"compressor", @"delay", @"reverb", nil];
   for (NSDictionary *effect in effects)
     if (![supported containsObject:[effect objectForKey:@"type"]])
       {
@@ -1393,10 +1765,10 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
         _dsp->gain = powf (10.0f, [[effect objectForKey:@"decibels"] floatValue] / 20.0f);
       else if ([type isEqualToString:@"lowpass"])
         {
-          float cutoff = MAX (20.0f, MIN (20000.0f,
-                                          [[effect objectForKey:@"cutoff"] floatValue] ?: 12000.0f));
-          _dsp->lowpassCoefficient = 1.0f - expf (-2.0f * (float)M_PI * cutoff
-                                                  / (float)_dsp->sampleRate);
+          float cutoff
+            = MAX (20.0f, MIN (20000.0f, [[effect objectForKey:@"cutoff"] floatValue] ?: 12000.0f));
+          _dsp->lowpassCoefficient
+            = 1.0f - expf (-2.0f * (float)M_PI * cutoff / (float)_dsp->sampleRate);
         }
       else if ([type isEqualToString:@"compressor"])
         {
@@ -1407,22 +1779,21 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
       else if ([type isEqualToString:@"delay"])
         {
           double seconds = MAX (0.001, MIN (2.0, [[effect objectForKey:@"time"] doubleValue]));
-          _dsp->delayFrames = MIN (_dsp->delayCapacity,
-                                  MAX ((NSUInteger)1,
-                                       (NSUInteger)llround (seconds * _dsp->sampleRate)));
+          _dsp->delayFrames
+            = MIN (_dsp->delayCapacity,
+                   MAX ((NSUInteger)1, (NSUInteger)llround (seconds * _dsp->sampleRate)));
           _dsp->delayMix = MAX (0.0f, MIN (1.0f, [[effect objectForKey:@"mix"] floatValue]));
-          _dsp->delayFeedback =
-            MAX (0.0f, MIN (0.95f, [[effect objectForKey:@"feedback"] floatValue]));
+          _dsp->delayFeedback
+            = MAX (0.0f, MIN (0.95f, [[effect objectForKey:@"feedback"] floatValue]));
         }
       else if ([type isEqualToString:@"reverb"])
         {
           double room = MAX (0.05, MIN (0.75, [[effect objectForKey:@"roomSize"] doubleValue]));
-          _dsp->reverbFrames = MIN (_dsp->reverbCapacity,
-                                   MAX ((NSUInteger)1,
-                                        (NSUInteger)llround (room * _dsp->sampleRate)));
+          _dsp->reverbFrames
+            = MIN (_dsp->reverbCapacity,
+                   MAX ((NSUInteger)1, (NSUInteger)llround (room * _dsp->sampleRate)));
           _dsp->reverbMix = MAX (0.0f, MIN (1.0f, [[effect objectForKey:@"mix"] floatValue]));
-          _dsp->reverbFeedback =
-            MAX (0.0f, MIN (0.92f, 0.45f + (float)room * 0.55f));
+          _dsp->reverbFeedback = MAX (0.0f, MIN (0.92f, 0.45f + (float)room * 0.55f));
         }
     }
   memset (_dsp->delayLeft, 0, _dsp->delayCapacity * sizeof (float));
@@ -1435,6 +1806,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
     return NO;
   return YES;
 }
+
 - (BOOL)configureEffectsFromGraph:(ScoreSynthesisGraph *)graph error:(NSError **)error
 {
   NSArray *order = [ScoreSynthesisCompiler processingOrderForGraph:graph error:error];
@@ -1447,7 +1819,8 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
             (void)index;
             (void)stop;
             return [[item objectForKey:@"identifier"] isEqualToString:[node typeIdentifier]];
-          }] != NSNotFound)
+          }]
+        != NSNotFound)
       {
         NSMutableDictionary *effect =
           [NSMutableDictionary dictionaryWithDictionary:[node parameters]];
@@ -1457,23 +1830,28 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
       }
   return [self configureEffects:effects error:error];
 }
+
 - (NSArray *)effectConfiguration
 {
   return _effectConfiguration;
 }
+
 - (NSDictionary *)internalSynthPatch
 {
   return [self internalSynthPatchForVoice:1];
 }
+
 - (BOOL)configureInternalSynthPatch:(NSDictionary *)patch error:(NSError **)error
 {
   return [self configureInternalSynthPatch:patch forVoice:1 error:error];
 }
+
 - (NSDictionary *)internalSynthPatchForVoice:(NSInteger)voice
 {
   NSInteger normalizedVoice = MAX ((NSInteger)1, MIN ((NSInteger)SCORE_DSP_PATCHES, voice));
   return [_internalSynthPatches objectForKey:[NSNumber numberWithInteger:normalizedVoice]];
 }
+
 - (BOOL)configureInternalSynthPatch:(NSDictionary *)patch
                            forVoice:(NSInteger)voice
                               error:(NSError **)error
@@ -1485,11 +1863,10 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   if (waveformIndex == NSNotFound)
     {
       if (error)
-        *error = [NSError errorWithDomain:@"ScoreMakerDSP"
-                                     code:12
-                                 userInfo:@{
-                                   NSLocalizedDescriptionKey : @"The oscillator waveform is invalid."
-                                 }];
+        *error = [NSError
+          errorWithDomain:@"ScoreMakerDSP"
+                     code:12
+                 userInfo:@{ NSLocalizedDescriptionKey : @"The oscillator waveform is invalid." }];
       return NO;
     }
   float attack = MAX (0.0f, MIN (10.0f, ScoreDSPPatchFloat (patch, defaults, @"attack")));
@@ -1499,15 +1876,23 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   float lfoRate = MAX (0.01f, MIN (40.0f, ScoreDSPPatchFloat (patch, defaults, @"lfoRate")));
   float lfoDepth = MAX (0.0f, MIN (12.0f, ScoreDSPPatchFloat (patch, defaults, @"lfoDepth")));
   float lfoDelay = MAX (0.0f, MIN (10.0f, ScoreDSPPatchFloat (patch, defaults, @"lfoDelay")));
-  float filterCutoff = MAX (20.0f, MIN (20000.0f, ScoreDSPPatchFloat (patch, defaults, @"filterCutoff")));
-  float filterResonance = MAX (0.0f, MIN (0.95f, ScoreDSPPatchFloat (patch, defaults, @"filterResonance")));
-  float filterAttack = MAX (0.0f, MIN (10.0f, ScoreDSPPatchFloat (patch, defaults, @"filterAttack")));
+  float filterCutoff
+    = MAX (20.0f, MIN (20000.0f, ScoreDSPPatchFloat (patch, defaults, @"filterCutoff")));
+  float filterResonance
+    = MAX (0.0f, MIN (0.95f, ScoreDSPPatchFloat (patch, defaults, @"filterResonance")));
+  float filterAttack
+    = MAX (0.0f, MIN (10.0f, ScoreDSPPatchFloat (patch, defaults, @"filterAttack")));
   float filterDecay = MAX (0.0f, MIN (10.0f, ScoreDSPPatchFloat (patch, defaults, @"filterDecay")));
-  float filterSustain = MAX (0.0f, MIN (1.0f, ScoreDSPPatchFloat (patch, defaults, @"filterSustain")));
-  float filterRelease = MAX (0.0f, MIN (20.0f, ScoreDSPPatchFloat (patch, defaults, @"filterRelease")));
-  float filterEnvelopeAmount = MAX (-96.0f, MIN (96.0f, ScoreDSPPatchFloat (patch, defaults, @"filterEnvelopeAmount")));
-  float velocityToAmplitude = MAX (0.0f, MIN (1.0f, ScoreDSPPatchFloat (patch, defaults, @"velocityToAmplitude")));
-  float velocityToFilter = MAX (-48.0f, MIN (48.0f, ScoreDSPPatchFloat (patch, defaults, @"velocityToFilter")));
+  float filterSustain
+    = MAX (0.0f, MIN (1.0f, ScoreDSPPatchFloat (patch, defaults, @"filterSustain")));
+  float filterRelease
+    = MAX (0.0f, MIN (20.0f, ScoreDSPPatchFloat (patch, defaults, @"filterRelease")));
+  float filterEnvelopeAmount
+    = MAX (-96.0f, MIN (96.0f, ScoreDSPPatchFloat (patch, defaults, @"filterEnvelopeAmount")));
+  float velocityToAmplitude
+    = MAX (0.0f, MIN (1.0f, ScoreDSPPatchFloat (patch, defaults, @"velocityToAmplitude")));
+  float velocityToFilter
+    = MAX (-48.0f, MIN (48.0f, ScoreDSPPatchFloat (patch, defaults, @"velocityToFilter")));
   NSMutableDictionary *normalized = [NSMutableDictionary dictionaryWithDictionary:@{
     @"waveform" : waveform,
     @"attack" : [NSNumber numberWithFloat:attack],
@@ -1534,13 +1919,12 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   if ([[patch objectForKey:@"description"] isKindOfClass:[NSString class]])
     [normalized setObject:[patch objectForKey:@"description"] forKey:@"description"];
   NSInteger normalizedVoice = MAX ((NSInteger)1, MIN ((NSInteger)SCORE_DSP_PATCHES, voice));
-  [_internalSynthPatches setObject:normalized
-                            forKey:[NSNumber numberWithInteger:normalizedVoice]];
+  [_internalSynthPatches setObject:normalized forKey:[NSNumber numberWithInteger:normalizedVoice]];
   ScoreDSPStorePatch (_dsp, normalizedVoice,
-                      (ScoreDSPPatch){ (int)waveformIndex, attack, decay, sustain, release,
-                                       lfoRate, lfoDepth, lfoDelay, filterCutoff,
-                                       filterResonance, filterAttack, filterDecay, filterSustain,
-                                       filterRelease, filterEnvelopeAmount, velocityToAmplitude,
+                      (ScoreDSPPatch){ (int)waveformIndex, attack, decay, sustain, release, lfoRate,
+                                       lfoDepth, lfoDelay, filterCutoff, filterResonance,
+                                       filterAttack, filterDecay, filterSustain, filterRelease,
+                                       filterEnvelopeAmount, velocityToAmplitude,
                                        velocityToFilter });
   NSArray *effects = [patch objectForKey:@"effects"];
   if (![effects isKindOfClass:[NSArray class]])
@@ -1555,22 +1939,25 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
 {
   NSInteger normalizedVoice = MAX ((NSInteger)1, MIN ((NSInteger)SCORE_DSP_PATCHES, voice));
   return [_internalSynthEffects objectForKey:[NSNumber numberWithInteger:normalizedVoice]]
-         ?: [NSArray array];
+           ?: [NSArray array];
 }
 
 - (BOOL)configureInternalSynthEffects:(NSArray *)effects
-                              forVoice:(NSInteger)voice
-                                 error:(NSError **)error
+                             forVoice:(NSInteger)voice
+                                error:(NSError **)error
 {
-  NSSet *supported = [NSSet setWithObjects:@"gain", @"lowpass", @"compressor", @"delay",
-                                           @"reverb", nil];
+  NSSet *supported =
+    [NSSet setWithObjects:@"gain", @"lowpass", @"compressor", @"delay", @"reverb", nil];
   for (NSDictionary *effect in effects)
     if (![supported containsObject:[effect objectForKey:@"type"]])
       {
         if (error)
-          *error = [NSError errorWithDomain:@"ScoreMakerDSP"
-                                       code:13
-                                   userInfo:@{ NSLocalizedDescriptionKey : @"The patch contains an unsupported effect." }];
+          *error = [NSError
+            errorWithDomain:@"ScoreMakerDSP"
+                       code:13
+                   userInfo:@{
+                     NSLocalizedDescriptionKey : @"The patch contains an unsupported effect."
+                   }];
         return NO;
       }
   NSInteger normalizedVoice = MAX ((NSInteger)1, MIN ((NSInteger)SCORE_DSP_PATCHES, voice));
@@ -1578,11 +1965,14 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   BOOL restart = _running;
   if (restart)
     [self stop];
-  [_internalSynthEffects setObject:[[[NSArray alloc] initWithArray:effects copyItems:YES] autorelease]
-                               forKey:[NSNumber numberWithInteger:normalizedVoice]];
-  NSArray *storedEffects = [_internalSynthEffects objectForKey:[NSNumber numberWithInteger:normalizedVoice]];
+  [_internalSynthEffects setObject:[[[NSArray alloc] initWithArray:effects
+                                                         copyItems:YES] autorelease]
+                            forKey:[NSNumber numberWithInteger:normalizedVoice]];
+  NSArray *storedEffects =
+    [_internalSynthEffects objectForKey:[NSNumber numberWithInteger:normalizedVoice]];
   NSMutableDictionary *patch = [NSMutableDictionary
-    dictionaryWithDictionary:[_internalSynthPatches objectForKey:[NSNumber numberWithInteger:normalizedVoice]]
+    dictionaryWithDictionary:[_internalSynthPatches
+                               objectForKey:[NSNumber numberWithInteger:normalizedVoice]]
                                ?: [[self class] defaultInternalSynthPatch]];
   [patch setObject:storedEffects forKey:@"effects"];
   [_internalSynthPatches setObject:patch forKey:[NSNumber numberWithInteger:normalizedVoice]];
@@ -1603,29 +1993,43 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
         continue;
       NSString *type = [effect objectForKey:@"type"];
       if ([type isEqualToString:@"gain"])
-        _dsp->voiceGain[index] = powf (10.0f, [[effect objectForKey:@"decibels"] floatValue] / 20.0f);
+        _dsp->voiceGain[index]
+          = powf (10.0f, [[effect objectForKey:@"decibels"] floatValue] / 20.0f);
       else if ([type isEqualToString:@"lowpass"])
         {
-          float cutoff = MAX (20.0f, MIN (20000.0f, [[effect objectForKey:@"cutoff"] floatValue] ?: 12000.0f));
-          _dsp->voiceLowpassCoefficient[index] = 1.0f - expf (-2.0f * (float)M_PI * cutoff / (float)_dsp->sampleRate);
+          float cutoff
+            = MAX (20.0f, MIN (20000.0f, [[effect objectForKey:@"cutoff"] floatValue] ?: 12000.0f));
+          _dsp->voiceLowpassCoefficient[index]
+            = 1.0f - expf (-2.0f * (float)M_PI * cutoff / (float)_dsp->sampleRate);
         }
       else if ([type isEqualToString:@"compressor"])
         {
-          _dsp->voiceCompressorThreshold[index] = powf (10.0f, [[effect objectForKey:@"threshold"] floatValue] / 20.0f);
-          _dsp->voiceCompressorRatio[index] = MAX (1.0f, [[effect objectForKey:@"ratio"] floatValue]);
+          _dsp->voiceCompressorThreshold[index]
+            = powf (10.0f, [[effect objectForKey:@"threshold"] floatValue] / 20.0f);
+          _dsp->voiceCompressorRatio[index]
+            = MAX (1.0f, [[effect objectForKey:@"ratio"] floatValue]);
         }
       else if ([type isEqualToString:@"delay"])
         {
-          double seconds = MAX (0.001, MIN (2.0, [[effect objectForKey:@"time"] doubleValue] ?: 0.3));
-          _dsp->voiceDelayFrames[index] = MIN (_dsp->delayCapacity, MAX ((NSUInteger)1, (NSUInteger)llround (seconds * _dsp->sampleRate)));
-          _dsp->voiceDelayMix[index] = MAX (0.0f, MIN (1.0f, [[effect objectForKey:@"mix"] floatValue]));
-          _dsp->voiceDelayFeedback[index] = MAX (0.0f, MIN (0.95f, [[effect objectForKey:@"feedback"] floatValue]));
+          double seconds
+            = MAX (0.001, MIN (2.0, [[effect objectForKey:@"time"] doubleValue] ?: 0.3));
+          _dsp->voiceDelayFrames[index]
+            = MIN (_dsp->delayCapacity,
+                   MAX ((NSUInteger)1, (NSUInteger)llround (seconds * _dsp->sampleRate)));
+          _dsp->voiceDelayMix[index]
+            = MAX (0.0f, MIN (1.0f, [[effect objectForKey:@"mix"] floatValue]));
+          _dsp->voiceDelayFeedback[index]
+            = MAX (0.0f, MIN (0.95f, [[effect objectForKey:@"feedback"] floatValue]));
         }
       else if ([type isEqualToString:@"reverb"])
         {
-          double room = MAX (0.05, MIN (0.75, [[effect objectForKey:@"roomSize"] doubleValue] ?: 0.35));
-          _dsp->voiceReverbFrames[index] = MIN (_dsp->reverbCapacity, MAX ((NSUInteger)1, (NSUInteger)llround (room * _dsp->sampleRate)));
-          _dsp->voiceReverbMix[index] = MAX (0.0f, MIN (1.0f, [[effect objectForKey:@"mix"] floatValue]));
+          double room
+            = MAX (0.05, MIN (0.75, [[effect objectForKey:@"roomSize"] doubleValue] ?: 0.35));
+          _dsp->voiceReverbFrames[index]
+            = MIN (_dsp->reverbCapacity,
+                   MAX ((NSUInteger)1, (NSUInteger)llround (room * _dsp->sampleRate)));
+          _dsp->voiceReverbMix[index]
+            = MAX (0.0f, MIN (1.0f, [[effect objectForKey:@"mix"] floatValue]));
           _dsp->voiceReverbFeedback[index] = MAX (0.0f, MIN (0.92f, 0.45f + (float)room * 0.55f));
         }
     }
@@ -1639,13 +2043,15 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
     return NO;
   return YES;
 }
+
 - (void)stop
 {
 #if defined(__APPLE__)
   if (_engine)
-    [[NSNotificationCenter defaultCenter] removeObserver:self
-                                                    name:AVAudioEngineConfigurationChangeNotification
-                                                  object:_engine];
+    [[NSNotificationCenter defaultCenter]
+      removeObserver:self
+                name:AVAudioEngineConfigurationChangeNotification
+              object:_engine];
   [_engine stop];
   [_source release];
   _source = nil;
@@ -1656,6 +2062,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
 #endif
   _running = NO;
 }
+
 - (void)audioEngineConfigurationChanged:(NSNotification *)notification
 {
 #if defined(__APPLE__)
@@ -1665,28 +2072,31 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   AVAudioEngine *observedEngine = _engine;
   dispatch_after (dispatch_time (DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
                   dispatch_get_main_queue (), ^{
-    if (_engine != observedEngine || [_engine isRunning])
-      return;
-    NSError *restartError = nil;
-    if ([_engine startAndReturnError:&restartError])
-      return;
-    NSDictionary *failedDescription = [[_instrumentDescription retain] autorelease];
-    [[self class] recordAudioUnitFailure:failedDescription];
-    [self useInternalSynthesizer];
-    [self startWithError:NULL];
-  });
+                    if (_engine != observedEngine || [_engine isRunning])
+                      return;
+                    NSError *restartError = nil;
+                    if ([_engine startAndReturnError:&restartError])
+                      return;
+                    NSDictionary *failedDescription = [[_instrumentDescription retain] autorelease];
+                    [[self class] recordAudioUnitFailure:failedDescription];
+                    [self useInternalSynthesizer];
+                    [self startWithError:NULL];
+                  });
 #else
   (void)notification;
 #endif
 }
+
 - (BOOL)isRunning
 {
   return _running;
 }
+
 - (void)noteOn:(NSInteger)pitch velocity:(NSUInteger)velocity
 {
   [self noteOn:pitch voice:1 velocity:velocity];
 }
+
 - (void)noteOn:(NSInteger)pitch voice:(NSInteger)voice velocity:(NSUInteger)velocity
 {
 #if defined(__APPLE__)
@@ -1699,10 +2109,12 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   ScoreDSPPush (_dsp, (int)pitch, (int)MAX (1, MIN (SCORE_DSP_PATCHES, voice)),
                 (float)MIN ((NSUInteger)127, velocity) / 127.0f, YES);
 }
+
 - (void)noteOff:(NSInteger)pitch
 {
   [self noteOff:pitch voice:1];
 }
+
 - (void)noteOff:(NSInteger)pitch voice:(NSInteger)voice
 {
 #if defined(__APPLE__)
@@ -1714,6 +2126,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
 #endif
   ScoreDSPPush (_dsp, (int)pitch, (int)MAX (1, MIN (SCORE_DSP_PATCHES, voice)), 0, NO);
 }
+
 - (void)allNotesOff
 {
 #if defined(__APPLE__)
@@ -1728,6 +2141,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
     for (NSInteger voice = 1; voice <= SCORE_DSP_PATCHES; voice++)
       [self noteOff:pitch voice:voice];
 }
+
 - (BOOL)scheduleEvents:(NSArray *)events error:(NSError **)error
 {
 #if defined(__APPLE__)
@@ -1781,13 +2195,11 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
               double semitones = 12.0 * log (event.frequency / equalFrequency) / log (2.0);
               int bend = (int)lrint (8192.0 + semitones * 4096.0);
               bend = MAX (0, MIN (16383, bend));
-              uint8_t bendMIDI[3] = { (uint8_t)(0xe0 | channel),
-                                      (uint8_t)(bend & 0x7f),
+              uint8_t bendMIDI[3] = { (uint8_t)(0xe0 | channel), (uint8_t)(bend & 0x7f),
                                       (uint8_t)((bend >> 7) & 0x7f) };
               schedule ((AUEventSampleTime)event.sampleFrame, 0, 3, bendMIDI);
             }
-          uint8_t midi[3] = { (uint8_t)((event.on ? 0x90 : 0x80) | channel),
-                              (uint8_t)event.pitch,
+          uint8_t midi[3] = { (uint8_t)((event.on ? 0x90 : 0x80) | channel), (uint8_t)event.pitch,
                               event.on ? (uint8_t)lrintf (event.velocity * 127.0f) : 0 };
           schedule ((AUEventSampleTime)event.sampleFrame, 0, 3, midi);
         }
@@ -1803,6 +2215,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   return NO;
 #endif
 }
+
 - (BOOL)renderEvents:(NSArray *)events
             duration:(NSTimeInterval)duration
                toURL:(NSURL *)url
@@ -1893,6 +2306,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   return NO;
 #endif
 }
+
 - (BOOL)renderPitches:(NSArray *)pitches
              duration:(NSTimeInterval)duration
                 toURL:(NSURL *)url
@@ -1911,6 +2325,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
     }
   return [self renderEvents:events duration:duration + 0.5 toURL:url error:error];
 }
+
 - (void)dealloc
 {
   [self stop];

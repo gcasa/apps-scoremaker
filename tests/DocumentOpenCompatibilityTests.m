@@ -29,21 +29,25 @@ main (void)
   NSString *bwv1041Path = [[[NSFileManager defaultManager] currentDirectoryPath]
     stringByAppendingPathComponent:@"examples/bach-fugue-bwv-1041.score"];
 
-  ScoreMakerDocumentController *controller = [ScoreMakerDocumentController sharedDocumentController];
+  ScoreMakerDocumentController *controller =
+    [ScoreMakerDocumentController sharedDocumentController];
   NSString *scoreType = [controller typeFromFileExtension:@"score"];
-  Require ([scoreType isEqualToString:@"MusicKit Scorefile"], @"score extension did not map to scorefile type");
+  Require ([scoreType isEqualToString:@"MusicKit Scorefile"],
+           @"score extension did not map to scorefile type");
   Require ([controller documentClassForType:scoreType] == [ScoreMakerDocument class],
            @"scorefile type did not map to ScoreMakerDocument");
 
   ScoreMakerDocument *document = [[[ScoreMakerDocument alloc] init] autorelease];
-  Require ([document readFromFile:scorePath ofType:scoreType], @"legacy readFromFile:ofType: failed");
+  Require ([document readFromFile:scorePath ofType:scoreType],
+           @"legacy readFromFile:ofType: failed");
   Require ([[[document scoreDocument] notes] count] > 0, @"legacy read path loaded no notes");
 
   NSError *openError = nil;
   NSDocument *opened = [controller openDocumentWithContentsOfURL:[NSURL fileURLWithPath:scorePath]
-                                                        display:NO
-                                                          error:&openError];
-  Require ([opened isKindOfClass:[ScoreMakerDocument class]], @"document controller did not open scorefile");
+                                                         display:NO
+                                                           error:&openError];
+  Require ([opened isKindOfClass:[ScoreMakerDocument class]],
+           @"document controller did not open scorefile");
   Require ([[[(ScoreMakerDocument *)opened scoreDocument] notes] count] > 0,
            @"document controller open loaded no notes");
 

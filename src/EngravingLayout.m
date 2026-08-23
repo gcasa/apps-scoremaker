@@ -25,12 +25,14 @@
 @synthesize firstMeasureIndex = _firstMeasureIndex, lastMeasureIndex = _lastMeasureIndex;
 @synthesize startsNewPage = _startsNewPage;
 @synthesize ticks = _ticks, fractions = _fractions;
+
 - (void)dealloc
 {
   [_ticks release];
   [_fractions release];
   [super dealloc];
 }
+
 - (CGFloat)fractionForTick:(NSUInteger)tick
 {
   if (tick <= _startTick)
@@ -73,8 +75,7 @@ ScorePageIndexForSystem (NSArray *systems, NSUInteger targetSystem, NSUInteger s
 }
 
 NSUInteger
-ScorePositionOnPageForSystem (NSArray *systems, NSUInteger targetSystem,
-                              NSUInteger systemsPerPage)
+ScorePositionOnPageForSystem (NSArray *systems, NSUInteger targetSystem, NSUInteger systemsPerPage)
 {
   NSUInteger position = 0;
   systemsPerPage = MAX ((NSUInteger)1, systemsPerPage);
@@ -93,12 +94,14 @@ ScorePositionOnPageForSystem (NSArray *systems, NSUInteger targetSystem,
 
 @implementation ScoreEngravingLayout
 @synthesize systems = _systems, notationElements = _notationElements;
+
 - (void)dealloc
 {
   [_systems release];
   [_notationElements release];
   [super dealloc];
 }
+
 - (ScoreEngravingSystem *)systemContainingTick:(NSUInteger)tick
 {
   for (ScoreEngravingSystem *system in _systems)
@@ -109,12 +112,14 @@ ScorePositionOnPageForSystem (NSArray *systems, NSUInteger targetSystem,
 @end
 
 @implementation ScoreEngraver
+
 - (void)dealloc
 {
   [_displayedAccidentals release];
   [_accidentalDocument release];
   [super dealloc];
 }
+
 - (void)prepareAccidentalsForDocument:(ScoreDocument *)document
 {
   if (_accidentalDocument == document && _displayedAccidentals)
@@ -124,6 +129,7 @@ ScorePositionOnPageForSystem (NSArray *systems, NSUInteger targetSystem,
   [_displayedAccidentals release];
   _displayedAccidentals = [ScoreDisplayedAccidentalMapForDocument (document) copy];
 }
+
 - (CGFloat)widthForMeasure:(ScoreMeasure *)measure
                   document:(ScoreDocument *)document
                    minimum:(CGFloat)minimum
@@ -148,10 +154,11 @@ ScorePositionOnPageForSystem (NSArray *systems, NSUInteger targetSystem,
   if (measureIndex > 0 && measureIndex != NSNotFound)
     {
       ScoreMeasure *previous = [[document measures] objectAtIndex:measureIndex - 1];
-      if ([previous keySignatureFifths] != [measure keySignatureFifths] ||
-          ![[previous keyMode] isEqualToString:[measure keyMode]])
-        contentWidth += 8.0 * (labs ([previous keySignatureFifths]) +
-                               labs ([measure keySignatureFifths])) + 12.0;
+      if ([previous keySignatureFifths] != [measure keySignatureFifths]
+          || ![[previous keyMode] isEqualToString:[measure keyMode]])
+        contentWidth
+          += 8.0 * (labs ([previous keySignatureFifths]) + labs ([measure keySignatureFifths]))
+             + 12.0;
     }
   for (NSArray *notes in [notesByOnset allValues])
     {
@@ -160,7 +167,8 @@ ScorePositionOnPageForSystem (NSArray *systems, NSUInteger targetSystem,
       for (ScoreNote *note in notes)
         {
           if ([[self->_displayedAccidentals objectForKey:[NSValue valueWithPointer:note]]
-                integerValue] != NSIntegerMax)
+                integerValue]
+              != NSIntegerMax)
             accidentals++;
           annotationWidth = MAX (annotationWidth, (CGFloat)[[note dynamic] length] * 7.0);
         }
@@ -170,16 +178,16 @@ ScorePositionOnPageForSystem (NSArray *systems, NSUInteger targetSystem,
     }
   return MAX (minimum, contentWidth);
 }
+
 - (CGFloat)widthForMeasure:(ScoreMeasure *)measure
                   document:(ScoreDocument *)document
                    minimum:(CGFloat)minimum
-             notesByMeasure:(NSDictionary *)notesByMeasure
-                   previous:(ScoreMeasure *)previous
+            notesByMeasure:(NSDictionary *)notesByMeasure
+                  previous:(ScoreMeasure *)previous
 {
   [self prepareAccidentalsForDocument:document];
   NSMutableDictionary *notesByOnset = [NSMutableDictionary dictionary];
-  NSArray *measureNotes =
-    [notesByMeasure objectForKey:[NSValue valueWithPointer:measure]];
+  NSArray *measureNotes = [notesByMeasure objectForKey:[NSValue valueWithPointer:measure]];
   for (ScoreNote *note in measureNotes)
     {
       NSNumber *onset = [NSNumber numberWithUnsignedInteger:[note startTick]];
@@ -192,12 +200,13 @@ ScorePositionOnPageForSystem (NSArray *systems, NSUInteger targetSystem,
       [notes addObject:note];
     }
   CGFloat contentWidth = 42.0;
-  if (previous &&
-      ([previous keySignatureFifths] != [measure keySignatureFifths] ||
-       ![[previous keyMode] isEqualToString:[measure keyMode]]))
+  if (previous
+      && ([previous keySignatureFifths] != [measure keySignatureFifths]
+          || ![[previous keyMode] isEqualToString:[measure keyMode]]))
     {
-      contentWidth += 8.0 * (labs ([previous keySignatureFifths]) +
-                             labs ([measure keySignatureFifths])) + 12.0;
+      contentWidth
+        += 8.0 * (labs ([previous keySignatureFifths]) + labs ([measure keySignatureFifths]))
+           + 12.0;
     }
   for (NSArray *notes in [notesByOnset allValues])
     {
@@ -206,7 +215,8 @@ ScorePositionOnPageForSystem (NSArray *systems, NSUInteger targetSystem,
       for (ScoreNote *note in notes)
         {
           if ([[self->_displayedAccidentals objectForKey:[NSValue valueWithPointer:note]]
-                integerValue] != NSIntegerMax)
+                integerValue]
+              != NSIntegerMax)
             accidentals++;
           annotationWidth = MAX (annotationWidth, (CGFloat)[[note dynamic] length] * 7.0);
         }
@@ -216,6 +226,7 @@ ScorePositionOnPageForSystem (NSArray *systems, NSUInteger targetSystem,
     }
   return MAX (minimum, contentWidth);
 }
+
 - (ScoreEngravingSystem *)systemForDocument:(ScoreDocument *)document
                                       first:(NSUInteger)first
                                        last:(NSUInteger)last
@@ -267,6 +278,7 @@ ScorePositionOnPageForSystem (NSArray *systems, NSUInteger targetSystem,
   [system setFractions:fractions];
   return system;
 }
+
 - (ScoreEngravingSystem *)systemForDocument:(ScoreDocument *)document
                                       first:(NSUInteger)first
                                        last:(NSUInteger)last
@@ -283,15 +295,15 @@ ScorePositionOnPageForSystem (NSArray *systems, NSUInteger targetSystem,
     {
       ScoreMeasure *measure = [measures objectAtIndex:i];
       [tickSet addObject:[NSNumber numberWithUnsignedInteger:[measure startTick]]];
-      NSArray *measureNotes =
-        [notesByMeasure objectForKey:[NSValue valueWithPointer:measure]];
+      NSArray *measureNotes = [notesByMeasure objectForKey:[NSValue valueWithPointer:measure]];
       for (ScoreNote *note in measureNotes)
         {
           NSNumber *tick = [NSNumber numberWithUnsignedInteger:[note startTick]];
           [tickSet addObject:tick];
           NSNumber *count = [countsByTick objectForKey:tick];
-          [countsByTick setObject:[NSNumber numberWithUnsignedInteger:[count unsignedIntegerValue] + 1]
-                            forKey:tick];
+          [countsByTick
+            setObject:[NSNumber numberWithUnsignedInteger:[count unsignedIntegerValue] + 1]
+               forKey:tick];
         }
     }
   NSArray *ticks = [[tickSet allObjects] sortedArrayUsingSelector:@selector (compare:)];
@@ -327,6 +339,7 @@ ScorePositionOnPageForSystem (NSArray *systems, NSUInteger targetSystem,
   [system setFractions:fractions];
   return system;
 }
+
 - (ScoreEngravingLayout *)layoutDocument:(ScoreDocument *)document
                               musicWidth:(CGFloat)musicWidth
                      minimumMeasureWidth:(CGFloat)minimum
@@ -339,11 +352,12 @@ ScorePositionOnPageForSystem (NSArray *systems, NSUInteger targetSystem,
     {
       NSMutableDictionary *notesByMeasure = [NSMutableDictionary dictionary];
       NSUInteger measureIndex = 0;
-      for (ScoreNote *note in [[document notes] sortedArrayUsingSelector:@selector (compareScoreNote:)])
+      for (ScoreNote *note in
+           [[document notes] sortedArrayUsingSelector:@selector (compareScoreNote:)])
         {
           NSUInteger onset = [note startTick];
-          while (measureIndex + 1 < [measures count] &&
-                 onset >= [[measures objectAtIndex:measureIndex + 1] startTick])
+          while (measureIndex + 1 < [measures count]
+                 && onset >= [[measures objectAtIndex:measureIndex + 1] startTick])
             measureIndex++;
           ScoreMeasure *measure = [measures objectAtIndex:measureIndex];
           NSUInteger end = [measure startTick] + [measure durationTicks];
@@ -360,8 +374,8 @@ ScorePositionOnPageForSystem (NSArray *systems, NSUInteger targetSystem,
         }
       NSUInteger first = 0;
       CGFloat used = 0;
-      BOOL sourceDriven = [[[document scorefileCompatibility]
-                             objectForKey:@"algorithmicSource"] boolValue];
+      BOOL sourceDriven =
+        [[[document scorefileCompatibility] objectForKey:@"algorithmicSource"] boolValue];
       /* A mathematically exact fit still lets noteheads, accidentals, stems,
          and the final barline crowd the right edge.  Keep a modest optical
          inset when deciding whether another measure belongs on the system. */
@@ -375,8 +389,8 @@ ScorePositionOnPageForSystem (NSArray *systems, NSUInteger targetSystem,
                                         minimum:minimum
                                  notesByMeasure:notesByMeasure
                                        previous:previous];
-          BOOL forcedBreak = i > first &&
-            ([measure systemBreak] || [measure pageBreak] || sourceDriven);
+          BOOL forcedBreak
+            = i > first && ([measure systemBreak] || [measure pageBreak] || sourceDriven);
           if (i > first && (forcedBreak || used + width > fittingWidth))
             {
               [systems addObject:[self systemForDocument:document

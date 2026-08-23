@@ -314,7 +314,8 @@ GeneralMidiProgramName (unsigned char program)
 {
   if (![contents length])
     {
-      if (error) *error = ParserError (@"The instrument-definition file is empty.");
+      if (error)
+        *error = ParserError (@"The instrument-definition file is empty.");
       return nil;
     }
   NSMutableDictionary *patchSections = [NSMutableDictionary dictionary];
@@ -323,13 +324,14 @@ GeneralMidiProgramName (unsigned char program)
   NSMutableArray *instrumentOrder = [NSMutableArray array];
   NSString *area = nil;
   NSString *section = nil;
-  NSArray *lines = [contents componentsSeparatedByCharactersInSet:
-    [NSCharacterSet newlineCharacterSet]];
+  NSArray *lines =
+    [contents componentsSeparatedByCharactersInSet:[NSCharacterSet newlineCharacterSet]];
   for (NSString *rawLine in lines)
     {
-      NSString *line = [rawLine stringByTrimmingCharactersInSet:
-        [NSCharacterSet whitespaceAndNewlineCharacterSet]];
-      if (![line length] || [line hasPrefix:@";"]) continue;
+      NSString *line =
+        [rawLine stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+      if (![line length] || [line hasPrefix:@";"])
+        continue;
       if ([line hasPrefix:@"."])
         {
           area = [[line substringFromIndex:1] lowercaseString];
@@ -358,7 +360,8 @@ GeneralMidiProgramName (unsigned char program)
           continue;
         }
       NSRange equals = [line rangeOfString:@"="];
-      if (!section || equals.location == NSNotFound) continue;
+      if (!section || equals.location == NSNotFound)
+        continue;
       NSString *key = [[line substringToIndex:equals.location]
         stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
       NSString *value = [[line substringFromIndex:equals.location + 1]
@@ -369,8 +372,8 @@ GeneralMidiProgramName (unsigned char program)
           if (program >= 0 && program < 128 && [key length])
             [[patchSections objectForKey:section] setObject:value forKey:@(program)];
         }
-      else if ([area isEqualToString:@"instrument definitions"]
-               && [key hasPrefix:@"Patch["] && [key hasSuffix:@"]"])
+      else if ([area isEqualToString:@"instrument definitions"] && [key hasPrefix:@"Patch["] &&
+               [key hasSuffix:@"]"])
         {
           NSString *bankText = [key substringWithRange:NSMakeRange (6, [key length] - 7)];
           [[instrumentSections objectForKey:section] setObject:value forKey:bankText];
@@ -386,13 +389,17 @@ GeneralMidiProgramName (unsigned char program)
         {
           NSString *patchSection = [assignments objectForKey:bankText];
           NSDictionary *patchesByNumber = [patchSections objectForKey:patchSection];
-          if (!patchesByNumber) continue;
+          if (!patchesByNumber)
+            continue;
           NSInteger bank = [bankText isEqualToString:@"*"] ? 0 : [bankText integerValue];
           NSMutableArray *patches = [NSMutableArray arrayWithCapacity:128];
           for (NSInteger program = 0; program < 128; program++)
             [patches addObject:[patchesByNumber objectForKey:@(program)] ?: [NSNull null]];
-          [banks addObject:@{ @"number" : @(MAX (0, MIN (16383, bank))),
-                              @"name" : patchSection, @"patches" : patches }];
+          [banks addObject:@{
+            @"number" : @(MAX (0, MIN (16383, bank))),
+            @"name" : patchSection,
+            @"patches" : patches
+          }];
         }
       [banks sortUsingComparator:^NSComparisonResult (NSDictionary *left, NSDictionary *right) {
         return [[left objectForKey:@"number"] compare:[right objectForKey:@"number"]];
@@ -408,13 +415,15 @@ GeneralMidiProgramName (unsigned char program)
         NSMutableArray *patches = [NSMutableArray arrayWithCapacity:128];
         for (NSInteger program = 0; program < 128; program++)
           [patches addObject:[patchesByNumber objectForKey:@(program)] ?: [NSNull null]];
-        [definitions addObject:@{ @"name" : sectionName,
-                                  @"banks" : @[ @{ @"number" : @0, @"name" : sectionName,
-                                                    @"patches" : patches } ] }];
+        [definitions addObject:@{
+          @"name" : sectionName,
+          @"banks" : @[ @{ @"number" : @0, @"name" : sectionName, @"patches" : patches } ]
+        }];
       }
   if (![definitions count])
     {
-      if (error) *error = ParserError (@"No patch-name sections were found in the .ins file.");
+      if (error)
+        *error = ParserError (@"No patch-name sections were found in the .ins file.");
       return nil;
     }
   return definitions;
@@ -492,27 +501,49 @@ GeneralMidiProgramName (unsigned char program)
       while (scan < trackLength)
         {
           NSUInteger delta = 0;
-          if (!ReadVarLen (trackBytes, trackLength, &scan, &delta)) break;
+          if (!ReadVarLen (trackBytes, trackLength, &scan, &delta))
+            break;
           tick += delta;
-          if (scan >= trackLength) break;
+          if (scan >= trackLength)
+            break;
           unsigned char status = trackBytes[scan++];
-          if (status < 0x80) { if (!scanStatus) break; scan--; status = scanStatus; }
-          else if (status < 0xf0) scanStatus = status;
+          if (status < 0x80)
+            {
+              if (!scanStatus)
+                break;
+              scan--;
+              status = scanStatus;
+            }
+          else if (status < 0xf0)
+            scanStatus = status;
           if (status == 0xff)
             {
-              if (scan >= trackLength) break;
+              if (scan >= trackLength)
+                break;
               unsigned char type = trackBytes[scan++];
               NSUInteger size = 0;
-              if (!ReadVarLen (trackBytes, trackLength, &scan, &size) || scan + size > trackLength) break;
+              if (!ReadVarLen (trackBytes, trackLength, &scan, &size) || scan + size > trackLength)
+                break;
               if (type == 0x59 && size >= 2)
-                [keyEvents addObject:[NSDictionary dictionaryWithObjectsAndKeys:
-                  [NSNumber numberWithUnsignedInteger:tick], @"tick",
-                  [NSNumber numberWithInteger:(int8_t)trackBytes[scan]], @"fifths",
-                  trackBytes[scan + 1] ? @"minor" : @"major", @"mode", nil]];
-              scan += size; scanStatus = 0; continue;
+                [keyEvents
+                  addObject:[NSDictionary dictionaryWithObjectsAndKeys:
+                                            [NSNumber numberWithUnsignedInteger:tick], @"tick",
+                                            [NSNumber numberWithInteger:(int8_t)trackBytes[scan]],
+                                            @"fifths", trackBytes[scan + 1] ? @"minor" : @"major",
+                                            @"mode", nil]];
+              scan += size;
+              scanStatus = 0;
+              continue;
             }
           if (status == 0xf0 || status == 0xf7)
-            { NSUInteger size = 0; if (!ReadVarLen (trackBytes, trackLength, &scan, &size) || scan + size > trackLength) break; scan += size; scanStatus = 0; continue; }
+            {
+              NSUInteger size = 0;
+              if (!ReadVarLen (trackBytes, trackLength, &scan, &size) || scan + size > trackLength)
+                break;
+              scan += size;
+              scanStatus = 0;
+              continue;
+            }
           unsigned char kind = status & 0xf0;
           scan += (kind == 0xc0 || kind == 0xd0) ? 1 : 2;
         }
@@ -544,8 +575,8 @@ GeneralMidiProgramName (unsigned char program)
   for (ScoreMeasure *measure in [document measures])
     {
       while (eventIndex < [keyEvents count] &&
-             [[[keyEvents objectAtIndex:eventIndex] objectForKey:@"tick"] unsignedIntegerValue]
-               <= [measure startTick])
+             [[[keyEvents objectAtIndex:eventIndex] objectForKey:@"tick"] unsignedIntegerValue] <=
+               [measure startTick])
         {
           NSDictionary *event = [keyEvents objectAtIndex:eventIndex++];
           fifths = [[event objectForKey:@"fifths"] integerValue];
@@ -557,8 +588,8 @@ GeneralMidiProgramName (unsigned char program)
   for (ScoreNote *note in [document notes])
     {
       NSInteger pitchClass = (([note pitch] % 12) + 12) % 12;
-      BOOL blackKey = pitchClass == 1 || pitchClass == 3 || pitchClass == 6 ||
-                      pitchClass == 8 || pitchClass == 10;
+      BOOL blackKey = pitchClass == 1 || pitchClass == 3 || pitchClass == 6 || pitchClass == 8
+                      || pitchClass == 10;
       if (blackKey)
         {
           ScoreMeasure *measure = [document measureContainingTick:[note startTick]];
@@ -567,8 +598,9 @@ GeneralMidiProgramName (unsigned char program)
             [note setAccidental:signature < 0 ? -1 : 1];
         }
       ScoreMeasure *measure = [document measureContainingTick:[note startTick]];
-      [note setMeasureIndex:measure ? (NSInteger)[[document measures]
-        indexOfObjectIdenticalTo:measure] : -1];
+      [note setMeasureIndex:measure
+                              ? (NSInteger)[[document measures] indexOfObjectIdenticalTo:measure]
+                              : -1];
     }
 
   [document rebuildStructuredPartsFromLegacyTracks];
@@ -868,12 +900,16 @@ GeneralMidiProgramName (unsigned char program)
             }
           ScorePartDefinition *part = nil;
           for (ScorePartDefinition *candidate in [document parts])
-            if ([candidate legacyTrack] == trackIndex) { part = candidate; break; }
+            if ([candidate legacyTrack] == trackIndex)
+              {
+                part = candidate;
+                break;
+              }
           NSNumber *bankNumber = [[[part instrument] parameters] objectForKey:@"midiBankNumber"];
           if (bankNumber)
             {
-              NSInteger bank = MAX ((NSInteger)0, MIN ((NSInteger)16383,
-                                                       [bankNumber integerValue]));
+              NSInteger bank
+                = MAX ((NSInteger)0, MIN ((NSInteger)16383, [bankNumber integerValue]));
               AppendVarLen (trackData, 0);
               AppendByte (trackData, (unsigned char)(0xb0 | channel));
               AppendByte (trackData, 0);
@@ -895,13 +931,15 @@ GeneralMidiProgramName (unsigned char program)
         {
           ScoreMeasure *previous = nil;
           for (ScoreMeasure *measure in [document measures])
-            if (!previous || [previous keySignatureFifths] != [measure keySignatureFifths] ||
-                ![[previous keyMode] isEqualToString:[measure keyMode]])
+            if (!previous || [previous keySignatureFifths] != [measure keySignatureFifths]
+                || ![[previous keyMode] isEqualToString:[measure keyMode]])
               {
-                [events addObject:[NSDictionary dictionaryWithObjectsAndKeys:
-                  [NSNumber numberWithUnsignedInteger:[measure startTick]], @"tick", @-2, @"order",
-                  @"key", @"kind", [NSNumber numberWithInteger:[measure keySignatureFifths]],
-                  @"fifths", [measure keyMode], @"mode", nil]];
+                [events addObject:[NSDictionary
+                                    dictionaryWithObjectsAndKeys:
+                                      [NSNumber numberWithUnsignedInteger:[measure startTick]],
+                                      @"tick", @-2, @"order", @"key", @"kind",
+                                      [NSNumber numberWithInteger:[measure keySignatureFifths]],
+                                      @"fifths", [measure keyMode], @"mode", nil]];
                 previous = measure;
               }
         }
@@ -927,13 +965,17 @@ GeneralMidiProgramName (unsigned char program)
               /* General MIDI instruments conventionally use a +/-2-semitone bend range. */
               NSInteger bend = (NSInteger)llround (8192.0 + semitones * 4096.0);
               bend = MAX ((NSInteger)0, MIN ((NSInteger)16383, bend));
-              [events addObject:[NSDictionary dictionaryWithObjectsAndKeys:
-                [NSNumber numberWithUnsignedInteger:[note startTick]], @"tick",
-                [NSNumber numberWithInteger:1], @"order",
-                [NSNumber numberWithUnsignedChar:(unsigned char)(0xe0 | channel)], @"status",
-                [NSNumber numberWithUnsignedChar:(unsigned char)(bend & 0x7f)], @"data1",
-                [NSNumber numberWithUnsignedChar:(unsigned char)((bend >> 7) & 0x7f)], @"data2",
-                nil]];
+              [events
+                addObject:[NSDictionary
+                            dictionaryWithObjectsAndKeys:
+                              [NSNumber numberWithUnsignedInteger:[note startTick]], @"tick",
+                              [NSNumber numberWithInteger:1], @"order",
+                              [NSNumber numberWithUnsignedChar:(unsigned char)(0xe0 | channel)],
+                              @"status",
+                              [NSNumber numberWithUnsignedChar:(unsigned char)(bend & 0x7f)],
+                              @"data1",
+                              [NSNumber numberWithUnsignedChar:(unsigned char)((bend >> 7) & 0x7f)],
+                              @"data2", nil]];
             }
           [events
             addObject:[NSDictionary
@@ -964,9 +1006,13 @@ GeneralMidiProgramName (unsigned char program)
           AppendVarLen (trackData, tick >= previousTick ? tick - previousTick : 0);
           if ([[event objectForKey:@"kind"] isEqualToString:@"key"])
             {
-              AppendByte (trackData, 0xff); AppendByte (trackData, 0x59); AppendByte (trackData, 2);
-              AppendByte (trackData, (unsigned char)(int8_t)[[event objectForKey:@"fifths"] integerValue]);
-              AppendByte (trackData, [[event objectForKey:@"mode"] isEqualToString:@"minor"] ? 1 : 0);
+              AppendByte (trackData, 0xff);
+              AppendByte (trackData, 0x59);
+              AppendByte (trackData, 2);
+              AppendByte (trackData,
+                          (unsigned char)(int8_t)[[event objectForKey:@"fifths"] integerValue]);
+              AppendByte (trackData,
+                          [[event objectForKey:@"mode"] isEqualToString:@"minor"] ? 1 : 0);
               previousTick = tick;
               continue;
             }

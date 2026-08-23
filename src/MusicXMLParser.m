@@ -126,6 +126,7 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
   NSString *_scoreComposer;
   BOOL _inComposerCreator;
 }
+
 - (ScoreDocument *)document;
 @end
 
@@ -233,8 +234,10 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
       _measureRepeatEnd = NO;
       _measureSystemBreak = NO;
       _measurePageBreak = NO;
-      [_measureRehearsalMark release]; _measureRehearsalMark = nil;
-      [_measureEndingText release]; _measureEndingText = nil;
+      [_measureRehearsalMark release];
+      _measureRehearsalMark = nil;
+      [_measureEndingText release];
+      _measureEndingText = nil;
     }
   else if ([element isEqualToString:@"print"])
     {
@@ -259,8 +262,10 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
       _noteTupletNormal = 0;
       [_noteArticulation release];
       _noteArticulation = nil;
-      [_noteLyric release]; _noteLyric = nil;
-      [_noteOrnament release]; _noteOrnament = nil;
+      [_noteLyric release];
+      _noteLyric = nil;
+      [_noteOrnament release];
+      _noteOrnament = nil;
       _noteVoice = 1;
       _noteStaff = 0;
       _noteAlter = 0;
@@ -284,10 +289,10 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
     }
   else if (_inNote && [element isEqualToString:@"cue"])
     _noteCue = YES;
-  else if (_inNote && ([element isEqualToString:@"trill-mark"]
-                       || [element isEqualToString:@"turn"]
-                       || [element isEqualToString:@"mordent"]
-                       || [element isEqualToString:@"inverted-mordent"]))
+  else if (_inNote
+           && ([element isEqualToString:@"trill-mark"] || [element isEqualToString:@"turn"] ||
+               [element isEqualToString:@"mordent"] ||
+               [element isEqualToString:@"inverted-mordent"]))
     {
       [_noteOrnament release];
       _noteOrnament = [element copy];
@@ -345,8 +350,12 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
     {
       NSString *type = [attributes objectForKey:@"type"];
       if ([type isEqualToString:@"crescendo"] || [type isEqualToString:@"diminuendo"])
-        { [_pendingHairpinStart release]; _pendingHairpinStart = [type copy]; }
-      else if ([type isEqualToString:@"stop"]) _pendingHairpinEnd = YES;
+        {
+          [_pendingHairpinStart release];
+          _pendingHairpinStart = [type copy];
+        }
+      else if ([type isEqualToString:@"stop"])
+        _pendingHairpinEnd = YES;
     }
   else if ([element isEqualToString:@"pedal"])
     {
@@ -359,9 +368,12 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
   else if ([element isEqualToString:@"octave-shift"])
     {
       NSString *type = [attributes objectForKey:@"type"];
-      if ([type isEqualToString:@"down"]) _pendingOctaveShiftStart = 1;
-      else if ([type isEqualToString:@"up"]) _pendingOctaveShiftStart = -1;
-      else if ([type isEqualToString:@"stop"]) _pendingOctaveShiftEnd = YES;
+      if ([type isEqualToString:@"down"])
+        _pendingOctaveShiftStart = 1;
+      else if ([type isEqualToString:@"up"])
+        _pendingOctaveShiftStart = -1;
+      else if ([type isEqualToString:@"stop"])
+        _pendingOctaveShiftEnd = YES;
     }
   else if ([element isEqualToString:@"p"] || [element isEqualToString:@"pp"] ||
            [element isEqualToString:@"ppp"] || [element isEqualToString:@"mp"] ||
@@ -568,10 +580,15 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
       [note setOctaveShiftStart:_pendingOctaveShiftStart];
       [note setOctaveShiftEnd:_pendingOctaveShiftEnd];
       [note setDirectionText:_pendingDirectionText];
-      [_pendingHairpinStart release]; _pendingHairpinStart = nil;
-      _pendingHairpinEnd = NO; _pendingPedalStart = NO; _pendingPedalEnd = NO;
-      _pendingOctaveShiftStart = 0; _pendingOctaveShiftEnd = NO;
-      [_pendingDirectionText release]; _pendingDirectionText = nil;
+      [_pendingHairpinStart release];
+      _pendingHairpinStart = nil;
+      _pendingHairpinEnd = NO;
+      _pendingPedalStart = NO;
+      _pendingPedalEnd = NO;
+      _pendingOctaveShiftStart = 0;
+      _pendingOctaveShiftEnd = NO;
+      [_pendingDirectionText release];
+      _pendingDirectionText = nil;
       [note setDynamic:_pendingDynamic];
       if ([_pendingDynamic length])
         {
@@ -776,10 +793,13 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
           else if ([measure systemBreak])
             [xml appendString:@"      <print new-system=\"yes\"/>\n"];
           if ([[measure rehearsalMark] length])
-            [xml appendFormat:@"      <direction placement=\"above\"><direction-type><rehearsal>%@</rehearsal></direction-type></direction>\n",
+            [xml appendFormat:@"      <direction "
+                              @"placement=\"above\"><direction-type><rehearsal>%@</rehearsal></"
+                              @"direction-type></direction>\n",
                               EscapeXML ([measure rehearsalMark])];
           if ([[measure endingText] length])
-            [xml appendFormat:@"      <barline location=\"left\"><ending number=\"%@\" type=\"start\"/></barline>\n",
+            [xml appendFormat:@"      <barline location=\"left\"><ending number=\"%@\" "
+                              @"type=\"start\"/></barline>\n",
                               EscapeXML ([measure endingText])];
           if (measureIndex == 0)
             {
@@ -825,23 +845,35 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
                                       @"dynamics></direction-type></direction>\n",
                                       [note dynamic]];
                   if ([[note hairpinStart] length])
-                    [xml appendFormat:@"      <direction placement=\"below\"><direction-type><wedge type=\"%@\"/></direction-type></direction>\n",
-                                      [note hairpinStart]];
+                    [xml
+                      appendFormat:@"      <direction placement=\"below\"><direction-type><wedge "
+                                   @"type=\"%@\"/></direction-type></direction>\n",
+                                   [note hairpinStart]];
                   if ([note hairpinEnd])
-                    [xml appendString:@"      <direction placement=\"below\"><direction-type><wedge type=\"stop\"/></direction-type></direction>\n"];
+                    [xml
+                      appendString:@"      <direction placement=\"below\"><direction-type><wedge "
+                                   @"type=\"stop\"/></direction-type></direction>\n"];
                   if ([note pedalStart] || [note pedalEnd])
-                    [xml appendFormat:@"      <direction placement=\"below\"><direction-type><pedal type=\"%@\" line=\"yes\"/></direction-type></direction>\n",
-                                      [note pedalStart] ? @"start" : @"stop"];
+                    [xml
+                      appendFormat:@"      <direction placement=\"below\"><direction-type><pedal "
+                                   @"type=\"%@\" line=\"yes\"/></direction-type></direction>\n",
+                                   [note pedalStart] ? @"start" : @"stop"];
                   if ([note octaveShiftStart] || [note octaveShiftEnd])
-                    [xml appendFormat:@"      <direction placement=\"above\"><direction-type><octave-shift type=\"%@\" size=\"8\"/></direction-type></direction>\n",
-                                      [note octaveShiftEnd] ? @"stop"
-                                        : ([note octaveShiftStart] > 0 ? @"down" : @"up")];
+                    [xml appendFormat:
+                           @"      <direction placement=\"above\"><direction-type><octave-shift "
+                           @"type=\"%@\" size=\"8\"/></direction-type></direction>\n",
+                           [note octaveShiftEnd] ? @"stop"
+                                                 : ([note octaveShiftStart] > 0 ? @"down" : @"up")];
                   if ([[note directionText] length])
-                    [xml appendFormat:@"      <direction placement=\"above\"><direction-type><words>%@</words></direction-type></direction>\n",
+                    [xml appendFormat:@"      <direction "
+                                      @"placement=\"above\"><direction-type><words>%@</words></"
+                                      @"direction-type></direction>\n",
                                       EscapeXML ([note directionText])];
                   [xml appendString:@"      <note>"];
-                  if ([note isGrace]) [xml appendString:@"<grace/>"];
-                  if ([note isCue]) [xml appendString:@"<cue/>"];
+                  if ([note isGrace])
+                    [xml appendString:@"<grace/>"];
+                  if ([note isCue])
+                    [xml appendString:@"<cue/>"];
                   NSInteger accidental = [note accidental];
                   if ([note isRest])
                     {
@@ -877,8 +909,8 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
                       [xml appendFormat:@"<accidental>%@</accidental>",
                                         accidental > 0 ? @"sharp" : @"flat"];
                     }
-                  if ([note slurStart] || [note slurEnd] || [[note articulation] length]
-                      || [[note ornament] length] || [note tremoloStrokes])
+                  if ([note slurStart] || [note slurEnd] || [[note articulation] length] ||
+                      [[note ornament] length] || [note tremoloStrokes])
                     {
                       [xml appendString:@"<notations>"];
                       if ([note slurStart])
@@ -901,8 +933,7 @@ StepForPitch (NSInteger pitch, NSInteger accidental)
                       [xml appendString:@"</notations>"];
                     }
                   if ([[note lyric] length])
-                    [xml appendFormat:@"<lyric><text>%@</text></lyric>",
-                                      EscapeXML ([note lyric])];
+                    [xml appendFormat:@"<lyric><text>%@</text></lyric>", EscapeXML ([note lyric])];
                   [xml appendString:@"</note>\n"];
                   cursor = onset + (NSInteger)[note durationTicks];
                 }

@@ -77,7 +77,11 @@ DefaultAccidentalForPitch (NSInteger pitch)
   _playbackFrequency = isfinite (frequency) && frequency > 0.0 ? frequency : 0.0;
 }
 
-- (NSMutableDictionary *)performanceParameters { return _performanceParameters; }
+- (NSMutableDictionary *)performanceParameters
+{
+  return _performanceParameters;
+}
+
 - (void)setPerformanceParameters:(NSMutableDictionary *)parameters
 {
   if (_performanceParameters != parameters)
@@ -173,38 +177,47 @@ DefaultAccidentalForPitch (NSInteger pitch)
 {
   return _tieStart;
 }
+
 - (void)setTieStart:(BOOL)value
 {
   _tieStart = value;
 }
+
 - (BOOL)tieEnd
 {
   return _tieEnd;
 }
+
 - (void)setTieEnd:(BOOL)value
 {
   _tieEnd = value;
 }
+
 - (NSUInteger)tupletActual
 {
   return _tupletActual;
 }
+
 - (void)setTupletActual:(NSUInteger)value
 {
   _tupletActual = value;
 }
+
 - (NSUInteger)tupletNormal
 {
   return _tupletNormal;
 }
+
 - (void)setTupletNormal:(NSUInteger)value
 {
   _tupletNormal = value;
 }
+
 - (NSString *)dynamic
 {
   return _dynamic;
 }
+
 - (void)setDynamic:(NSString *)value
 {
   if (_dynamic != value)
@@ -213,10 +226,12 @@ DefaultAccidentalForPitch (NSInteger pitch)
       _dynamic = [value copy];
     }
 }
+
 - (NSString *)articulation
 {
   return _articulation;
 }
+
 - (void)setArticulation:(NSString *)value
 {
   if (_articulation != value)
@@ -225,45 +240,150 @@ DefaultAccidentalForPitch (NSInteger pitch)
       _articulation = [value copy];
     }
 }
-- (NSString *)lyric { return _lyric; }
+
+- (NSString *)lyric
+{
+  return _lyric;
+}
+
 - (void)setLyric:(NSString *)value
 {
-  if (_lyric != value) { [_lyric release]; _lyric = [value copy]; }
+  if (_lyric != value)
+    {
+      [_lyric release];
+      _lyric = [value copy];
+    }
 }
-- (NSString *)ornament { return _ornament; }
+
+- (NSString *)ornament
+{
+  return _ornament;
+}
+
 - (void)setOrnament:(NSString *)value
 {
-  if (_ornament != value) { [_ornament release]; _ornament = [value copy]; }
+  if (_ornament != value)
+    {
+      [_ornament release];
+      _ornament = [value copy];
+    }
 }
-- (BOOL)isGrace { return _grace; }
-- (void)setGrace:(BOOL)value { _grace = value; }
-- (BOOL)isCue { return _cue; }
-- (void)setCue:(BOOL)value { _cue = value; }
-- (NSUInteger)tremoloStrokes { return _tremoloStrokes; }
-- (void)setTremoloStrokes:(NSUInteger)value { _tremoloStrokes = MIN ((NSUInteger)4, value); }
-- (NSString *)hairpinStart { return _hairpinStart; }
+
+- (BOOL)isGrace
+{
+  return _grace;
+}
+
+- (void)setGrace:(BOOL)value
+{
+  _grace = value;
+}
+
+- (BOOL)isCue
+{
+  return _cue;
+}
+
+- (void)setCue:(BOOL)value
+{
+  _cue = value;
+}
+
+- (NSUInteger)tremoloStrokes
+{
+  return _tremoloStrokes;
+}
+
+- (void)setTremoloStrokes:(NSUInteger)value
+{
+  _tremoloStrokes = MIN ((NSUInteger)4, value);
+}
+
+- (NSString *)hairpinStart
+{
+  return _hairpinStart;
+}
+
 - (void)setHairpinStart:(NSString *)value
 {
-  NSString *normalized = ([value isEqualToString:@"crescendo"] ||
-                          [value isEqualToString:@"diminuendo"]) ? value : nil;
-  if (_hairpinStart != normalized) { [_hairpinStart release]; _hairpinStart = [normalized copy]; }
+  NSString *normalized
+    = ([value isEqualToString:@"crescendo"] || [value isEqualToString:@"diminuendo"]) ? value : nil;
+  if (_hairpinStart != normalized)
+    {
+      [_hairpinStart release];
+      _hairpinStart = [normalized copy];
+    }
 }
-- (BOOL)hairpinEnd { return _hairpinEnd; }
-- (void)setHairpinEnd:(BOOL)value { _hairpinEnd = value; }
-- (BOOL)pedalStart { return _pedalStart; }
-- (void)setPedalStart:(BOOL)value { _pedalStart = value; }
-- (BOOL)pedalEnd { return _pedalEnd; }
-- (void)setPedalEnd:(BOOL)value { _pedalEnd = value; }
-- (NSInteger)octaveShiftStart { return _octaveShiftStart; }
-- (void)setOctaveShiftStart:(NSInteger)value { _octaveShiftStart = MIN ((NSInteger)1, MAX ((NSInteger)-1, value)); }
-- (BOOL)octaveShiftEnd { return _octaveShiftEnd; }
-- (void)setOctaveShiftEnd:(BOOL)value { _octaveShiftEnd = value; }
-- (NSString *)directionText { return _directionText; }
+
+- (BOOL)hairpinEnd
+{
+  return _hairpinEnd;
+}
+
+- (void)setHairpinEnd:(BOOL)value
+{
+  _hairpinEnd = value;
+}
+
+- (BOOL)pedalStart
+{
+  return _pedalStart;
+}
+
+- (void)setPedalStart:(BOOL)value
+{
+  _pedalStart = value;
+}
+
+- (BOOL)pedalEnd
+{
+  return _pedalEnd;
+}
+
+- (void)setPedalEnd:(BOOL)value
+{
+  _pedalEnd = value;
+}
+
+- (NSInteger)octaveShiftStart
+{
+  return _octaveShiftStart;
+}
+
+- (void)setOctaveShiftStart:(NSInteger)value
+{
+  _octaveShiftStart = MIN ((NSInteger)1, MAX ((NSInteger)-1, value));
+}
+
+- (BOOL)octaveShiftEnd
+{
+  return _octaveShiftEnd;
+}
+
+- (void)setOctaveShiftEnd:(BOOL)value
+{
+  _octaveShiftEnd = value;
+}
+
+- (NSString *)directionText
+{
+  return _directionText;
+}
+
 - (void)setDirectionText:(NSString *)value
 {
-  if (_directionText != value) { [_directionText release]; _directionText = [value copy]; }
+  if (_directionText != value)
+    {
+      [_directionText release];
+      _directionText = [value copy];
+    }
 }
-- (NSInteger)staffAssignment { return _staffAssignment; }
+
+- (NSInteger)staffAssignment
+{
+  return _staffAssignment;
+}
+
 - (void)setStaffAssignment:(NSInteger)value
 {
   _staffAssignment = MIN (MAX (value, (NSInteger)0), (NSInteger)2);
@@ -273,30 +393,37 @@ DefaultAccidentalForPitch (NSInteger pitch)
 {
   return _voice;
 }
+
 - (void)setVoice:(NSInteger)voice
 {
   _voice = MAX ((NSInteger)1, voice);
 }
+
 - (NSInteger)measureIndex
 {
   return _measureIndex;
 }
+
 - (void)setMeasureIndex:(NSInteger)measureIndex
 {
   _measureIndex = MAX ((NSInteger)-1, measureIndex);
 }
+
 - (NSUInteger)velocity
 {
   return _velocity;
 }
+
 - (void)setVelocity:(NSUInteger)velocity
 {
   _velocity = MIN ((NSUInteger)127, velocity);
 }
+
 - (NSString *)provenance
 {
   return _provenance;
 }
+
 - (void)setProvenance:(NSString *)provenance
 {
   if (_provenance != provenance)
@@ -383,6 +510,7 @@ DefaultAccidentalForPitch (NSInteger pitch)
 @end
 
 @implementation ScoreMeasure
+
 - (id)init
 {
   self = [super init];
@@ -390,66 +518,82 @@ DefaultAccidentalForPitch (NSInteger pitch)
     _keyMode = [@"major" copy];
   return self;
 }
+
 - (NSInteger)number
 {
   return _number;
 }
+
 - (void)setNumber:(NSInteger)number
 {
   _number = number;
 }
+
 - (NSUInteger)startTick
 {
   return _startTick;
 }
+
 - (void)setStartTick:(NSUInteger)startTick
 {
   _startTick = startTick;
 }
+
 - (NSUInteger)durationTicks
 {
   return _durationTicks;
 }
+
 - (void)setDurationTicks:(NSUInteger)durationTicks
 {
   _durationTicks = durationTicks;
 }
+
 - (NSUInteger)timeSignatureNumerator
 {
   return _timeSignatureNumerator;
 }
+
 - (void)setTimeSignatureNumerator:(NSUInteger)value
 {
   _timeSignatureNumerator = MAX ((NSUInteger)1, value);
 }
+
 - (NSUInteger)timeSignatureDenominator
 {
   return _timeSignatureDenominator;
 }
+
 - (void)setTimeSignatureDenominator:(NSUInteger)value
 {
   _timeSignatureDenominator = MAX ((NSUInteger)1, value);
 }
+
 - (BOOL)isImplicit
 {
   return _implicit;
 }
+
 - (void)setImplicit:(BOOL)implicit
 {
   _implicit = implicit;
 }
+
 - (NSInteger)keySignatureFifths
 {
   return _keySignatureFifths;
 }
+
 - (void)setKeySignatureFifths:(NSInteger)value
 {
   _keySignatureFifths = MIN (MAX (value, (NSInteger)-7), (NSInteger)7);
 }
+
 - (NSString *)keyMode
 {
   return _keyMode ?: @"major";
 }
+
 - (void)setKeyMode:(NSString *)value
 {
   NSString *normalized = [[value lowercaseString] isEqualToString:@"minor"] ? @"minor" : @"major";
@@ -459,41 +603,77 @@ DefaultAccidentalForPitch (NSInteger pitch)
       _keyMode = [normalized copy];
     }
 }
+
 - (BOOL)repeatStart
 {
   return _repeatStart;
 }
+
 - (void)setRepeatStart:(BOOL)value
 {
   _repeatStart = value;
 }
+
 - (BOOL)repeatEnd
 {
   return _repeatEnd;
 }
+
 - (void)setRepeatEnd:(BOOL)value
 {
   _repeatEnd = value;
 }
-- (NSString *)rehearsalMark { return _rehearsalMark; }
+
+- (NSString *)rehearsalMark
+{
+  return _rehearsalMark;
+}
+
 - (void)setRehearsalMark:(NSString *)value
 {
-  if (_rehearsalMark != value) { [_rehearsalMark release]; _rehearsalMark = [value copy]; }
+  if (_rehearsalMark != value)
+    {
+      [_rehearsalMark release];
+      _rehearsalMark = [value copy];
+    }
 }
-- (NSString *)endingText { return _endingText; }
+
+- (NSString *)endingText
+{
+  return _endingText;
+}
+
 - (void)setEndingText:(NSString *)value
 {
-  if (_endingText != value) { [_endingText release]; _endingText = [value copy]; }
+  if (_endingText != value)
+    {
+      [_endingText release];
+      _endingText = [value copy];
+    }
 }
-- (BOOL)systemBreak { return _systemBreak; }
-- (void)setSystemBreak:(BOOL)value { _systemBreak = value; }
-- (BOOL)pageBreak { return _pageBreak; }
+
+- (BOOL)systemBreak
+{
+  return _systemBreak;
+}
+
+- (void)setSystemBreak:(BOOL)value
+{
+  _systemBreak = value;
+}
+
+- (BOOL)pageBreak
+{
+  return _pageBreak;
+}
+
 - (void)setPageBreak:(BOOL)value
 {
   _pageBreak = value;
   if (value)
     _systemBreak = YES;
 }
+
 - (id)copyWithZone:(NSZone *)zone
 {
   ScoreMeasure *copy = [[ScoreMeasure allocWithZone:zone] init];
@@ -513,6 +693,7 @@ DefaultAccidentalForPitch (NSInteger pitch)
   [copy setPageBreak:_pageBreak];
   return copy;
 }
+
 - (void)dealloc
 {
   [_keyMode release];
@@ -569,22 +750,28 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
     {
       ScoreNote *first = [notes objectAtIndex:index];
       NSUInteger onset = [first startTick];
-      while (measureIndex + 1 < [measures count] &&
-             onset >= [[measures objectAtIndex:measureIndex + 1] startTick])
-        { measureIndex++; [state removeAllObjects]; }
+      while (measureIndex + 1 < [measures count]
+             && onset >= [[measures objectAtIndex:measureIndex + 1] startTick])
+        {
+          measureIndex++;
+          [state removeAllObjects];
+        }
       ScoreMeasure *measure = [measures count] ? [measures objectAtIndex:measureIndex] : nil;
       NSUInteger end = index;
-      while (end < [notes count] && [[notes objectAtIndex:end] startTick] == onset) end++;
+      while (end < [notes count] && [[notes objectAtIndex:end] startTick] == onset)
+        end++;
       for (NSUInteger i = index; i < end; i++)
         {
           ScoreNote *note = [notes objectAtIndex:i];
-          if ([note isRest]) continue;
+          if ([note isRest])
+            continue;
           NSInteger octave = 0, step = DiatonicStepAndOctaveForNote (note, &octave);
-          NSString *key = [NSString stringWithFormat:@"%ld:%ld:%ld", (long)[note track],
-                                                   (long)step, (long)octave];
+          NSString *key = [NSString
+            stringWithFormat:@"%ld:%ld:%ld", (long)[note track], (long)step, (long)octave];
           NSNumber *stored = [state objectForKey:key];
           NSInteger active = stored ? [stored integerValue]
-            : ScoreKeySignatureAlterationForStep (measure ? [measure keySignatureFifths] : 0, step);
+                                    : ScoreKeySignatureAlterationForStep (
+                                        measure ? [measure keySignatureFifths] : 0, step);
           NSInteger displayed = active == [note accidental] ? NSIntegerMax : [note accidental];
           [result setObject:[NSNumber numberWithInteger:displayed]
                      forKey:[NSValue valueWithPointer:note]];
@@ -592,10 +779,11 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
       for (NSUInteger i = index; i < end; i++)
         {
           ScoreNote *note = [notes objectAtIndex:i];
-          if ([note isRest]) continue;
+          if ([note isRest])
+            continue;
           NSInteger octave = 0, step = DiatonicStepAndOctaveForNote (note, &octave);
-          NSString *key = [NSString stringWithFormat:@"%ld:%ld:%ld", (long)[note track],
-                                                   (long)step, (long)octave];
+          NSString *key = [NSString
+            stringWithFormat:@"%ld:%ld:%ld", (long)[note track], (long)step, (long)octave];
           [state setObject:[NSNumber numberWithInteger:[note accidental]] forKey:key];
         }
       index = end;
@@ -883,7 +1071,11 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
   [super dealloc];
 }
 
-- (NSMutableDictionary *)scorefileCompatibility { return _scorefileCompatibility; }
+- (NSMutableDictionary *)scorefileCompatibility
+{
+  return _scorefileCompatibility;
+}
+
 - (void)setScorefileCompatibility:(NSMutableDictionary *)compatibility
 {
   if (_scorefileCompatibility != compatibility)
@@ -938,6 +1130,7 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
 {
   return _parts;
 }
+
 - (void)setParts:(NSMutableArray *)parts
 {
   if (_parts != parts)
@@ -946,10 +1139,12 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
       _parts = [parts retain];
     }
 }
+
 - (NSMutableArray *)tempoEvents
 {
   return _tempoEvents;
 }
+
 - (void)setTempoEvents:(NSMutableArray *)events
 {
   if (_tempoEvents != events)
@@ -958,10 +1153,12 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
       _tempoEvents = [events retain];
     }
 }
+
 - (NSMutableArray *)midiRoutes
 {
   return _midiRoutes;
 }
+
 - (void)setMidiRoutes:(NSMutableArray *)routes
 {
   if (_midiRoutes != routes)
@@ -970,10 +1167,12 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
       _midiRoutes = [routes retain];
     }
 }
+
 - (ScoreSynthesisGraph *)synthesisGraph
 {
   return _synthesisGraph;
 }
+
 - (void)setSynthesisGraph:(ScoreSynthesisGraph *)graph
 {
   if (_synthesisGraph != graph)
@@ -982,10 +1181,12 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
       _synthesisGraph = [graph retain];
     }
 }
+
 - (ScoreCompositionProgram *)compositionProgram
 {
   return _compositionProgram;
 }
+
 - (void)setCompositionProgram:(ScoreCompositionProgram *)program
 {
   if (_compositionProgram != program)
@@ -994,10 +1195,12 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
       _compositionProgram = [program retain];
     }
 }
+
 - (ScorePageLayout *)pageLayout
 {
   return _pageLayout;
 }
+
 - (void)setPageLayout:(ScorePageLayout *)layout
 {
   if (_pageLayout != layout)
@@ -1035,16 +1238,16 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
       NSInteger transposition = 0;
       if ([instrumentName rangeOfString:@"baritone sax"].location != NSNotFound)
         transposition = -21;
-      else if ([instrumentName rangeOfString:@"tenor sax"].location != NSNotFound
-               || [instrumentName rangeOfString:@"bass clarinet"].location != NSNotFound)
+      else if ([instrumentName rangeOfString:@"tenor sax"].location != NSNotFound ||
+               [instrumentName rangeOfString:@"bass clarinet"].location != NSNotFound)
         transposition = -14;
       else if ([instrumentName rangeOfString:@"alto sax"].location != NSNotFound)
         transposition = -9;
-      else if ([instrumentName rangeOfString:@"english horn"].location != NSNotFound
-               || [instrumentName rangeOfString:@"horn"].location != NSNotFound)
+      else if ([instrumentName rangeOfString:@"english horn"].location != NSNotFound ||
+               [instrumentName rangeOfString:@"horn"].location != NSNotFound)
         transposition = -7;
-      else if ([instrumentName rangeOfString:@"clarinet"].location != NSNotFound
-               || [instrumentName rangeOfString:@"trumpet"].location != NSNotFound)
+      else if ([instrumentName rangeOfString:@"clarinet"].location != NSNotFound ||
+               [instrumentName rangeOfString:@"trumpet"].location != NSNotFound)
         transposition = -2;
       else if ([instrumentName rangeOfString:@"piccolo"].location != NSNotFound)
         transposition = 12;
@@ -1104,8 +1307,7 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
 
   NSMutableDictionary *sourcePartsByTrack = [NSMutableDictionary dictionary];
   for (ScorePartDefinition *part in [document parts])
-    [sourcePartsByTrack setObject:part
-                          forKey:[NSNumber numberWithInteger:[part legacyTrack]]];
+    [sourcePartsByTrack setObject:part forKey:[NSNumber numberWithInteger:[part legacyTrack]]];
 
   for (ScorePartDefinition *part in _parts)
     {
@@ -1156,14 +1358,14 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
       NSInteger destinationTrack = index == 0 ? track : ++highestTrack;
       [tracksByVoice setObject:[NSNumber numberWithInteger:destinationTrack] forKey:voice];
       [self setName:[NSString stringWithFormat:@"%@ — Voice %@", baseName, voice]
-             forTrack:destinationTrack];
+           forTrack:destinationTrack];
       [self setProgram:program ?: [NSNumber numberWithInteger:0] forTrack:destinationTrack];
     }
   for (ScoreNote *note in _notes)
     if ([note track] == track)
       {
-        [note setTrack:[[tracksByVoice objectForKey:
-                         [NSNumber numberWithInteger:[note voice]]] integerValue]];
+        [note setTrack:[[tracksByVoice objectForKey:[NSNumber numberWithInteger:[note voice]]]
+                         integerValue]];
         [note setVoice:1];
       }
   [self rebuildStructuredPartsFromLegacyTracks];
@@ -1191,16 +1393,15 @@ ScoreDisplayedAccidentalMapForDocument (ScoreDocument *document)
                       forKey:[tracks objectAtIndex:index]];
   for (ScoreNote *note in _notes)
     {
-      [note setVoice:[[voicesByTrack objectForKey:
-                       [NSNumber numberWithInteger:[note track]]] integerValue]];
+      [note setVoice:[[voicesByTrack objectForKey:[NSNumber numberWithInteger:[note track]]]
+                       integerValue]];
       [note setTrack:destinationTrack];
     }
   [_partNames removeAllObjects];
   [_trackPrograms removeAllObjects];
   [self setName:[destinationName length] ? destinationName : @"Combined Parts"
-         forTrack:destinationTrack];
-  [self setProgram:destinationProgram ?: [NSNumber numberWithInteger:0]
-          forTrack:destinationTrack];
+       forTrack:destinationTrack];
+  [self setProgram:destinationProgram ?: [NSNumber numberWithInteger:0] forTrack:destinationTrack];
   [self rebuildStructuredPartsFromLegacyTracks];
   return [tracks count];
 }

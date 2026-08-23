@@ -39,9 +39,8 @@ static NSString *const ScoreMakerMusicXMLType = @"MusicXML File";
 
 - (Class)documentClassForType:(NSString *)type
 {
-  if ([type isEqualToString:ScoreMakerProjectType] ||
-      [type isEqualToString:ScoreMakerScorefileType] || [type isEqualToString:ScoreMakerMidiType] ||
-      [type isEqualToString:ScoreMakerMusicXMLType])
+  if ([type isEqualToString:ScoreMakerProjectType] || [type isEqualToString:ScoreMakerScorefileType]
+      || [type isEqualToString:ScoreMakerMidiType] || [type isEqualToString:ScoreMakerMusicXMLType])
     {
       return [ScoreMakerDocument class];
     }
@@ -93,9 +92,8 @@ static NSString *const ScoreMakerMusicXMLType = @"MusicXML File";
 
 - (NSString *)displayNameForType:(NSString *)type
 {
-  if ([type isEqualToString:ScoreMakerProjectType] ||
-      [type isEqualToString:ScoreMakerScorefileType] || [type isEqualToString:ScoreMakerMidiType] ||
-      [type isEqualToString:ScoreMakerMusicXMLType])
+  if ([type isEqualToString:ScoreMakerProjectType] || [type isEqualToString:ScoreMakerScorefileType]
+      || [type isEqualToString:ScoreMakerMidiType] || [type isEqualToString:ScoreMakerMusicXMLType])
     {
       return type;
     }

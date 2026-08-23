@@ -102,6 +102,7 @@ MIDIInputNotify (const MIDINotification *message, void *refCon)
 #endif
 
 @implementation MIDIInputManager
+
 - (id)init
 {
   self = [super init];
@@ -116,14 +117,17 @@ MIDIInputNotify (const MIDINotification *message, void *refCon)
 #endif
   return self;
 }
+
 - (void)setTarget:(id)target
 {
   _target = target;
 }
+
 - (void)setAction:(SEL)action
 {
   _action = action;
 }
+
 - (void)setChangeAction:(SEL)action
 {
   _changeAction = action;

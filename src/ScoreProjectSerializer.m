@@ -27,15 +27,17 @@ ScoreProjectSchemas (void)
                              @"ScoreStaffDefinition",
                              @[
                                @"identifier", @"name", @"abbreviatedName", @"legacyTrack",
-                               @"visible", @"midiOutputUniqueID", @"midiOutputName",
-                               @"muted", @"soloed", @"gain", @"pan", @"groupName",
-                               @"midiFallbackMode", @"midiFallbackUniqueID", @"midiFallbackName",
-                               @"instrument", @"staves", @"synthesisGraph"
+                               @"visible", @"midiOutputUniqueID", @"midiOutputName", @"muted",
+                               @"soloed", @"gain", @"pan", @"groupName", @"midiFallbackMode",
+                               @"midiFallbackUniqueID", @"midiFallbackName", @"instrument",
+                               @"staves", @"synthesisGraph"
                              ],
                              @"ScorePartDefinition",
-                             @[ @"paperWidth", @"paperHeight", @"marginTop", @"marginRight",
-                                @"marginBottom", @"marginLeft", @"staffScale", @"systemSpacing",
-                                @"showPageNumbers", @"showHeaders", @"headerText", @"footerText" ],
+                             @[
+                               @"paperWidth", @"paperHeight", @"marginTop", @"marginRight",
+                               @"marginBottom", @"marginLeft", @"staffScale", @"systemSpacing",
+                               @"showPageNumbers", @"showHeaders", @"headerText", @"footerText"
+                             ],
                              @"ScorePageLayout", @[ @"tick", @"microsecondsPerQuarter" ],
                              @"ScoreTempoEvent",
                              @[
@@ -147,6 +149,7 @@ ScoreProjectDecode (id encoded)
 }
 
 @implementation ScoreProjectSerializer
+
 + (NSData *)dataForDocument:(ScoreDocument *)document error:(NSError **)error
 {
   NSData *scoreData = [ScorefileParser dataForDocument:document error:error];
@@ -158,8 +161,8 @@ ScoreProjectDecode (id encoded)
                                  ScoreProjectEncode ([document midiRoutes]), @"midiRoutes",
                                  ScoreProjectEncode ([document synthesisGraph]), @"synthesisGraph",
                                  ScoreProjectEncode ([document compositionProgram]),
-                                 @"compositionProgram",
-                                 ScoreProjectEncode ([document pageLayout]), @"pageLayout", nil];
+                                 @"compositionProgram", ScoreProjectEncode ([document pageLayout]),
+                                 @"pageLayout", nil];
   NSDictionary *project = [NSDictionary
     dictionaryWithObjectsAndKeys:@2, @"version", [scoreData base64EncodedStringWithOptions:0],
                                  @"scorefile",
