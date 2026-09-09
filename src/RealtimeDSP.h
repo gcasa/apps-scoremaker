@@ -73,6 +73,12 @@ typedef id ScoreAudioUnitViewCompletion;
 /** Returns whether the audio engine is running. */
 - (BOOL)isRunning;
 
+/** Selects the track measured before voice and master effects. */
+- (void)setMeteredTrack:(NSInteger)track;
+
+/** Consumes linear sample peaks (part L/R, master L/R); returns master availability. */
+- (BOOL)consumeAudioPeaks:(float *)peaks partAvailable:(BOOL *)partAvailable;
+
 /** Selects the built-in synthesizer as the active instrument. */
 - (void)useInternalSynthesizer;
 

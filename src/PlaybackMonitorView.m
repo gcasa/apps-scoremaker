@@ -18,6 +18,7 @@
  */
 
 #import "PlaybackMonitorView.h"
+#import "RealtimeDSP.h"
 #import "MidiParser.h"
 #import <math.h>
 
@@ -52,6 +53,87 @@ ScorePartColor (NSInteger track, BOOL darkVariant)
 }
 
 @implementation PlaybackMonitorView
+
+- (void)setAudioMeterSource:(ScoreRealtimeDSP *)source
+{
+  if (_audioMeterSource != source)
+    {
+      [_audioMeterSource release];
+      _audioMeterSource = [source retain];
+    }
+  [_audioMeterSource setMeteredTrack:_selectedTrack];
+  if (!source)
+    {
+      [_audioMeterTimer invalidate];
+      [_audioMeterTimer release];
+      _audioMeterTimer = nil;
+    }
+}
+
+- (void)viewDidMoveToWindow
+{
+  [super viewDidMoveToWindow];
+  [_audioMeterTimer invalidate];
+  [_audioMeterTimer release];
+  _audioMeterTimer = nil;
+  if ([self window])
+    {
+      _audioMeterTimer = [[NSTimer timerWithTimeInterval:1.0 / 30.0 target:self
+        selector:@selector(updateAudioMeters:) userInfo:nil repeats:YES] retain];
+      [[NSRunLoop mainRunLoop] addTimer:_audioMeterTimer forMode:NSRunLoopCommonModes];
+    }
+}
+
+- (void)updateAudioMeters:(NSTimer *)timer
+{
+  (void)timer;
+  float peaks[4] = { 0 };
+  _partLevelAvailable = NO;
+  _masterLevelAvailable = [_audioMeterSource consumeAudioPeaks:peaks
+                                              partAvailable:&_partLevelAvailable];
+  NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
+  for (int i = 0; i < 4; i++)
+    {
+      BOOL available = i < 2 ? _partLevelAvailable : _masterLevelAvailable;
+      _audioLevels[i] = available ? MAX (peaks[i], _audioLevels[i] * 0.90f) : 0;
+      if (available && peaks[i] >= 1.0f)
+        _clipUntil[i / 2] = now + 1.5;
+      if (!available)
+        _clipUntil[i / 2] = 0;
+    }
+  [self setNeedsDisplay:YES];
+}
+
+- (void)drawAudioMeterInRect:(NSRect)rect title:(NSString *)title index:(NSUInteger)index
+                  available:(BOOL)available
+{
+  NSDictionary *attributes = @{ NSFontAttributeName : [NSFont systemFontOfSize:9],
+    NSForegroundColorAttributeName : [NSColor controlTextColor] };
+  BOOL clipped = _clipUntil[index / 2] > [NSDate timeIntervalSinceReferenceDate];
+  float peak = MAX (_audioLevels[index], _audioLevels[index + 1]);
+  NSString *value = !available ? @"Unavailable" : clipped ? @"CLIP"
+    : peak < 0.001f ? @"−∞ dBFS" : [NSString stringWithFormat:@"%.1f dBFS", 20 * log10f (peak)];
+  [title drawInRect:NSMakeRect(rect.origin.x, rect.origin.y, rect.size.width, 13)
+    withAttributes:attributes];
+  [value drawInRect:NSMakeRect(rect.origin.x, rect.origin.y + 13, rect.size.width, 13)
+    withAttributes:attributes];
+  for (NSUInteger channel = 0; channel < 2; channel++)
+    {
+      CGFloat y = rect.origin.y + 29 + channel * 9;
+      [(channel == 0 ? @"L" : @"R") drawAtPoint:NSMakePoint(rect.origin.x, y - 2)
+        withAttributes:attributes];
+      NSRect bar = NSMakeRect(rect.origin.x + 12, y, MAX(1, rect.size.width - 12), 6);
+      [[NSColor colorWithCalibratedWhite:0.18 alpha:1] setFill];
+      NSRectFill(bar);
+      float db = 20 * log10f(MAX(0.001f, _audioLevels[index + channel]));
+      CGFloat fraction = available ? MAX(0, MIN(1, (db + 60) / 60)) : 0;
+      NSRect fill = bar;
+      fill.size.width *= fraction;
+      [(clipped ? [NSColor redColor] : db > -6 ? [NSColor orangeColor]
+                                             : [NSColor greenColor]) setFill];
+      NSRectFill(fill);
+    }
+}
 
 - (void)updateMetronomeAnimation:(NSTimer *)timer
 {
@@ -119,6 +201,9 @@ ScorePartColor (NSInteger track, BOOL darkVariant)
   if (_selectedTrack == track)
     return;
   _selectedTrack = track;
+  [_audioMeterSource setMeteredTrack:track];
+  _audioLevels[0] = _audioLevels[1] = 0;
+  _clipUntil[0] = 0;
   [self setNeedsDisplay:YES];
 }
 
@@ -583,7 +668,7 @@ ScorePartColor (NSInteger track, BOOL darkVariant)
   [self drawButtonTitle:_rackVisible ? @"Hide Rack" : @"Show Rack"
                    rect:NSMakeRect (split - 82.0, 5.0, 72.0, 18.0)
                  active:_rackVisible];
-  [@"Voices / MIDI velocity" drawAtPoint:NSMakePoint (split + 14.0, 8.0)
+  [@"Audio levels / MIDI velocity" drawAtPoint:NSMakePoint (split + 14.0, 8.0)
                           withAttributes:headingAttributes];
   if (_metronomeActive)
     {
@@ -630,14 +715,25 @@ ScorePartColor (NSInteger track, BOOL darkVariant)
   if (_rackVisible)
     [self drawKeyboardRackInRect:NSMakeRect (12.0, 32.0 + primaryHeight, split - 24.0,
                                              availableHeight - primaryHeight - 4.0)];
+  CGFloat meterWidth = NSWidth ([self bounds]) - split - 26.0;
+  CGFloat audioMeterWidth = (meterWidth - 14.0) / 2.0;
+  [self drawAudioMeterInRect:NSMakeRect(split + 14, 28, audioMeterWidth, 44)
+                      title:@"Part (pre-effects)" index:0 available:_partLevelAvailable];
+  [self drawAudioMeterInRect:NSMakeRect(split + 28 + audioMeterWidth, 28, audioMeterWidth, 44)
+                      title:@"Master (post-effects)" index:2 available:_masterLevelAvailable];
+  [@"Velocity (0–127)" drawAtPoint:NSMakePoint(split + 14, 79)
+                    withAttributes:headingAttributes];
   [self
-    drawVoiceMetersInRect:NSMakeRect (split + 14.0, 28.0, NSWidth ([self bounds]) - split - 26.0,
-                                      NSHeight ([self bounds]) - 38.0)
+    drawVoiceMetersInRect:NSMakeRect (split + 14.0, 96.0, meterWidth,
+                                      NSHeight ([self bounds]) - 106.0)
               activeNotes:selectedActiveNotes];
 }
 
 - (void)dealloc
 {
+  [_audioMeterTimer invalidate];
+  [_audioMeterTimer release];
+  [_audioMeterSource release];
   [_metronomeAnimationTimer invalidate];
   [_metronomeAnimationTimer release];
   [_document release];

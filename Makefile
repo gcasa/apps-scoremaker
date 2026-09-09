@@ -50,6 +50,8 @@ test: $(APP_BIN)
 	mkdir -p "$(BUILD_DIR)/tests"
 	$(CC) $(CFLAGS) -Isrc tests/ScorefileCompatibilityTests.m src/RealtimeDSP.m src/ScorefileParser.m src/ScoreProjectSerializer.m src/MusicXMLParser.m src/MidiParser.m src/ScoreModel.m src/MusicPlatformModel.m src/MusicEngine.m src/NotationModel.m src/EngravingLayout.m -framework Foundation -framework AppKit -framework AVFoundation -framework AudioToolbox -framework CoreAudioKit -o "$(BUILD_DIR)/tests/scorefile-tests"
 	"$(BUILD_DIR)/tests/scorefile-tests"
+	$(CC) $(CFLAGS) -Isrc tests/AudioMeterTests.m src/MusicEngine.m src/ScoreModel.m src/MusicPlatformModel.m src/NotationModel.m -framework Foundation -framework AppKit -framework AVFoundation -framework AudioToolbox -framework CoreAudioKit -o "$(BUILD_DIR)/tests/audio-meter-tests"
+	"$(BUILD_DIR)/tests/audio-meter-tests"
 
 test-plugins:
 	mkdir -p "$(BUILD_DIR)/tests"

@@ -19,6 +19,7 @@
 
 #import <AppKit/AppKit.h>
 #import "ScoreModel.h"
+@class ScoreRealtimeDSP;
 
 /** Returns the shared display color for a notation voice. */
 NSColor *ScoreVoiceColor (NSInteger voice, BOOL darkVariant);
@@ -29,6 +30,12 @@ NSColor *ScoreVoiceColor (NSInteger voice, BOOL darkVariant);
  */
 @interface PlaybackMonitorView : NSView
 {
+  ScoreRealtimeDSP *_audioMeterSource;
+  NSTimer *_audioMeterTimer;
+  float _audioLevels[4];
+  NSTimeInterval _clipUntil[2];
+  BOOL _masterLevelAvailable;
+  BOOL _partLevelAvailable;
   ScoreDocument *_document;
   NSUInteger _playbackTick;
   BOOL _showPlayback;
@@ -50,6 +57,9 @@ NSColor *ScoreVoiceColor (NSInteger voice, BOOL darkVariant);
   NSUInteger _metronomeBeatsPerMeasure;
   BOOL _metronomeActive;
 }
+
+/** Connects measured audio levels to this monitor. */
+- (void)setAudioMeterSource:(ScoreRealtimeDSP *)source;
 
 /** Sets the score whose parts and notes are monitored. */
 - (void)setDocument:(ScoreDocument *)document;

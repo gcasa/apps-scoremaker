@@ -74,6 +74,8 @@ typedef struct
 } ScoreDSPVoice;
 typedef struct
 {
+  atomic_int meteredTrack;
+  _Atomic (float) meterPeaks[4]; // Selected part L/R, master L/R.
   ScoreDSPVoice voices[SCORE_DSP_VOICES];
   ScoreDSPEvent events[SCORE_DSP_EVENTS];
   atomic_uint readIndex;
@@ -206,6 +208,9 @@ ScoreDSPPatchFloat (NSDictionary *patch, NSDictionary *defaults, NSString *key)
 static void
 ScoreDSPInitializeEffects (ScoreDSPState *state, double sampleRate)
 {
+  atomic_init (&state->meteredTrack, 0);
+  for (int i = 0; i < 4; i++)
+    atomic_init (&state->meterPeaks[i], 0.0f);
   state->sampleRate = sampleRate;
   state->gain = 1.0f;
   state->compressorThreshold = 1.0f;
@@ -423,9 +428,22 @@ ScoreDSPApplyImmediateEvents (ScoreDSPState *s)
     }
   atomic_store_explicit (&s->readIndex, read, memory_order_release);
 }
+// Keep the largest sample until the UI consumes it; no locks or allocations on the audio thread.
+static void
+ScoreDSPAccumulatePeak (_Atomic (float) *destination, float peak)
+{
+  float previous = atomic_load_explicit (destination, memory_order_relaxed);
+  while (previous < peak
+         && !atomic_compare_exchange_weak_explicit (destination, &previous, peak,
+                                                    memory_order_relaxed, memory_order_relaxed))
+    {}
+}
+
 static void
 ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
 {
+  float partPeaks[2] = { 0 };
+  int meteredTrack = atomic_load_explicit (&s->meteredTrack, memory_order_relaxed);
   ScoreDSPApplyImmediateEvents (s);
   ScoreDSPPatch patches[SCORE_DSP_PATCHES];
   for (NSInteger voice = 1; voice <= SCORE_DSP_PATCHES; voice++)
@@ -435,6 +453,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
       while (s->scheduledEventIndex < s->scheduledEventCount
              && s->scheduledEvents[s->scheduledEventIndex].sampleFrame <= s->renderedFrames)
         ScoreDSPApplyEvent (s, s->scheduledEvents[s->scheduledEventIndex++]);
+      double partLeft = 0, partRight = 0;
       double voiceLeftMix[SCORE_DSP_PATCHES] = { 0 };
       double voiceRightMix[SCORE_DSP_PATCHES] = { 0 };
       for (int i = 0; i < SCORE_DSP_VOICES; i++)
@@ -552,6 +571,11 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
           float pan = MAX (-1.0f, MIN (1.0f, v->pan));
           voiceLeftMix[patchIndex] += sample * sqrt ((1.0 - pan) * 0.5);
           voiceRightMix[patchIndex] += sample * sqrt ((1.0 + pan) * 0.5);
+          if (v->track == meteredTrack)
+            {
+              partLeft += sample * sqrt ((1.0 - pan) * 0.5) * 0.31;
+              partRight += sample * sqrt ((1.0 + pan) * 0.5) * 0.31;
+            }
           v->phase += 2.0 * M_PI * hz / s->sampleRate;
           if (v->phase >= 2.0 * M_PI)
             v->phase -= 2.0 * M_PI;
@@ -573,8 +597,12 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
       left[f] = mixedLeft;
       right[f] = mixedRight;
       ScoreDSPApplyEffects (s, &left[f], &right[f]);
+      partPeaks[0] = fmaxf (partPeaks[0], fabs (partLeft));
+      partPeaks[1] = fmaxf (partPeaks[1], fabs (partRight));
       s->renderedFrames++;
     }
+  for (int i = 0; i < 2; i++)
+    ScoreDSPAccumulatePeak (&s->meterPeaks[i], partPeaks[i]);
 }
 
 @interface ScoreRealtimeDSP ()
@@ -586,6 +614,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
 + (void)clearAudioUnitFailures:(NSDictionary *)description;
 
 - (void)audioEngineConfigurationChanged:(NSNotification *)notification;
+- (void)installOutputMeter;
 
 - (NSViewController *)legacyAudioUnitViewController;
 @end
@@ -1324,6 +1353,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
           previous = node;
         }
       [_engine connect:previous to:[_engine mainMixerNode] format:nil];
+      [self installOutputMeter];
       if (![_engine startAndReturnError:error])
         {
           [_engine release];
@@ -1351,6 +1381,7 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
        }];
   [_engine attachNode:_source];
   [_engine connect:_source to:[_engine mainMixerNode] format:format];
+  [self installOutputMeter];
   if (![_engine startAndReturnError:error])
     return NO;
   _running = YES;
@@ -2044,6 +2075,50 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
   return YES;
 }
 
+- (void)installOutputMeter
+{
+#if defined(__APPLE__)
+  ScoreDSPState *state = _dsp;
+  [[_engine mainMixerNode] installTapOnBus:0 bufferSize:512 format:nil
+    block:^(AVAudioPCMBuffer *buffer, AVAudioTime *when) {
+      (void)when;
+      float *const *channels = [buffer floatChannelData];
+      if (!channels || ![[buffer format] channelCount])
+        return;
+      for (NSUInteger channel = 0; channel < 2; channel++)
+        {
+          float peak = 0;
+          float *samples = channels[MIN (channel, [[buffer format] channelCount] - 1)];
+          for (NSUInteger frame = 0; frame < [buffer frameLength]; frame++)
+            peak = fmaxf (peak, fabsf (samples[frame * [buffer stride]]));
+          ScoreDSPAccumulatePeak (&state->meterPeaks[channel + 2], peak);
+        }
+    }];
+#endif
+}
+
+- (void)setMeteredTrack:(NSInteger)track
+{
+  atomic_store_explicit (&_dsp->meteredTrack, (int)track, memory_order_relaxed);
+  for (int i = 0; i < 2; i++)
+    atomic_exchange_explicit (&_dsp->meterPeaks[i], 0, memory_order_relaxed);
+}
+
+- (BOOL)consumeAudioPeaks:(float *)peaks partAvailable:(BOOL *)partAvailable
+{
+  BOOL available = [self isRunning];
+  *partAvailable = available;
+#if defined(__APPLE__)
+  *partAvailable = available && !_instrument;
+#endif
+  for (int i = 0; i < 4; i++)
+    {
+      float peak = atomic_exchange_explicit (&_dsp->meterPeaks[i], 0, memory_order_relaxed);
+      peaks[i] = available ? peak : 0;
+    }
+  return available;
+}
+
 - (void)stop
 {
 #if defined(__APPLE__)
@@ -2053,6 +2128,10 @@ ScoreDSPRender (ScoreDSPState *s, float *left, float *right, NSUInteger frames)
                 name:AVAudioEngineConfigurationChangeNotification
               object:_engine];
   [_engine stop];
+  if (_engine)
+    [[_engine mainMixerNode] removeTapOnBus:0];
+  for (int i = 0; i < 4; i++)
+    atomic_store_explicit (&_dsp->meterPeaks[i], 0, memory_order_relaxed);
   [_source release];
   _source = nil;
   [_engineEffectNodes release];

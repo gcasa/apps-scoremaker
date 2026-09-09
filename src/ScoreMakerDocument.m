@@ -1166,6 +1166,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [_scoreView release];
   [_inspectorScrollView release];
   [_inspectorView release];
+  [_playbackMonitorView setAudioMeterSource:nil];
   [_playbackMonitorView release];
   [_tempoField release];
   [_tempoSlider release];
@@ -1364,6 +1365,7 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
     initWithFrame:NSMakeRect (0.0, 0.0, contentBounds.size.width, PlaybackMonitorHeight)];
   [_playbackMonitorView setAutoresizingMask:NSViewWidthSizable | NSViewMaxYMargin];
   [_playbackMonitorView setDocument:[self scoreDocument]];
+  [_playbackMonitorView setAudioMeterSource:_realtimeDSP];
   [_playbackMonitorView setTarget:self];
   [_playbackMonitorView setAction:@selector (pianoKeyPressed:)];
   [[[self window] contentView] addSubview:_playbackMonitorView];

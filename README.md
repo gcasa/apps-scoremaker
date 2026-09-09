@@ -243,3 +243,5 @@ Remove generated build artifacts with:
 ```sh
 make clean
 ```
+
+The playback monitor includes stereo sample-peak meters on a −60 to 0 dBFS scale. **Selected part · pre-effects** measures the selected track in the internal synth, after note amplitude and pan but before voice and master effects. **Master · post-effects** measures the real-time engine’s final mixer output, including hosted Audio Units. Peaks decay gradually, and **CLIP** holds for 1.5 seconds when a sample reaches full scale. System MIDI playback and external MIDI devices show **Unavailable**, since their audio does not pass through this engine; hosted instruments also cannot provide isolated part levels. MIDI velocity remains displayed separately.
