@@ -29,6 +29,7 @@
   id _target;
   SEL _action;
   SEL _changeAction;
+  NSError *_lastConnectionError;
 #if defined(__APPLE__)
   unsigned int _client;
   unsigned int _inputPort;
@@ -51,6 +52,9 @@
 
 /** Connects to the platform endpoint represented by <var>source</var>. */
 - (BOOL)connectToSource:(unsigned int)source;
+
+/** Describes the most recent failed connection attempt, or nil after success. */
+- (NSError *)lastConnectionError;
 
 /** Disconnects the active endpoint and clears parser state. */
 - (void)disconnect;

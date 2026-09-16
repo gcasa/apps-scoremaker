@@ -73,10 +73,84 @@ CompareNotes (ScoreDocument *left, ScoreDocument *right)
     }
 }
 
+static void
+TestNextMusicKitExport (void)
+{
+  NSError *error = nil;
+  NSString *source = @"part lead; lead synthPatch:\"ModernOnly\"; BEGIN; "
+                      "int i = 0; while (i < 2) { lead (1) keyNum:69; t + 1; i = i + 1; } END;";
+  ScoreDocument *document = [ScorefileParser parseString:source suggestedTitle:@"NeXT test"
+                                                  error:&error];
+  Require (document != nil, @"NeXT test input failed to parse");
+  [document setTicksPerQuarter:480];
+  [document setTempoMicrosecondsPerQuarter:500000];
+  [[document tempoEvents] removeAllObjects];
+  ScoreTempoEvent *tempo = [[[ScoreTempoEvent alloc] init] autorelease];
+  [tempo setTick:480];
+  [tempo setMicrosecondsPerQuarter:1000000];
+  [[document tempoEvents] addObject:tempo];
+  ScoreNote *first = [[document notes] objectAtIndex:0];
+  ScoreNote *second = [[document notes] objectAtIndex:1];
+  [first setStartTick:0];
+  [first setDurationTicks:960];
+  [first setPlaybackFrequency:440.25];
+  [first setVelocity:93];
+  [second setStartTick:960];
+  [second setDurationTicks:480];
+  [second setTrack:99];
+  [second setVelocity:41];
+  [[first performanceParameters] setObject:@"missingWave" forKey:@"waveform"];
+  [[document partNames] setObject:@"BEGIN é \n */" forKey:@99];
+  ScoreNote *rest = [[[ScoreNote alloc] init] autorelease];
+  [rest setRest:YES];
+  [rest setStartTick:1440];
+  [rest setDurationTicks:480];
+  [[document notes] addObject:rest];
+  [[document notes] exchangeObjectAtIndex:0 withObjectAtIndex:1];
+  [document setTotalTicks:1920];
+  NSData *nativeBefore = [ScorefileParser dataForDocument:document error:&error];
+  NSData *data = [ScorefileParser nextMusicKitDataForDocument:document error:&error];
+  NSString *text = [[[NSString alloc] initWithData:data encoding:NSASCIIStringEncoding] autorelease];
+  Require (text != nil && [text rangeOfString:@"synthPatch:\"Wave1\""].location != NSNotFound,
+           @"NeXT export did not produce ASCII with a native DSP patch");
+  for (NSString *forbidden in @[ @"ModernOnly", @"missingWave", @"while", @"program:",
+                                @"ScoreMaker Structure", @"scoreTitle", @"é" ])
+    Require ([text rangeOfString:forbidden].location == NSNotFound,
+             [NSString stringWithFormat:@"NeXT export leaked %@", forbidden]);
+  Require ([text rangeOfString:@"t 3.5;\nEND;"].location != NSNotFound,
+           @"NeXT export lost the trailing rest");
+  ScoreDocument *reopened = [ScorefileParser parseString:text suggestedTitle:@"NeXT"
+                                                  error:&error];
+  Require (reopened && [[reopened notes] count] == 2,
+           [NSString stringWithFormat:@"NeXT export did not reparse: %@", error]);
+  ScoreNote *a = [[reopened notes] objectAtIndex:0];
+  ScoreNote *b = [[reopened notes] objectAtIndex:1];
+  double resolution = [reopened ticksPerQuarter];
+  Require (fabs ([a durationTicks] / resolution - 1.5) < .001 &&
+             fabs ([b startTick] / resolution - 1.5) < .001 &&
+             fabs ([b durationTicks] / resolution - 1.0) < .001,
+           @"NeXT export failed to bake tempo changes across a note");
+  Require (fabs ([a playbackFrequency] - 440.25) < .000001 &&
+             fabs ([b playbackFrequency] - 440.0) < .000001 &&
+             [[[a performanceParameters] objectForKey:@"velocity"] integerValue] == 93 &&
+             [[[b performanceParameters] objectForKey:@"velocity"] integerValue] == 41 &&
+             [a track] != [b track],
+           @"NeXT export lost tuning, velocity, or part separation");
+  Require ([[document notes] objectAtIndex:0] == second &&
+             [nativeBefore isEqual:[ScorefileParser dataForDocument:document error:&error]],
+           @"NeXT export mutated the original document or native save");
+  Require (![ScorefileParser nextMusicKitDataForDocument:nil error:&error] && error,
+           @"NeXT export accepted a missing document");
+  [first setStartTick:NSUIntegerMax];
+  Require (![ScorefileParser nextMusicKitDataForDocument:document error:&error],
+           @"NeXT export accepted an overflowing note duration");
+}
+
 int
 main (void)
 {
   NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+  TestNextMusicKitExport ();
   NSString *insSource = @".Patch Names\n[Preset A]\n0=Warm Piano\n1=Wide Piano\n"
                         @"[Preset B]\n0=Analog Brass\n127=Noise Hit\n"
                         @".Instrument Definitions\n[Test Synth]\nPatch[0]=Preset A\n"

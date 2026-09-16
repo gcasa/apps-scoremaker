@@ -103,17 +103,41 @@ MIDIInputNotify (const MIDINotification *message, void *refCon)
 
 @implementation MIDIInputManager
 
+#if defined(__APPLE__)
+- (void)recordConnectionError:(OSStatus)status operation:(NSString *)operation
+{
+  [_lastConnectionError release];
+  _lastConnectionError = [[NSError alloc]
+    initWithDomain:NSOSStatusErrorDomain code:status
+          userInfo:[NSDictionary dictionaryWithObject:
+            [NSString stringWithFormat:@"%@ (CoreMIDI error %ld).", operation, (long)status]
+                                               forKey:NSLocalizedDescriptionKey]];
+  NSLog (@"MIDI input: %@", [_lastConnectionError localizedDescription]);
+}
+
+- (BOOL)ensureClient
+{
+  if (_client)
+    return YES;
+  MIDIClientRef client = 0;
+  OSStatus status = MIDIClientCreate (CFSTR ("ScoreMaker MIDI Input"), MIDIInputNotify, self,
+                                     &client);
+  if (status != noErr)
+    {
+      [self recordConnectionError:status operation:@"Could not initialize MIDI input"];
+      return NO;
+    }
+  _client = client;
+  return YES;
+}
+#endif
+
 - (id)init
 {
   self = [super init];
 #if defined(__APPLE__)
   if (self)
-    {
-      MIDIClientRef client = 0;
-      if (MIDIClientCreate (CFSTR ("ScoreMaker MIDI Input"), MIDIInputNotify, self, &client)
-          == noErr)
-        _client = (unsigned int)client;
-    }
+    [self ensureClient];
 #endif
   return self;
 }
@@ -156,34 +180,60 @@ MIDIInputNotify (const MIDINotification *message, void *refCon)
 
 - (BOOL)connectToSource:(unsigned int)source
 {
+  [_lastConnectionError release];
+  _lastConnectionError = nil;
 #if defined(__APPLE__)
   [self disconnect];
   if (!source)
     return YES;
-  if (!_client)
-    return NO;
-  MIDIPortRef port = (MIDIPortRef)_inputPort;
-  if (!port
-      && MIDIInputPortCreate ((MIDIClientRef)_client, CFSTR ("ScoreMaker Input Port"),
-                              MIDIInputRead, self, &port)
-           != noErr)
+  for (NSUInteger attempt = 0; attempt < 2; attempt++)
     {
-      return NO;
-    }
-  if (MIDIPortConnectSource (port, (MIDIEndpointRef)source, NULL) != noErr)
-    {
-      if (!_inputPort)
+      if (![self ensureClient])
+        return NO;
+      MIDIPortRef port = (MIDIPortRef)_inputPort;
+      OSStatus status = noErr;
+      NSString *operation = @"Could not create the MIDI input port";
+      if (!port)
+        status = MIDIInputPortCreate ((MIDIClientRef)_client, CFSTR ("ScoreMaker Input Port"),
+                                      MIDIInputRead, self, &port);
+      if (status == noErr)
+        {
+          operation = @"Could not connect to the selected MIDI input";
+          status = MIDIPortConnectSource (port, (MIDIEndpointRef)source, NULL);
+        }
+      if (status == noErr)
+        {
+          _inputPort = port;
+          _source = source;
+          _runningStatus = 0;
+          return YES;
+        }
+
+      // Never retain a failed port. Rebuild stale client/port handles once, as
+      // they may have been invalidated while this document remained open.
+      if (port)
         MIDIPortDispose (port);
+      _inputPort = 0;
+      if (status == kMIDIInvalidClient || status == kMIDIInvalidPort)
+        {
+          MIDIClientDispose ((MIDIClientRef)_client);
+          _client = 0;
+          if (attempt == 0)
+            continue;
+        }
+      [self recordConnectionError:status operation:operation];
       return NO;
     }
-  _inputPort = (unsigned int)port;
-  _source = source;
-  _runningStatus = 0;
-  return YES;
+  return NO;
 #else
   (void)source;
   return NO;
 #endif
+}
+
+- (NSError *)lastConnectionError
+{
+  return _lastConnectionError;
 }
 
 - (void)disconnect
@@ -202,6 +252,7 @@ MIDIInputNotify (const MIDINotification *message, void *refCon)
   _action = NULL;
   _changeAction = NULL;
   [self disconnect];
+  [_lastConnectionError release];
 #if defined(__APPLE__)
   if (_inputPort)
     MIDIPortDispose ((MIDIPortRef)_inputPort);

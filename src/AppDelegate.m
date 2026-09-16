@@ -1039,6 +1039,9 @@ ScoreMakerDrawText (NSString *text, NSRect rect, NSFont *font, NSColor *color,
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Page Layout..."
                                                  action:@selector (editPageLayout:)
                                           keyEquivalent:@""] autorelease]];
+  [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Export for NeXT MusicKit..."
+                                                 action:@selector (exportNextMusicKit:)
+                                          keyEquivalent:@""] autorelease]];
   [scoreMenu addItem:[[[NSMenuItem alloc] initWithTitle:@"Export PDF..."
                                                  action:@selector (exportPDF:)
                                           keyEquivalent:@""] autorelease]];

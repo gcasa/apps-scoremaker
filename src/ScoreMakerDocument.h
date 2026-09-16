@@ -288,6 +288,9 @@ FOUNDATION_EXPORT NSString *const ScoreMakerDocumentPlaybackDidFinishNotificatio
 /** Presents publication settings for screen, print, and PDF output. */
 - (void)editPageLayout:(id)sender;
 
+/** Exports a standalone score using the NeXT MusicKit Wave1 DSP instrument. */
+- (void)exportNextMusicKit:(id)sender;
+
 /** Exports the full score or selected part as a vector PDF. */
 - (void)exportPDF:(id)sender;
 

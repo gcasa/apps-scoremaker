@@ -63,6 +63,13 @@ extern NSString *const ScorefileConsoleLineKey;
 /** Returns the MusicKit-compatible UTF-8 representation of <var>document</var>. */
 + (NSData *)dataForDocument:(ScoreDocument *)document error:(NSError **)error;
 
+/**
+ * Exports a standalone ASCII score for the NeXT MusicKit Wave1 DSP SynthPatch.
+ * Tempo changes are baked into seconds (tempo 60); rests are silent gaps.
+ * Modern instruments, source scripts, and editing metadata are not exported.
+ */
++ (NSData *)nextMusicKitDataForDocument:(ScoreDocument *)document error:(NSError **)error;
+
 /** Atomically writes <var>document</var> to <var>path</var>. */
 + (BOOL)writeDocument:(ScoreDocument *)document
          toFileAtPath:(NSString *)path

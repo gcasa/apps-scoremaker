@@ -18,6 +18,7 @@
  */
 
 #import "ScorefileParser.h"
+#import "MusicPlatformModel.h"
 #import <math.h>
 #import <stdio.h>
 
@@ -2825,6 +2826,104 @@ ScorefileNamedNumericObject (NSString *declaration, NSString *kind)
   if (noteRanges)
     *noteRanges = [[capturedNoteRanges copy] autorelease];
   return document;
+}
+
+// Keep this export independent of the source-preserving native writer. In particular,
+// arbitrary SynthPatch names, wave files, and script variables must never leak into it.
++ (NSData *)nextMusicKitDataForDocument:(ScoreDocument *)document error:(NSError **)error
+{
+  if (!document || [document ticksPerQuarter] == 0)
+    {
+      if (error)
+        *error = ScorefileError (@"A score with a positive tick resolution is required.");
+      return nil;
+    }
+
+  NSArray *notes = [[document notes] sortedArrayUsingSelector:@selector (compareScoreNote:)];
+  NSMutableDictionary *identifiers = [NSMutableDictionary dictionary];
+  NSMutableString *output = [NSMutableString stringWithString:
+    @"/* ScoreMaker export for NeXT MusicKit. All parts use Wave1 (sine).\n"
+     " * Times are seconds at tempo 60. Editing metadata and original timbres are omitted. */\n"
+     "info tempo:60 samplingRate:22050;\n"
+     "envelope smAmplitude = [(0,0)(0.01,1)|(0.06,0)];\n"];
+  for (ScoreNote *note in notes)
+    {
+      if ([note isRest])
+        continue;
+      NSNumber *track = @([note track]);
+      if (![identifiers objectForKey:track])
+        {
+          // Generated ASCII names avoid Unicode, reserved words, and name collisions.
+          NSString *identifier = [NSString stringWithFormat:@"smPart%lu",
+                                    (unsigned long)[identifiers count] + 1];
+          [identifiers setObject:identifier forKey:track];
+          [output appendFormat:@"part %@;\n%@ synthPatch:\"Wave1\";\n", identifier, identifier];
+        }
+    }
+
+  NSArray *tempos = [[document tempoEvents] sortedArrayUsingComparator:
+    ^NSComparisonResult (ScoreTempoEvent *a, ScoreTempoEvent *b) {
+      return [@([a tick]) compare:@([b tick])];
+    }];
+  double (^secondsForTick)(NSUInteger) = ^double (NSUInteger tick) {
+    NSUInteger previousTick = 0;
+    NSUInteger tempo = [document tempoMicrosecondsPerQuarter];
+    if (tempo == 0)
+      tempo = 500000;
+    double seconds = 0.0;
+    for (ScoreTempoEvent *event in tempos)
+      {
+        if ([event tick] > tick)
+          break;
+        seconds += (double)([event tick] - previousTick) * tempo
+                   / (1000000.0 * [document ticksPerQuarter]);
+        previousTick = [event tick];
+        if ([event microsecondsPerQuarter] > 0)
+          tempo = [event microsecondsPerQuarter];
+      }
+    return seconds + (double)(tick - previousTick) * tempo
+                     / (1000000.0 * [document ticksPerQuarter]);
+  };
+
+  [output appendString:@"\nBEGIN;\n"];
+  NSUInteger lastTick = NSNotFound;
+  NSUInteger endTick = [document totalTicks];
+  for (ScoreNote *note in notes)
+    {
+      NSUInteger duration = MAX ((NSUInteger)1, [note durationTicks]);
+      if ([note startTick] > NSUIntegerMax - duration)
+        {
+          if (error)
+            *error = ScorefileError (@"A note extends beyond the supported score duration.");
+          return nil;
+        }
+      NSUInteger noteEnd = [note startTick] + duration;
+      endTick = MAX (endTick, noteEnd);
+      if ([note isRest])
+        continue;
+      double start = secondsForTick ([note startTick]);
+      double frequency = [note playbackFrequency];
+      if (frequency <= 0.0)
+        frequency = 440.0 * pow (2.0, ((double)[note pitch] - 69.0) / 12.0);
+      if (!isfinite (frequency) || frequency <= 0.0)
+        {
+          if (error)
+            *error = ScorefileError (@"A note has an invalid playback frequency.");
+          return nil;
+        }
+      if ([note startTick] != lastTick)
+        {
+          [output appendFormat:@"t %.12g;\n", start];
+          lastTick = [note startTick];
+        }
+      // Set the complete voice on each note; no inherited parameters or external objects.
+      [output appendFormat:@"%@ (%.12g) freq:%.12g amp:0.1 velocity:%lu ampEnv:smAmplitude;\n",
+                           [identifiers objectForKey:@([note track])],
+                           secondsForTick (noteEnd) - start, frequency,
+                           (unsigned long)MIN ((NSUInteger)127, [note velocity])];
+    }
+  [output appendFormat:@"t %.12g;\nEND;\n", secondsForTick (endTick)];
+  return [output dataUsingEncoding:NSASCIIStringEncoding];
 }
 
 + (BOOL)writeDocument:(ScoreDocument *)document

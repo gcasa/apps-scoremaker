@@ -7219,10 +7219,9 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
           break;
         }
     }
-  if (matchingItem)
+  if (matchingItem && [_midiInputManager connectToSource:selectedEndpoint])
     {
       [_midiInputPopUp selectItem:matchingItem];
-      [_midiInputManager connectToSource:selectedEndpoint];
     }
   else
     {
@@ -7244,7 +7243,11 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       [_midiInputPopUp selectItemAtIndex:0];
       NSAlert *alert = [[[NSAlert alloc] init] autorelease];
       [alert setMessageText:@"The MIDI input could not be opened"];
-      [alert setInformativeText:@"Disconnect and reconnect the keyboard, then choose it again."];
+      NSString *detail = [[_midiInputManager lastConnectionError] localizedDescription];
+      [alert setInformativeText:[NSString
+        stringWithFormat:@"%@\n\nChoose the input again to retry. If the keyboard is no longer "
+                          @"listed, check its connection.",
+                         detail ? detail : @"MIDI input is unavailable in this document."]];
       [alert runModal];
     }
   else if (endpoint && ![_realtimeDSP isRunning])
@@ -7786,13 +7789,45 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
   [previousTrack release];
 }
 
+- (void)exportNextMusicKit:(id)sender
+{
+  (void)sender;
+  NSError *error = nil;
+  NSData *data = [ScorefileParser nextMusicKitDataForDocument:[self scoreDocument] error:&error];
+  if (!data)
+    {
+      [self presentError:error];
+      return;
+    }
+  NSSavePanel *panel = [NSSavePanel savePanel];
+  [panel setTitle:@"Export for NeXT MusicKit"];
+  [panel setMessage:@"Uses the NeXT Wave1 sine instrument for every part. Original instrument "
+                    @"sounds, effects, and editing metadata are omitted. Dense scores may "
+                    @"exceed the NeXT DSP's available voices."];
+  [panel setNameFieldStringValue:[NSString stringWithFormat:@"%@-NeXT.score",
+                                  [[self scoreDocument] title] ?: @"Score"]];
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+  [panel setAllowedFileTypes:@[ @"score" ]];
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+  if ([panel runModal] != NSModalResponseOK)
+    return;
+  if (![data writeToURL:[panel URL] options:NSDataWritingAtomic error:&error])
+    [self presentError:error];
+}
+
 - (void)showExportCompatibilityReport:(id)sender
 {
   (void)sender;
   NSPopUpButton *format = [[[NSPopUpButton alloc] initWithFrame:NSMakeRect (0, 0, 360, 26)
                                                       pullsDown:NO] autorelease];
   [format addItemsWithTitles:@[
-    @"ScoreMaker Project", @"MusicXML", @"Standard MIDI", @"MusicKit Scorefile", @"PDF", @"Audio"
+    @"ScoreMaker Project", @"MusicXML", @"Standard MIDI", @"MusicKit Scorefile",
+    @"NeXT MusicKit", @"PDF", @"Audio"
   ]];
   NSAlert *chooser = [[[NSAlert alloc] init] autorelease];
   [chooser setMessageText:@"Export Compatibility Report"];
@@ -7827,6 +7862,15 @@ ScoreMakerSendAllNotesOff (MIDIEndpointRef endpoint)
       status = @"Preserves playable score statements plus ScoreMaker structural metadata.";
       [notes addObject:@"Older MusicKit readers ignore ScoreMaker metadata for voices, advanced "
                        @"notation, layout, routing, and synthesis."];
+    }
+  else if ([selection isEqualToString:@"NeXT MusicKit"])
+    {
+      status = @"Exports ASCII notes for the NeXT Wave1 DSP SynthPatch, with tempo changes "
+               @"baked into note times and durations.";
+      [notes addObject:@"All parts use sine tones. Original timbres, effects, external samples, "
+                       @"source scripts, and editing metadata are omitted."];
+      [notes addObject:@"The receiving player must provide Wave1 and DSP playback. Available "
+                       @"polyphony depends on the NeXT hardware and player configuration."];
     }
   else if ([selection isEqualToString:@"PDF"])
     {

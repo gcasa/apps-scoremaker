@@ -199,6 +199,23 @@ a note also begins playback at that position.
 
 To save the displayed score as a MusicKit-style scorefile, choose `File > Save Score As...`.
 
+For a NeXT running the original MusicKit, choose `Score > Export for NeXT MusicKit...`.
+This writes a separate ASCII `.score` file with the built-in **Wave1** sine-wave DSP
+instrument for every sounding part. It preserves pitches (including exact frequencies),
+velocities, and note timing; tempo changes are baked into seconds at tempo 60. Rests
+become silent gaps. Imported scripts are flattened to their evaluated notes, and custom
+patches, General MIDI programs, external samples, effects, and ScoreMaker editing metadata
+are omitted. Keep the native project for further editing and the original instrument sounds.
+
+Load the exported file in a MusicKit score player configured for DSP playback, with the
+Wave1 SynthPatch available. Dense arrangements can exceed the NeXT DSP's voice capacity.
+The exporter uses the parameters documented in the
+[MusicKit Wave1 source](https://github.com/leighsmith/MusicKit/blob/master/MusicKit/Frameworks/MKSynthPatches/Wave1.h)
+and the envelope/note syntax in its
+[example scores](https://github.com/leighsmith/MusicKit/blob/master/MusicKit/Music/Scorefiles/Examp2.score).
+Automated tests check the generated format and timing; playback on physical NeXT hardware
+has not been verified.
+
 You can also pass a file path directly when launching the built macOS app:
 
 ```sh
